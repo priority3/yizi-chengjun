@@ -1,11 +1,18 @@
-// Scene manager plus the title and level-select screens.
-import { LEVELS } from '../config/levels.ts';
+// Scene manager plus the title screen and the chapter select screen.
+import { CHAPTERS } from '../config/chapters.ts';
+import { ENEMIES } from '../config/enemies.ts';
 import { loadProgress, saveProgress, type Progress, type Stage } from '../platform/web.ts';
-import { drawToken, roundRect, text } from '../render/draw.ts';
-import { H, inRect, W, type Rect } from '../render/layout.ts';
-import { drawButton } from './hud.ts';
+import { paintBackground } from '../render/background.ts';
+import { fitPx, outlined, roundRect, text } from '../render/draw.ts';
+import { brush, sans } from '../render/fonts.ts';
+import { drawPortrait, type PortraitId } from '../render/heroes-art.ts';
+import { inRect, L, W, type Rect } from '../render/layout.ts';
+import { monsterSprite } from '../render/monsters-art.ts';
+import { NUMERALS } from '../render/panels.ts';
+import { blit, sprites } from '../render/sprites.ts';
+import { drawButton } from '../render/widgets.ts';
+import { GameScene } from './game-scene.ts';
 import type { GestureHandlers, Pointer } from './input.ts';
-import { MatchScene } from './match-scene.ts';
 
 export interface Scene extends GestureHandlers {
   update(dt: number): void;
@@ -17,8 +24,8 @@ export interface Scene extends GestureHandlers {
 export interface Nav {
   readonly progress: Progress;
   title(): void;
-  levels(): void;
-  play(level: number): void;
+  chapters(): void;
+  play(chapter: number): void;
   save(): void;
 }
 
@@ -29,20 +36,20 @@ export class SceneManager implements Nav {
 
   constructor(stage: Stage) {
     this.stage = stage;
-    this.progress = loadProgress();
-    this.current = new TitleScene(this);
+    this.progress = loadProgress(CHAPTERS.length);
+    this.current = new TitleScene(this, stage);
   }
 
   title(): void {
-    this.current = new TitleScene(this);
+    this.current = new TitleScene(this, this.stage);
   }
 
-  levels(): void {
-    this.current = new LevelScene(this);
+  chapters(): void {
+    this.current = new ChapterScene(this, this.stage);
   }
 
-  play(level: number): void {
-    this.current = new MatchScene(this.stage, level, this);
+  play(chapter: number): void {
+    this.current = new GameScene(this.stage, chapter, this);
   }
 
   save(): void {
@@ -50,29 +57,28 @@ export class SceneManager implements Nav {
   }
 }
 
-function drawBackdrop(ctx: CanvasRenderingContext2D): void {
-  const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#3a1612');
-  g.addColorStop(1, '#16100d');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
+/** The painted battlefield, darkened, behind menus. */
+function backdrop(ctx: CanvasRenderingContext2D, stage: Stage, dim: number): void {
+  const img = sprites.get(`bg:${stage.pixelRatio}:${L.H}`, W, L.H, (c) => paintBackground(c, L.H));
+  ctx.drawImage(img, 0, 0, W, L.H);
+  ctx.fillStyle = `rgba(28,14,6,${dim})`;
+  ctx.fillRect(0, 0, W, L.H);
 }
 
-const START_BTN: Rect = { x: 90, y: 430, w: 180, h: 56 };
-const DRIFT_GLYPHS = '悟空八戒沙僧白龙棍箭火冰雷神速钱';
-const RULES = [
-  '① 点「化缘」抽字，字会落进空格',
-  '② 同字同级拖到一起，升一级',
-  '③ 凑齐「悟」「空」这样的名字，觉醒英雄',
-  '④ 守住唐僧：六耳猕猴先倒，你就赢',
-];
+const HEROES: PortraitId[] = ['悟空', '八戒', '沙僧', '白龙'];
 
 class TitleScene implements Scene {
   private readonly nav: Nav;
+  private readonly stage: Stage;
   private t = 0;
 
-  constructor(nav: Nav) {
+  constructor(nav: Nav, stage: Stage) {
     this.nav = nav;
+    this.stage = stage;
+  }
+
+  private startRect(): Rect {
+    return { x: 90, y: L.H * 0.66, w: 180, h: 56 };
   }
 
   update(dt: number): void {
@@ -80,78 +86,88 @@ class TitleScene implements Scene {
   }
 
   render(ctx: CanvasRenderingContext2D): void {
-    drawBackdrop(ctx);
+    backdrop(ctx, this.stage, 0.5);
+    const ty = L.H * 0.24;
     ctx.save();
-    for (let i = 0; i < DRIFT_GLYPHS.length; i++) {
-      const x = ((i * 53 + this.t * (8 + (i % 4) * 3)) % (W + 60)) - 30;
-      const y = 50 + ((i * 97) % 540);
-      ctx.globalAlpha = 0.07 + (i % 3) * 0.03;
-      text(ctx, DRIFT_GLYPHS[i], x, y, 26 + (i % 3) * 10, '#ffd98a');
-    }
+    ctx.shadowColor = 'rgba(255,170,60,0.6)';
+    ctx.shadowBlur = 22;
+    outlined(ctx, '字斗西游', W / 2, ty, brush(66), '#ffd66b', 'rgba(40,14,4,0.95)', 6);
     ctx.restore();
-    ctx.save();
-    ctx.shadowColor = 'rgba(255,170,60,0.55)';
-    ctx.shadowBlur = 18;
-    text(ctx, '字斗西游', W / 2, 190, 54, '#ffd66b');
-    ctx.restore();
-    text(ctx, '西游文字合成塔防 · 分屏对战', W / 2, 242, 14, '#e8d5b0', 'center', 500);
-    RULES.forEach((r, i) => text(ctx, r, W / 2, 306 + i * 26, 12, '#cdb893', 'center', 500));
-    drawButton(ctx, START_BTN, '开始游戏', 'primary');
-    text(ctx, '六耳猕猴：你玩不过我吧？', W / 2, 530, 12, '#a8977c', 'center', 500);
+    outlined(ctx, '西游文字塔防', W / 2, ty + 54, brush(22), '#fbeed2', 'rgba(40,14,4,0.9)', 4);
+    HEROES.forEach((h, i) => {
+      const x = 60 + i * 80;
+      const y = L.H * 0.47 + Math.sin(this.t * 3 + i) * 4;
+      ctx.beginPath();
+      ctx.arc(x, y, 30, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,240,210,0.18)';
+      ctx.fill();
+      drawPortrait(ctx, h, x, y, 25);
+      outlined(ctx, h, x, y + 42, brush(16), '#fbeed2', 'rgba(40,14,4,0.9)', 3);
+    });
+    drawButton(ctx, this.startRect(), '开始游戏', 'primary');
+    text(ctx, '商店买字拖上阵地 · 同字合成升级 · 凑齐名字觉醒英雄', W / 2, L.H * 0.66 + 82, sans(11, 500), '#e8d5b0');
   }
 
   tap(p: Pointer): void {
-    if (inRect(p.x, p.y, START_BTN)) this.nav.levels();
+    if (inRect(p.x, p.y, this.startRect())) this.nav.chapters();
   }
 }
 
-const BACK_BTN: Rect = { x: 12, y: 18, w: 64, h: 32 };
-const NUMERALS = ['一', '二', '三', '四', '五'];
+const BACK: Rect = { x: 12, y: 16, w: 66, h: 34 };
 
-function cardRect(i: number): Rect {
-  return { x: 24, y: 92 + i * 96, w: 312, h: 82 };
+function chapterRect(i: number): Rect {
+  const col = i % 2;
+  const row = Math.floor(i / 2);
+  const top = 72 + Math.max(0, (L.H - 640) * 0.35);
+  return { x: 14 + col * 172, y: top + row * 102, w: 160, h: 92 };
 }
 
-class LevelScene implements Scene {
+class ChapterScene implements Scene {
   private readonly nav: Nav;
+  private readonly stage: Stage;
 
-  constructor(nav: Nav) {
+  constructor(nav: Nav, stage: Stage) {
     this.nav = nav;
+    this.stage = stage;
   }
 
   update(): void {}
 
   render(ctx: CanvasRenderingContext2D): void {
-    drawBackdrop(ctx);
-    drawButton(ctx, BACK_BTN, '返回', 'ghost');
-    text(ctx, '选择关卡', W / 2, 34, 20, '#ffd66b');
+    backdrop(ctx, this.stage, 0.62);
+    drawButton(ctx, BACK, '返回', 'ghost');
+    outlined(ctx, '选择章节', W / 2, 33, brush(26), '#ffd66b', 'rgba(40,14,4,0.9)', 4);
     const { unlocked, wins } = this.nav.progress;
-    LEVELS.forEach((lv, i) => {
-      const r = cardRect(i);
-      const open = lv.id <= unlocked;
-      ctx.fillStyle = open ? '#f3e7cc' : '#5a514a';
+    CHAPTERS.forEach((ch, i) => {
+      const r = chapterRect(i);
+      const open = ch.id <= unlocked;
       roundRect(ctx, r.x, r.y, r.w, r.h, 14);
+      ctx.fillStyle = open ? '#f6ead0' : '#6a6058';
       ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = open ? '#b8862c' : '#3d3834';
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = open ? '#b8862c' : '#4a4440';
       ctx.stroke();
-      const ink = open ? '#3b2a1e' : '#a39a90';
-      drawToken(ctx, NUMERALS[i], r.x + 38, r.y + r.h / 2, 22, open ? '#6b1c1c' : '#3d3834', open ? '#e0b040' : '#6a625c', open ? '#ffe08a' : '#a39a90');
-      text(ctx, `第${NUMERALS[i]}关 · ${lv.name}`, r.x + 74, r.y + 30, 17, ink, 'left');
-      text(ctx, `Boss：${lv.boss5} / ${lv.boss10}`, r.x + 74, r.y + 56, 12, open ? '#7a6248' : '#8c837a', 'left', 500);
-      const state = !open ? '未解锁' : wins[i] > 0 ? `已胜 ${wins[i]} 场` : '挑战';
-      text(ctx, state, r.x + r.w - 16, r.y + r.h / 2, 13, open ? (wins[i] > 0 ? '#2f7d32' : '#b3261e') : '#a39a90', 'right');
+      const { img, box } = monsterSprite(ch.boss);
+      ctx.save();
+      if (!open) ctx.globalAlpha = 0.35;
+      blit(ctx, img, r.x + 36, r.y + 48, box, box, 60 / box);
+      ctx.restore();
+      const ink = open ? '#3b2a1e' : '#b0a698';
+      text(ctx, `第${NUMERALS[i]}章`, r.x + 72, r.y + 22, brush(15), open ? '#8a3a22' : ink, 'left');
+      // Reason: four-character names (小雷音寺) would overflow the card at the default size.
+      text(ctx, ch.name, r.x + 72, r.y + 48, brush(fitPx(ctx, ch.name, r.w - 80, 22, brush)), ink, 'left');
+      const state = !open ? '未解锁' : wins[i] > 0 ? '已通关' : `Boss ${ENEMIES[ch.boss].name}`;
+      text(ctx, state, r.x + 72, r.y + 73, sans(10, 700), !open ? '#b0a698' : wins[i] > 0 ? '#2f7d32' : '#b3261e', 'left');
     });
-    text(ctx, '通关一关才会解锁下一关', W / 2, 600, 12, '#a8977c', 'center', 500);
   }
 
   tap(p: Pointer): void {
-    if (inRect(p.x, p.y, BACK_BTN)) {
+    if (inRect(p.x, p.y, BACK)) {
       this.nav.title();
       return;
     }
-    LEVELS.forEach((lv, i) => {
-      if (inRect(p.x, p.y, cardRect(i)) && lv.id <= this.nav.progress.unlocked) this.nav.play(lv.id);
+    CHAPTERS.forEach((ch, i) => {
+      if (inRect(p.x, p.y, chapterRect(i)) && ch.id <= this.nav.progress.unlocked) this.nav.play(ch.id);
     });
   }
 }

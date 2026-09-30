@@ -1,122 +1,95 @@
 import { describe, expect, it } from 'vitest';
-import { recruitCost, START_GONGDE } from '../src/config/levels.ts';
-import {
-  ADJ8,
-  CELL_SLOT,
-  COLS,
-  coverage,
-  drawUnit,
-  PATH_LEN,
-  posAt,
-  recruit,
-  ROAD_CELLS,
-  SLOT_CELLS,
-  SLOT_COUNT,
-} from '../src/core/board.ts';
-import { emptyMatch, put } from './helpers.ts';
+import { HERO_RECIPES } from '../src/config/combos.ts';
+import { MAX_LEVEL } from '../src/config/units.ts';
+import { resolveDrop } from '../src/core/board.ts';
+import type { UnitId } from '../src/core/types.ts';
+import { emptyGame, put } from './helpers.ts';
 
-describe('board geometry', () => {
-  it('has a 13-cell road, a 13-cell path and 22 slots', () => {
-    expect(ROAD_CELLS).toHaveLength(13);
-    expect(PATH_LEN).toBe(13);
-    expect(SLOT_COUNT).toBe(22);
+describe('drag and drop on the camp', () => {
+  it('merges same unit + same level into the target cell', () => {
+    const g = emptyGame();
+    put(g, 5, '棍');
+    put(g, 6, '棍');
+    expect(resolveDrop(g, 5, 6)).toBe('merge');
+    expect(g.slots[5]).toBeNull();
+    expect(g.slots[6]).toMatchObject({ level: 2, invested: 20 });
+    expect(g.events.at(-1)).toMatchObject({ t: 'merge', cell: 6, level: 2 });
   });
 
-  it('maps road distance onto the corners of the S path', () => {
-    const p = { x: 0, y: 0 };
-    expect(posAt(0, p)).toEqual({ x: 1.5, y: 0 });
-    expect(posAt(1.5, p)).toEqual({ x: 1.5, y: 1.5 });
-    expect(posAt(5.5, p)).toEqual({ x: 5.5, y: 1.5 });
-    expect(posAt(7.5, p)).toEqual({ x: 5.5, y: 3.5 });
-    expect(posAt(11.5, p)).toEqual({ x: 1.5, y: 3.5 });
-    expect(posAt(13, p)).toEqual({ x: 1.5, y: 5 });
-    expect(posAt(99, p)).toEqual({ x: 1.5, y: 5 });
+  it('swaps different levels and refuses to pass the max level', () => {
+    const g = emptyGame();
+    put(g, 5, '箭', 1);
+    put(g, 6, '箭', 2);
+    expect(resolveDrop(g, 5, 6)).toBe('swap');
+    expect(g.slots[5]?.level).toBe(2);
+    put(g, 8, '雷', MAX_LEVEL);
+    put(g, 9, '雷', MAX_LEVEL);
+    expect(resolveDrop(g, 8, 9)).toBe('invalid');
+    expect(g.slots[8]).not.toBeNull();
   });
 
-  it('walks through the centre of every road cell', () => {
-    const p = { x: 0, y: 0 };
-    for (const [r, c] of ROAD_CELLS) {
-      let found = false;
-      for (let d = 0; d <= PATH_LEN; d += 0.05) {
-        posAt(d, p);
-        if (Math.abs(p.x - (c + 0.5)) < 0.03 && Math.abs(p.y - (r + 0.5)) < 0.03) found = true;
-      }
-      expect(found, `road cell ${r},${c}`).toBe(true);
-    }
+  it('keeps 神 through a merge from either tile', () => {
+    const g = emptyGame();
+    put(g, 5, '火', 1, true);
+    put(g, 6, '火', 1, false);
+    resolveDrop(g, 5, 6);
+    expect(g.slots[6]).toMatchObject({ id: '火', level: 2, divine: true });
   });
 
-  it('keeps the slot tables consistent', () => {
-    SLOT_CELLS.forEach(([r, c], i) => expect(CELL_SLOT[r * COLS + c]).toBe(i));
-    for (const [r, c] of ROAD_CELLS) expect(CELL_SLOT[r * COLS + c]).toBe(-1);
-  });
-
-  it('has a symmetric neighbour table', () => {
-    ADJ8.forEach((ns, i) => ns.forEach((j) => expect(ADJ8[j]).toContain(i)));
-  });
-
-  it('ranks slots between two road segments above corner slots', () => {
-    const middle = CELL_SLOT[2 * COLS + 3];
-    const corner = CELL_SLOT[0 * COLS + 6];
-    expect(coverage(middle, 1.5)).toBeGreaterThan(2 * coverage(corner, 1.5));
-    expect(coverage(middle, Infinity)).toBe(PATH_LEN);
-  });
-});
-
-describe('化缘 (recruit)', () => {
-  it('charges an escalating price and places a level-1 tile', () => {
-    const m = emptyMatch();
-    const side = m.sides[0];
-    expect(recruit(m, 0)).toBe('ok');
-    expect(recruit(m, 0)).toBe('ok');
-    expect(side.gongde).toBe(START_GONGDE - recruitCost(0) - recruitCost(1));
-    const tiles = side.slots.filter((t) => t !== null);
-    expect(tiles).toHaveLength(2);
-    expect(tiles.every((t) => t.level === 1 && !t.divine)).toBe(true);
-    expect(side.drawCount).toBe(2);
-  });
-
-  it('rejects when too poor or when the board is full', () => {
-    const m = emptyMatch();
-    m.sides[0].gongde = 5;
-    expect(recruit(m, 0)).toBe('poor');
-    m.sides[0].gongde = 1000;
-    for (let i = 0; i < SLOT_COUNT; i++) put(m, 0, i, '棍');
-    expect(recruit(m, 0)).toBe('full');
-    expect(m.sides[0].gongde).toBe(1000);
-  });
-
-  it('gives both sides identical draws from the same seed', () => {
-    const m = emptyMatch(1, 42);
-    for (let i = 0; i < 5; i++) {
-      recruit(m, 0);
-      recruit(m, 1);
-    }
-    expect(m.sides[0].slots.map((t) => t?.id ?? null)).toEqual(m.sides[1].slots.map((t) => t?.id ?? null));
-  });
-
-  it('never draws 神 during the first six draws', () => {
-    for (let seed = 1; seed <= 300; seed++) {
-      const side = emptyMatch(1, seed).sides[0];
-      for (let n = 0; n < 6; n++) {
-        expect(drawUnit(side)).not.toBe('神');
-        side.drawCount++;
+  it('awakens every hero from its two fragments, in either order', () => {
+    for (const r of HERO_RECIPES) {
+      for (const [x, y] of [
+        [r.a, r.b],
+        [r.b, r.a],
+      ] as const) {
+        const g = emptyGame();
+        put(g, 5, x);
+        put(g, 10, y);
+        expect(resolveDrop(g, 5, 10)).toBe('hero');
+        expect(g.slots[5]).toBeNull();
+        expect(g.slots[10]).toMatchObject({ id: r.hero, level: 1, invested: 20 });
+        expect(g.events.at(-1)).toMatchObject({ t: 'hero', cell: 10, from: 5 });
       }
     }
   });
 
-  it('prefers the missing partner of a fragment already on the board', () => {
-    let partner = 0;
-    let fragments = 0;
-    for (let seed = 1; seed <= 400; seed++) {
-      const m = emptyMatch(1, seed);
-      put(m, 0, 0, '悟');
-      const side = m.sides[0];
-      side.drawCount = 10;
-      const id = drawUnit(side);
-      if (['悟', '空', '八', '戒', '沙', '僧', '白', '龙'].includes(id)) fragments++;
-      if (id === '空') partner++;
+  it('applies 神 to fighters only', () => {
+    const g = emptyGame();
+    put(g, 5, '神');
+    put(g, 6, '雷');
+    expect(resolveDrop(g, 5, 6)).toBe('divine');
+    expect(g.slots[6]).toMatchObject({ id: '雷', divine: true });
+    const bad: Array<[UnitId, boolean]> = [
+      ['速', false],
+      ['悟', false],
+      ['神', false],
+      ['箭', true],
+    ];
+    for (const [id, divine] of bad) {
+      const h = emptyGame();
+      put(h, 5, '神');
+      put(h, 6, id, 1, divine);
+      expect(resolveDrop(h, 5, 6), id).toBe('invalid');
     }
-    // Reason: 60% partner chance plus the 1/8 uniform share -> roughly 65% of fragment draws are 空.
-    expect(partner / fragments).toBeGreaterThan(0.5);
+  });
+
+  it('refuses to stack identical fragments', () => {
+    const g = emptyGame();
+    put(g, 5, '八');
+    put(g, 6, '八');
+    expect(resolveDrop(g, 5, 6)).toBe('invalid');
+  });
+
+  it('moves into empty cells, refuses locked ones, and sells for half', () => {
+    const g = emptyGame();
+    const t = put(g, 5, '冰');
+    t.invested = 25;
+    expect(resolveDrop(g, 5, 0)).toBe('locked');
+    expect(resolveDrop(g, 5, 7)).toBe('move');
+    expect(g.slots[7]).toBe(t);
+    const before = g.gongde;
+    expect(resolveDrop(g, 7, 'sell')).toBe('sold');
+    expect(g.gongde).toBe(before + 12);
+    expect(g.slots[7]).toBeNull();
   });
 });

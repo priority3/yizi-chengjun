@@ -1,8 +1,5 @@
 // Plain-data types shared by the deterministic simulation. Nothing here touches the DOM,
-// so a whole match can be snapshotted, hashed and replayed in tests.
-
-/** 0 = player (bottom half), 1 = AI opponent (top half). */
-export type SideId = 0 | 1;
+// so a whole run can be snapshotted, hashed and replayed in tests.
 
 export type AttackId = '棍' | '箭' | '火' | '冰' | '雷';
 export type SupportId = '速' | '钱' | '疗';
@@ -12,17 +9,23 @@ export type UnitId = AttackId | SupportId | FragId | HeroId | '神';
 
 export type UnitKind = 'attack' | 'hero' | 'support' | 'fragment' | 'divine';
 
+/**
+ * How an attack is delivered. Projectile shots travel and deal damage on arrival;
+ * the others resolve instantly (the renderer still animates them).
+ */
+export type ShotKind = 'arrow' | 'fire' | 'ice' | 'crescent' | 'swing' | 'bolt' | 'beam' | 'slam' | 'dragon' | 'none';
+
 export type UnitFx =
   | { t: 'none' }
   | { t: 'splash'; radius: number; pct: number }
   | { t: 'slow'; pct: number; dur: number }
   | { t: 'stun'; radius: number; dur: number }
-  | { t: 'pierce'; count: number; reach: number }
+  | { t: 'beam'; width: number; count: number }
   | { t: 'execute'; pct: number; bossPct: number }
   | { t: 'global' }
   | { t: 'haste'; pct: number }
   | { t: 'income'; amount: number }
-  | { t: 'heal' };
+  | { t: 'heal'; amount: number };
 
 export interface UnitDef {
   id: UnitId;
@@ -30,14 +33,21 @@ export interface UnitDef {
   /** Short role label for tooltips, e.g. 远程. */
   label: string;
   desc: string;
+  /** Shop price in 功德. */
+  price: number;
   /** Level-1 damage per hit (0 for tiles that never attack). */
   dmg: number;
-  /** Attack range in cells; Infinity means the whole board. */
+  /** Attack range in world pixels; Infinity means the whole field. */
   range: number;
   /** Seconds between attacks or pulses. */
   interval: number;
+  shot: ShotKind;
+  /** Projectile speed in px/s (projectile shots only). */
+  projSpeed: number;
+  /** Pixels an enemy is pushed back per hit. */
+  knockback: number;
   fx: UnitFx;
-  /** Glyph colour. */
+  /** Glyph colour on the card. */
   color: string;
 }
 
@@ -55,125 +65,171 @@ export interface Tile {
 export type BossTrait =
   | { t: 'revive'; times: number; pct: number }
   | { t: 'dash'; every: number; dur: number; mul: number }
+  | { t: 'summon'; every: number; count: number; minion: string }
   | { t: 'immune' }
   | { t: 'armor'; flat: number }
-  | { t: 'regen'; pctPerSec: number };
+  | { t: 'regen'; pctPerSec: number }
+  | { t: 'split'; count: number; minion: string };
 
 export interface EnemyDef {
   id: string;
-  /** Text drawn on the enemy token (1–2 characters). */
+  /** Character shown on the name tag / tooltips. */
   glyph: string;
   name: string;
   hpK: number;
-  /** Cells per second. */
+  /** Pixels per second. */
   speed: number;
   bounty: number;
-  /** Hearts lost when it reaches 唐僧. */
-  leak: number;
+  /** Damage dealt to the camp per attack. */
+  atk: number;
+  atkInterval: number;
+  /** Body radius in world pixels. */
+  radius: number;
   boss: boolean;
+  elite: boolean;
   trait?: BossTrait;
 }
+
+/** 0 = comes through the top gate, 1 = through the bottom gate. */
+export type Lane = 0 | 1;
 
 export interface Enemy {
   uid: number;
   def: string;
   hp: number;
   maxHp: number;
-  speed: number;
-  /** Distance walked along the road in cells; also the targeting priority. */
-  dist: number;
-  /** Board position derived from `dist` (cell units), refreshed every step. */
   x: number;
   y: number;
+  lane: Lane;
+  /** y at which it stops in front of the camp and starts attacking. */
+  stopY: number;
+  speed: number;
   slowPct: number;
   slowT: number;
   stunT: number;
+  atk: number;
+  /** Countdown to the next attack on the camp. */
+  atkT: number;
   revives: number;
-  /** Countdown to the next dash (黄风怪). */
+  /** Countdown for periodic traits (dash / summon). */
   traitT: number;
   dashT: number;
   bounty: number;
-  leak: number;
 }
 
-export interface SideState {
-  slots: (Tile | null)[];
-  enemies: Enemy[];
-  gongde: number;
-  hearts: number;
-  drawCount: number;
-  /** Draw RNG state. Both sides start from the same seed, so the n-th draw matches. */
-  rng: number;
-  kills: number;
-  leaks: number;
-}
-
-export interface AiKnobs {
-  /** Average seconds between decisions. */
-  think: number;
-  /** Probability that a decision is wasted or random. */
-  mistake: number;
-  /** Extra starting 功德 (can be negative). */
-  bonus: number;
-}
-
-export interface AiState {
-  knobs: AiKnobs;
-  rng: number;
-  /** Tick of the next decision. */
-  next: number;
+export interface Projectile {
+  uid: number;
+  kind: ShotKind;
+  unit: UnitId;
+  cell: number;
+  x: number;
+  y: number;
+  /** Target enemy uid; it keeps flying to the last known position if the target dies. */
+  target: number;
+  tx: number;
+  ty: number;
+  speed: number;
+  dmg: number;
+  /** Effect multiplier of the tile that fired it (level / 神). */
+  fxK: number;
+  divine: boolean;
 }
 
 export interface Spawn {
+  /** Seconds after the wave started. */
   at: number;
   def: string;
+  lane: Lane;
+  /** Horizontal spawn position (world px). */
+  x: number;
   hp: number;
   speed: number;
   bounty: number;
-  leak: number;
 }
 
-export type Action = { t: 'recruit' } | { t: 'drop'; from: number; to: number | 'sell' };
+export interface ShopOffer {
+  id: UnitId;
+  price: number;
+  sold: boolean;
+}
 
-export type RecruitResult = 'ok' | 'poor' | 'full';
-export type DropResult = 'merge' | 'hero' | 'divine' | 'move' | 'swap' | 'sold' | 'invalid' | 'none';
+export type Phase = 'build' | 'battle' | 'won' | 'lost';
+
+export type Action =
+  | { t: 'buy'; offer: number; cell: number }
+  | { t: 'drop'; from: number; to: number | 'sell' }
+  | { t: 'refresh' }
+  | { t: 'unlock'; cell: number }
+  | { t: 'start' };
+
+export type ActionResult =
+  | 'ok'
+  | 'merge'
+  | 'hero'
+  | 'divine'
+  | 'move'
+  | 'swap'
+  | 'sold'
+  | 'poor'
+  | 'locked'
+  | 'occupied'
+  | 'invalid'
+  | 'phase'
+  | 'none';
 
 export type SimEvent =
-  | { t: 'hit'; side: SideId; slot: number; x: number; y: number; unit: UnitId }
-  | { t: 'kill'; side: SideId; x: number; y: number; bounty: number; boss: boolean }
-  | { t: 'leak'; side: SideId; hearts: number }
-  | { t: 'revive'; side: SideId; x: number; y: number }
-  | { t: 'recruit'; side: SideId; slot: number; unit: UnitId }
-  | { t: 'merge'; side: SideId; slot: number; level: number }
-  | { t: 'hero'; side: SideId; slot: number; unit: UnitId }
-  | { t: 'divine'; side: SideId; slot: number }
-  | { t: 'sell'; side: SideId; slot: number; amount: number }
-  | { t: 'invalid'; side: SideId; slot: number; msg: string }
-  | { t: 'income'; side: SideId; slot: number; amount: number }
-  | { t: 'heal'; side: SideId; slot: number }
-  | { t: 'wave'; wave: number; boss: string | null; overtime: number }
-  | { t: 'end'; winner: SideId; reason: EndReason };
+  | { t: 'shot'; kind: ShotKind; unit: UnitId; cell: number; x: number; y: number; tx: number; ty: number; divine: boolean }
+  | { t: 'hit'; uid: number; x: number; y: number; unit: UnitId; dmg: number }
+  | { t: 'impact'; kind: ShotKind; unit: UnitId; x: number; y: number }
+  | { t: 'kill'; def: string; x: number; y: number; bounty: number }
+  | { t: 'campHit'; x: number; y: number; dmg: number }
+  | { t: 'revive'; x: number; y: number }
+  | { t: 'split'; x: number; y: number }
+  | { t: 'summon'; x: number; y: number }
+  | { t: 'execute'; x: number; y: number }
+  | { t: 'buy'; cell: number; unit: UnitId }
+  | { t: 'merge'; cell: number; level: number }
+  | { t: 'hero'; cell: number; unit: UnitId; from: number }
+  | { t: 'divine'; cell: number }
+  | { t: 'sell'; cell: number; amount: number }
+  | { t: 'invalid'; cell: number; msg: string }
+  | { t: 'income'; cell: number; amount: number }
+  | { t: 'heal'; cell: number; amount: number }
+  | { t: 'unlock'; cell: number }
+  | { t: 'refresh' }
+  | { t: 'waveStart'; wave: number; boss: string | null; elite: boolean }
+  | { t: 'waveClear'; wave: number; bonus: number }
+  | { t: 'won' }
+  | { t: 'lost' };
 
-export type Phase = 'prep' | 'waves' | 'overtime' | 'over';
-export type EndReason = 'ko' | 'double_ko' | 'tiebreak';
-
-export interface MatchState {
+export interface GameState {
   seed: number;
-  level: number;
+  chapter: number;
   tick: number;
   phase: Phase;
-  /** Regular wave number (1..10). */
+  /** Current wave (1-based) during battle; waves already cleared during build. */
   wave: number;
-  /** Overtime wave number (0 = not in overtime yet). */
-  overtime: number;
-  nextWaveAt: number;
-  /** Pending spawns, sorted by `at`. */
+  totalWaves: number;
+  /** Seconds since the current wave started. */
+  waveTime: number;
+  gongde: number;
+  campHp: number;
+  campMax: number;
+  unlocked: boolean[];
+  /** Extra cells bought so far (drives the unlock price). */
+  unlockCount: number;
+  slots: (Tile | null)[];
+  enemies: Enemy[];
+  projectiles: Projectile[];
+  /** Pending spawns of the current wave, sorted by `at`. */
   spawns: Spawn[];
-  sides: [SideState, SideState];
-  ai: [AiState | null, AiState | null];
+  shop: ShopOffer[];
+  /** Refreshes used in the current build phase (drives the refresh price). */
+  refreshes: number;
+  /** Gameplay RNG state (shop offers, spawn positions). */
+  rng: number;
+  kills: number;
   /** Events produced since the current step started (read by the renderer after each step / action). */
   events: SimEvent[];
-  winner: SideId | null;
-  endReason: EndReason | null;
   nextUid: number;
 }

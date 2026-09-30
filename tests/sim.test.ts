@@ -1,33 +1,23 @@
-// Headless AI-vs-AI matches with fixed seeds: robust balance guarantees, never flaky.
+// Headless chapter runs played by the bot with fixed seeds: robust balance guarantees, never flaky.
 import { describe, expect, it } from 'vitest';
-import { LEVELS } from '../src/config/levels.ts';
-import { MAX_SIM_TICKS, runMatch } from '../src/core/sim.ts';
+import { CHAPTERS } from '../src/config/chapters.ts';
+import { MAX_SIM_TICKS, runChapter } from '../src/core/sim.ts';
 
-const SEEDS = Array.from({ length: 24 }, (_, i) => (i + 1) * 104729);
-const easy = LEVELS[0].ai;
-const hard = LEVELS[4].ai;
+const SEEDS = Array.from({ length: 20 }, (_, i) => (i + 1) * 104729);
+const winRate = (chapter: number) => SEEDS.filter((s) => runChapter(s, chapter).won).length / SEEDS.length;
 
-describe('headless simulation', () => {
-  it('always ends within 12 simulated minutes', () => {
-    for (const seed of SEEDS.slice(0, 8)) {
-      for (let level = 1; level <= 5; level++) {
-        const r = runMatch(seed, level, easy, easy);
-        expect(r.winner, `seed ${seed} level ${level}`).not.toBeNull();
-        expect(r.ticks).toBeLessThan(MAX_SIM_TICKS);
-      }
+describe('headless chapter runs', () => {
+  it('always end well before the time cap', () => {
+    for (const ch of CHAPTERS) {
+      for (const seed of SEEDS.slice(0, 4)) expect(runChapter(seed, ch.id).ticks, `chapter ${ch.id}`).toBeLessThan(MAX_SIM_TICKS);
     }
   });
 
-  it('replays identically from the same seed', () => {
-    expect(runMatch(SEEDS[3], 3, easy, hard).hash).toBe(runMatch(SEEDS[3], 3, easy, hard).hash);
+  it('let the bot clear chapter 1 most of the time', () => {
+    expect(winRate(1)).toBeGreaterThanOrEqual(0.8);
   });
 
-  it('level-5 AI beats level-1 AI at least 70% of the time', () => {
-    let hardWins = 0;
-    for (const seed of SEEDS) {
-      if (runMatch(seed, 3, hard, easy).winner === 0) hardWins++;
-      if (runMatch(seed, 3, easy, hard).winner === 1) hardWins++;
-    }
-    expect(hardWins / (SEEDS.length * 2)).toBeGreaterThanOrEqual(0.7);
+  it('get harder toward the last chapter', () => {
+    expect(winRate(CHAPTERS.length)).toBeLessThan(winRate(1) - 0.4);
   });
 });

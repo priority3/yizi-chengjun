@@ -1,5 +1,8 @@
-// Entry point: sets up the stage, input and scenes, then runs the render loop.
+// Entry point: sets up the stage, waits for the brush font, then runs the scene loop.
 import { createStage, installGuards } from './platform/web.ts';
+import { loadFonts } from './render/fonts.ts';
+import { L, W } from './render/layout.ts';
+import { sprites } from './render/sprites.ts';
 import { attachGestures } from './ui/input.ts';
 import { SceneManager } from './ui/scenes.ts';
 
@@ -13,8 +16,16 @@ declare global {
 installGuards();
 const root = document.getElementById('app');
 if (!root) throw new Error('#app container is missing');
-
 const stage = createStage(root);
+
+stage.ctx.setTransform(stage.pixelRatio, 0, 0, stage.pixelRatio, 0, 0);
+stage.ctx.fillStyle = '#1d1714';
+stage.ctx.fillRect(0, 0, W, L.H);
+
+if (!(await loadFonts())) console.warn('[字斗西游] brush font not loaded; falling back to the system font');
+// Reason: anything painted before the font arrived used the fallback font.
+sprites.clear();
+
 const scenes = new SceneManager(stage);
 attachGestures(stage, () => scenes.current);
 if (import.meta.env.DEV) window.__zdxy = scenes;

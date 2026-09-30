@@ -1,50 +1,23 @@
-// Balance helper: runs many headless AI-vs-AI matches and prints win rates and match lengths.
-// Usage: pnpm sim [seedsPerRow]   (default 60)
-import { HUMAN_PROXY, LEVELS } from '../src/config/levels.ts';
-import { runMatch, type SimResult } from '../src/core/sim.ts';
-import type { AiKnobs } from '../src/core/types.ts';
+// Balance helper: the bot plays every chapter with many seeds; prints win rates and how far it got.
+// Usage: pnpm sim [seedsPerChapter]   (default 40)
+import { CHAPTERS } from '../src/config/chapters.ts';
+import { DEFAULT_BOT } from '../src/core/bot.ts';
+import { runChapter } from '../src/core/sim.ts';
 
-const seeds = Number(process.argv[2] ?? 60);
+const seeds = Number(process.argv[2] ?? 40);
 
-interface Row {
-  label: string;
-  winRate: number;
-  avgMinutes: number;
-  avgEndWave: string;
-  reasons: string;
-}
-
-/** Plays `seeds` matches of a (side 0) vs b (side 1) and summarises them from side 0's point of view. */
-function summarise(label: string, level: number, a: AiKnobs, b: AiKnobs): Row {
-  const results: SimResult[] = [];
-  for (let s = 1; s <= seeds; s++) results.push(runMatch(s * 7919, level, a, b));
-  const wins = results.filter((r) => r.winner === 0).length;
-  const ticks = results.reduce((sum, r) => sum + r.ticks, 0) / results.length;
-  const endWave = results.reduce((sum, r) => sum + r.wave + r.overtime, 0) / results.length;
-  const reasons = new Map<string, number>();
-  for (const r of results) reasons.set(r.reason ?? 'timeout', (reasons.get(r.reason ?? 'timeout') ?? 0) + 1);
+const rows = CHAPTERS.map((ch) => {
+  const runs = Array.from({ length: seeds }, (_, s) => runChapter((s + 1) * 7919, ch.id, DEFAULT_BOT));
+  const wins = runs.filter((r) => r.won);
+  const avg = (f: (r: (typeof runs)[number]) => number, list = runs) => (list.length ? list.reduce((s, r) => s + f(r), 0) / list.length : 0);
   return {
-    label,
-    winRate: wins / results.length,
-    avgMinutes: ticks / 3600,
-    avgEndWave: endWave.toFixed(1),
-    reasons: [...reasons].map(([k, v]) => `${k}:${v}`).join(' '),
+    chapter: `${ch.id} ${ch.name}`,
+    'win %': ((wins.length / runs.length) * 100).toFixed(0),
+    'waves cleared': `${avg((r) => r.wavesCleared).toFixed(1)} / ${ch.waves}`,
+    'camp hp left (wins)': avg((r) => r.campHp, wins).toFixed(0),
+    'avg min': (avg((r) => r.ticks) / 3600).toFixed(1),
   };
-}
+});
 
-const rows: Row[] = [];
-for (const lv of LEVELS) rows.push(summarise(`proxy vs L${lv.id} ${lv.name}`, lv.id, HUMAN_PROXY, lv.ai));
-rows.push(summarise('L5 AI vs L1 AI (at L3)', 3, LEVELS[4].ai, LEVELS[0].ai));
-rows.push(summarise('L1 AI vs L5 AI (at L3)', 3, LEVELS[0].ai, LEVELS[4].ai));
-rows.push(summarise('proxy vs proxy (at L3)', 3, HUMAN_PROXY, HUMAN_PROXY));
-
-console.log(`seeds per row: ${seeds}`);
-console.table(
-  rows.map((r) => ({
-    matchup: r.label,
-    'side-0 win %': (r.winRate * 100).toFixed(0),
-    'avg min': r.avgMinutes.toFixed(1),
-    'end wave (10 + OT)': r.avgEndWave,
-    reasons: r.reasons,
-  })),
-);
+console.log(`bot: ${JSON.stringify(DEFAULT_BOT)} · seeds per chapter: ${seeds}`);
+console.table(rows);

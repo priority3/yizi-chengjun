@@ -1,13 +1,14 @@
-// Browser glue: fits the canvas to the screen (DPR-aware), blocks mobile browser gestures,
-// and persists level progress. Everything platform-specific stays in this file.
-import { H, W } from '../render/layout.ts';
+// Browser glue: fits the canvas to the screen (DPR-aware, adaptive design height), blocks mobile browser
+// gestures, and persists chapter progress. Everything platform-specific stays in this file.
+import { L, MAX_H, MIN_H, setDesignHeight, W } from '../render/layout.ts';
+import { sprites } from '../render/sprites.ts';
 
 export interface Stage {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
   /** Backing-store pixels per design unit (CSS scale x devicePixelRatio). */
   pixelRatio: number;
-  /** Converts a client (CSS pixel) point into design coordinates (the 360x640 space). */
+  /** Converts a client (CSS pixel) point into design coordinates. */
   toDesign(clientX: number, clientY: number): { x: number; y: number };
 }
 
@@ -22,14 +23,16 @@ export function createStage(container: HTMLElement): Stage {
     canvas,
     ctx,
     pixelRatio: 1,
-    toDesign: (cx, cy) => ({ x: ((cx - rect.left) / rect.width) * W, y: ((cy - rect.top) / rect.height) * H }),
+    toDesign: (cx, cy) => ({ x: ((cx - rect.left) / rect.width) * W, y: ((cy - rect.top) / rect.height) * L.H }),
   };
 
   const fit = () => {
     const cs = getComputedStyle(container);
     const w = container.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     const h = container.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-    // Reason: fit by the smaller ratio so the whole 9:16 board is always visible (letterboxed on desktop).
+    // Reason: match the design height to the screen's aspect ratio (within limits) so the art fills tall phones.
+    const H = Math.round(Math.min(MAX_H, Math.max(MIN_H, (W * h) / Math.max(1, w))));
+    setDesignHeight(H);
     const scale = Math.max(0.2, Math.min(w / W, h / H));
     const dpr = Math.min(3, window.devicePixelRatio || 1);
     const cssW = Math.floor(W * scale);
@@ -39,6 +42,7 @@ export function createStage(container: HTMLElement): Stage {
     canvas.width = Math.round(cssW * dpr);
     canvas.height = Math.round(cssH * dpr);
     stage.pixelRatio = canvas.width / W;
+    sprites.setRatio(stage.pixelRatio);
     rect = canvas.getBoundingClientRect();
   };
 
@@ -61,28 +65,29 @@ export function installGuards(): void {
 }
 
 export interface Progress {
-  /** Highest level the player may start (1-based). */
+  /** Highest chapter the player may start (1-based). */
   unlocked: number;
-  /** Wins per level. */
+  /** Clears per chapter. */
   wins: number[];
 }
 
-const STORAGE_KEY = 'zdxy:v1';
+const STORAGE_KEY = 'zdxy:v2';
 let memoryCopy: Progress | null = null;
 
-export function loadProgress(): Progress {
+export function loadProgress(chapters: number): Progress {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const p = JSON.parse(raw) as Partial<Progress>;
       if (typeof p.unlocked === 'number' && Array.isArray(p.wins)) {
-        return { unlocked: p.unlocked, wins: p.wins.map((n) => Number(n) || 0) };
+        const wins = Array.from({ length: chapters }, (_, i) => Number(p.wins?.[i]) || 0);
+        return { unlocked: Math.min(chapters, Math.max(1, p.unlocked)), wins };
       }
     }
   } catch {
     // Storage blocked (private mode / some in-app browsers): fall back to the in-memory copy below.
   }
-  return memoryCopy ?? { unlocked: 1, wins: [0, 0, 0, 0, 0] };
+  return memoryCopy ?? { unlocked: 1, wins: new Array<number>(chapters).fill(0) };
 }
 
 export function saveProgress(p: Progress): void {

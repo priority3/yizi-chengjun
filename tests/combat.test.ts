@@ -1,202 +1,185 @@
 import { describe, expect, it } from 'vitest';
 import { HASTE_CAP, SLOW_CAP } from '../src/config/units.ts';
-import { CELL_SLOT, COLS, PATH_LEN } from '../src/core/board.ts';
-import { computeHaste, DT, findTarget, stepSide } from '../src/core/combat.ts';
+import { computeHaste, findTarget, stepCombat } from '../src/core/combat.ts';
+import { CELL_POS } from '../src/core/grid.ts';
 import { tileInterval } from '../src/core/stats.ts';
-import { emptyMatch, enemy, put } from './helpers.ts';
+import { battle, emptyGame, enemy, put } from './helpers.ts';
 
-/** Slot index of a board cell. */
-const at = (row: number, col: number) => CELL_SLOT[row * COLS + col];
-/** Slot between the two horizontal road segments (row 2, col 3). */
-const MID = at(2, 3);
+/** Cell 5 is row 1, col 1: centre (151, 231). The top-lane stop line for a 妖 is y = 129. */
+const C5 = CELL_POS[5];
+
+function runTicks(g: ReturnType<typeof emptyGame>, n: number): void {
+  for (let i = 0; i < n; i++) stepCombat(g);
+}
 
 describe('targeting', () => {
-  it('shoots the enemy in range that has walked furthest', () => {
-    const m = emptyMatch();
-    const t = put(m, 0, MID, '箭');
-    enemy(m, 0, '妖', 3); // row 1, x = 3.0
-    const far = enemy(m, 0, '妖', 9); // row 3, x = 4.0
-    enemy(m, 0, '妖', 0.2); // near the portal, out of range
-    expect(findTarget(m.sides[0], t, MID)).toBe(far);
-  });
-
-  it('finds nothing out of range', () => {
-    const m = emptyMatch();
-    const t = put(m, 0, at(0, 6), '棍');
-    enemy(m, 0, '妖', 11); // row 3, x = 2.0
-    expect(findTarget(m.sides[0], t, at(0, 6))).toBeNull();
+  it('shoots the enemy in range that is closest to biting the camp', () => {
+    const g = battle(emptyGame());
+    const t = put(g, 5, '箭');
+    enemy(g, '妖', C5.x, 60);
+    const near = enemy(g, '妖', C5.x, 120);
+    enemy(g, '妖', C5.x, 470); // bottom lane, 239 px away: out of range
+    expect(findTarget(g, t, 5)).toBe(near);
   });
 
   it('does not bank cooldown while idle', () => {
-    const m = emptyMatch();
-    const t = put(m, 0, MID, '雷');
-    for (let i = 0; i < 300; i++) stepSide(m, 0);
+    const g = battle(emptyGame());
+    const t = put(g, 5, '雷');
+    runTicks(g, 200);
     expect(t.cd).toBe(0);
-    enemy(m, 0, '妖', 9);
-    stepSide(m, 0);
-    stepSide(m, 0);
-    const hits = m.events.filter((e) => e.t === 'hit').length;
-    expect(hits).toBeLessThanOrEqual(1);
-    expect(t.cd).toBeGreaterThan(tileInterval(t) - 3 * DT);
+    enemy(g, '妖', C5.x, 120);
+    runTicks(g, 2);
+    // Exactly one bolt: the idle time was not saved up into a burst.
+    expect(g.events.filter((e) => e.t === 'shot')).toHaveLength(1);
+    expect(t.cd).toBeGreaterThan(tileInterval(t) - 0.1);
   });
 });
 
-describe('effects', () => {
-  it('火 splashes 60% onto neighbours of the target', () => {
-    const m = emptyMatch();
-    put(m, 0, MID, '火');
-    const target = enemy(m, 0, '妖', 9);
-    const near = enemy(m, 0, '妖', 8.5);
-    const farAway = enemy(m, 0, '妖', 12.5);
-    stepSide(m, 0);
-    expect(target.maxHp - target.hp).toBeCloseTo(8);
-    expect(near.maxHp - near.hp).toBeCloseTo(4.8);
-    expect(farAway.hp).toBe(farAway.maxHp);
+describe('projectiles', () => {
+  it('deal damage only when they arrive', () => {
+    const g = battle(emptyGame());
+    put(g, 5, '箭');
+    const e = enemy(g, '妖', C5.x, 120);
+    stepCombat(g);
+    expect(g.projectiles).toHaveLength(1);
+    expect(e.hp).toBe(e.maxHp);
+    runTicks(g, 15);
+    expect(g.projectiles).toHaveLength(0);
+    expect(e.maxHp - e.hp).toBeCloseTo(8);
   });
 
-  it('冰 slows, caps the slow, and 红孩儿 ignores it', () => {
-    const m = emptyMatch();
-    put(m, 0, MID, '冰', 5, true);
-    const imp = enemy(m, 0, '妖', 9);
-    stepSide(m, 0);
-    expect(imp.slowPct).toBe(SLOW_CAP);
+  it('火 bursts on impact and splashes 60% onto neighbours', () => {
+    const g = battle(emptyGame());
+    put(g, 5, '火');
+    const target = enemy(g, '妖', C5.x, 120);
+    const near = enemy(g, '妖', C5.x + 20, 118);
+    const far = enemy(g, '妖', C5.x + 110, 118);
+    runTicks(g, 30);
+    expect(target.maxHp - target.hp).toBeCloseTo(9);
+    expect(near.maxHp - near.hp).toBeCloseTo(5.4);
+    expect(far.hp).toBe(far.maxHp);
+  });
 
-    const m2 = emptyMatch();
-    put(m2, 0, MID, '冰');
-    const boss = enemy(m2, 0, '红孩儿', 9);
-    stepSide(m2, 0);
+  it('冰 slows (capped), and 红孩儿 ignores it', () => {
+    const g = battle(emptyGame());
+    put(g, 5, '冰', 5, true);
+    const imp = enemy(g, '妖', C5.x, 120);
+    runTicks(g, 20);
+    expect(imp.slowPct).toBe(SLOW_CAP);
+    const h = battle(emptyGame());
+    put(h, 5, '冰');
+    const boss = enemy(h, '红孩儿', C5.x, 110);
+    runTicks(h, 20);
     expect(boss.slowPct).toBe(0);
   });
 
-  it('八戒 stuns minions fully and bosses for half as long', () => {
-    const m = emptyMatch();
-    put(m, 0, MID, '八戒');
-    const imp = enemy(m, 0, '妖', 9);
-    const boss = enemy(m, 0, '黑熊精', 8.9);
-    stepSide(m, 0);
-    expect(imp.stunT).toBeCloseTo(0.8);
-    expect(boss.stunT).toBeCloseTo(0.4);
-  });
-
-  it('悟空 pierces through at most two enemies behind the target', () => {
-    const m = emptyMatch();
-    put(m, 0, MID, '悟空');
-    const lead = enemy(m, 0, '妖', 9.5);
-    const b1 = enemy(m, 0, '妖', 9.0);
-    const b2 = enemy(m, 0, '妖', 8.6);
-    const b3 = enemy(m, 0, '妖', 8.4);
-    stepSide(m, 0);
-    for (const e of [lead, b1, b2]) expect(e.hp).toBeLessThan(e.maxHp);
-    expect(b3.hp).toBe(b3.maxHp);
-  });
-
-  it('沙僧 executes weakened minions but needs bosses lower', () => {
-    const m = emptyMatch();
-    put(m, 0, MID, '沙僧');
-    const imp = enemy(m, 0, '妖', 9, 200);
-    imp.hp = 55; // 55 - 30 = 25 < 15% of 200
-    stepSide(m, 0);
-    expect(m.sides[0].enemies).not.toContain(imp);
-
-    const m2 = emptyMatch();
-    put(m2, 0, MID, '沙僧');
-    const boss = enemy(m2, 0, '黑熊精', 9, 1000);
-    boss.hp = 130; // 130 - 30 = 100: below 15% but above the 5% boss threshold
-    stepSide(m2, 0);
-    expect(boss.hp).toBeCloseTo(100);
-  });
-
-  it('白龙 hits every enemy on its side regardless of distance', () => {
-    const m = emptyMatch();
-    put(m, 0, at(0, 6), '白龙');
-    const es = [enemy(m, 0, '妖', 0.5), enemy(m, 0, '妖', 6), enemy(m, 0, '妖', 12.5)];
-    stepSide(m, 0);
-    for (const e of es) expect(e.hp).toBe(e.maxHp - 6);
-  });
-
-  it('速 hastes its neighbours up to the cap', () => {
-    const m = emptyMatch();
-    put(m, 0, MID, '箭');
-    put(m, 0, at(2, 2), '速');
-    put(m, 0, at(2, 1), '速', 5); // two cells away: no effect on MID
-    expect(computeHaste(m.sides[0])[MID]).toBeCloseTo(0.2);
-    // Reason: MID's only neighbouring slots are (2,2) and (2,4) — rows 1 and 3 are road.
-    put(m, 0, at(2, 2), '速', 5);
-    put(m, 0, at(2, 4), '速', 5);
-    expect(computeHaste(m.sides[0])[MID]).toBe(HASTE_CAP);
-  });
-
-  it('牛魔王 armour reduces every hit but never below 1', () => {
-    const m = emptyMatch();
-    put(m, 0, MID, '冰');
-    const boss = enemy(m, 0, '牛魔王', 9);
-    stepSide(m, 0);
-    expect(boss.maxHp - boss.hp).toBe(1);
-  });
-
-  it('白骨精 revives twice before it finally dies', () => {
-    const m = emptyMatch();
-    const boss = enemy(m, 0, '白骨精', 9, 100);
-    const side = m.sides[0];
-    for (let i = 0; i < 2; i++) {
-      boss.hp = 0;
-      stepSide(m, 0);
-      expect(side.enemies).toContain(boss);
-      expect(boss.hp).toBeCloseTo(35, 0);
-    }
-    boss.hp = 0;
-    stepSide(m, 0);
-    expect(side.enemies).not.toContain(boss);
-    expect(side.kills).toBe(1);
+  it('沙僧 executes weakened minions', () => {
+    const g = battle(emptyGame());
+    put(g, 5, '沙僧');
+    const imp = enemy(g, '妖', C5.x, 120, 200);
+    imp.hp = 55; // 55 - 30 = 25, below 15% of 200
+    runTicks(g, 30);
+    expect(g.enemies).not.toContain(imp);
+    expect(g.events.some((e) => e.t === 'execute')).toBe(true);
   });
 });
 
-describe('economy and hearts', () => {
-  it('pays the bounty on kills', () => {
-    const m = emptyMatch();
-    put(m, 0, MID, '雷');
-    enemy(m, 0, '妖', 9, 10);
-    const before = m.sides[0].gongde;
-    stepSide(m, 0);
-    expect(m.sides[0].gongde).toBe(before + 5);
-    expect(m.sides[0].kills).toBe(1);
+describe('instant attacks', () => {
+  it('八戒 slams the ground: area damage and stun, half as long on bosses', () => {
+    const g = battle(emptyGame());
+    put(g, 5, '八戒');
+    const target = enemy(g, '妖', C5.x, 129);
+    const side = enemy(g, '妖', C5.x + 40, 129);
+    const boss = enemy(g, '白骨精', C5.x - 30, 119);
+    stepCombat(g);
+    expect(target.maxHp - target.hp).toBeCloseTo(24);
+    expect(side.maxHp - side.hp).toBeCloseTo(14.4);
+    expect(target.stunT).toBeCloseTo(0.9);
+    expect(boss.stunT).toBeCloseTo(0.45);
   });
 
-  it('takes hearts when an enemy reaches 唐僧', () => {
-    const m = emptyMatch();
-    enemy(m, 0, '妖', PATH_LEN - 0.001);
-    enemy(m, 0, '黑熊精', PATH_LEN - 0.001);
-    stepSide(m, 0);
-    expect(m.sides[0].hearts).toBe(0);
-    expect(m.sides[0].leaks).toBe(2);
-    expect(m.sides[0].enemies).toHaveLength(0);
+  it('悟空 hits up to four enemies along the staff and nothing off the line', () => {
+    const g = battle(emptyGame());
+    put(g, 5, '悟空');
+    const line = [129, 112, 95, 78, 61].map((y) => enemy(g, '妖', C5.x, y));
+    const off = enemy(g, '妖', C5.x + 70, 100);
+    stepCombat(g);
+    const hit = line.filter((e) => e.hp < e.maxHp);
+    expect(hit).toHaveLength(4);
+    expect(off.hp).toBe(off.maxHp);
   });
 
-  it('钱 pays out every cycle', () => {
-    const m = emptyMatch();
-    const t = put(m, 0, 0, '钱');
-    t.cd = DT / 2;
-    const before = m.sides[0].gongde;
-    stepSide(m, 0);
-    expect(m.sides[0].gongde).toBe(before + 3);
+  it('白龙 hits every enemy on the field', () => {
+    const g = battle(emptyGame());
+    put(g, 0, '白龙');
+    const es = [enemy(g, '妖', 90, -10), enemy(g, '妖', 270, 500), enemy(g, '狼', 180, 60)];
+    stepCombat(g);
+    for (const e of es) expect(e.maxHp - e.hp).toBe(6);
   });
 
-  it('疗 only heals while 唐僧 is hurt, and never in overtime', () => {
-    const m = emptyMatch();
-    const t = put(m, 0, 0, '疗');
-    t.cd = DT / 2;
-    stepSide(m, 0);
-    expect(m.sides[0].hearts).toBe(3);
-    expect(t.cd).toBeCloseTo(tileInterval(t));
+  it('棍 knocks minions back but not bosses', () => {
+    const g = battle(emptyGame());
+    put(g, 1, '棍');
+    const imp = enemy(g, '妖', CELL_POS[1].x, 129);
+    stepCombat(g);
+    expect(imp.y).toBeCloseTo(125);
+    const h = battle(emptyGame());
+    put(h, 1, '棍');
+    const boss = enemy(h, '黄风怪', CELL_POS[1].x, 119);
+    stepCombat(h);
+    expect(boss.y).toBe(119);
+  });
+});
 
-    m.sides[0].hearts = 1;
-    t.cd = DT / 2;
-    stepSide(m, 0);
-    expect(m.sides[0].hearts).toBe(2);
+describe('modifiers and supports', () => {
+  it('速 hastes neighbours up to the cap', () => {
+    const g = emptyGame();
+    put(g, 5, '箭');
+    put(g, 4, '速');
+    expect(computeHaste(g)[5]).toBeCloseTo(0.2);
+    put(g, 4, '速', 5);
+    put(g, 6, '速', 5);
+    expect(computeHaste(g)[5]).toBe(HASTE_CAP);
+  });
 
-    m.phase = 'overtime';
-    t.cd = DT / 2;
-    stepSide(m, 0);
-    expect(m.sides[0].hearts).toBe(2);
+  it('armour reduces every hit but never below 1', () => {
+    const g = battle(emptyGame());
+    put(g, 5, '冰');
+    const boss = enemy(g, '黑熊精', C5.x, 110);
+    runTicks(g, 20);
+    expect(boss.maxHp - boss.hp).toBe(1);
+  });
+
+  it('白骨精 revives once, 蜘蛛精 splits into spiders', () => {
+    const g = battle(emptyGame());
+    const bone = enemy(g, '白骨精', 150, 100, 100);
+    bone.hp = 0;
+    stepCombat(g);
+    expect(g.enemies).toContain(bone);
+    expect(bone.hp).toBeCloseTo(40);
+    bone.hp = 0;
+    stepCombat(g);
+    expect(g.enemies).not.toContain(bone);
+    const spider = enemy(g, '蜘蛛精', 150, 100, 100);
+    spider.hp = 0;
+    stepCombat(g);
+    expect(g.enemies.filter((e) => e.def === '蛛')).toHaveLength(5);
+  });
+
+  it('钱 pays out and 疗 only heals a hurt camp', () => {
+    const g = battle(emptyGame());
+    const money = put(g, 4, '钱');
+    money.cd = 0.001;
+    const before = g.gongde;
+    stepCombat(g);
+    expect(g.gongde).toBe(before + 3);
+    const heal = put(g, 7, '疗');
+    heal.cd = 0.001;
+    stepCombat(g);
+    expect(g.campHp).toBe(g.campMax);
+    g.campHp = 50;
+    heal.cd = 0.001;
+    stepCombat(g);
+    expect(g.campHp).toBe(56);
   });
 });
