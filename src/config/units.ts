@@ -51,7 +51,7 @@ const support = (id: UnitId, label: string, desc: string, price: number, interva
 });
 
 export const UNITS: Record<UnitId, UnitDef> = {
-  棍: { id: '棍', kind: 'attack', label: '近战', desc: '攻速快，只能打阵地边上的妖怪', price: 10, dmg: 10, range: 78, interval: 0.45, shot: 'swing', projSpeed: 0, knockback: 4, fx: { t: 'none' }, color: '#7a3b12' },
+  棍: { id: '棍', kind: 'attack', label: '近战', desc: '攻速快，只能打阵地边上的妖怪', price: 10, dmg: 9, range: 115, interval: 0.45, shot: 'swing', projSpeed: 0, knockback: 4, fx: { t: 'none' }, color: '#7a3b12' },
   箭: { id: '箭', kind: 'attack', label: '远程', desc: '射程最远', price: 10, dmg: 8, range: 200, interval: 0.75, shot: 'arrow', projSpeed: 560, knockback: 0, fx: { t: 'none' }, color: '#2c6e2f' },
   火: { id: '火', kind: 'attack', label: '溅射', desc: '火球炸开，伤到周围的妖怪', price: 14, dmg: 9, range: 160, interval: 1.2, shot: 'fire', projSpeed: 300, knockback: 0, fx: { t: 'splash', radius: 44, pct: 0.6 }, color: '#d23a12' },
   冰: { id: '冰', kind: 'attack', label: '减速', desc: '冰锥让妖怪变慢', price: 12, dmg: 4, range: 160, interval: 1, shot: 'ice', projSpeed: 440, knockback: 0, fx: { t: 'slow', pct: 0.35, dur: 1.6 }, color: '#1e84b8' },

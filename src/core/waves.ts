@@ -1,5 +1,5 @@
 // Wave composition per chapter: minions from both gates, an elite mid-chapter, and the chapter boss last.
-import { CHAPTERS, MIN_SPAWN_GAP, SPAWN_GAP } from '../config/chapters.ts';
+import { CHAPTERS, incomeMul, MIN_SPAWN_GAP, SPAWN_GAP } from '../config/chapters.ts';
 import { BASE_HP, ENEMIES, SPEED_GROWTH } from '../config/enemies.ts';
 import { SPAWN_X_MAX, SPAWN_X_MIN } from './grid.ts';
 import { rand } from './rng.ts';
@@ -42,7 +42,7 @@ export function buildWave(g: GameState, w: number): WavePlan {
     const lane: Lane = rand(g) < 0.5 ? 0 : 1;
     const x = SPAWN_X_MIN + rand(g) * (SPAWN_X_MAX - SPAWN_X_MIN);
     const d = ENEMIES[def];
-    spawns.push({ at, def, lane, x, hp: waveHp(def, g.chapter, w), speed: d.speed * (1 + SPEED_GROWTH * (w - 1)), bounty: d.bounty });
+    spawns.push({ at, def, lane, x, hp: waveHp(def, g.chapter, w), speed: d.speed * (1 + SPEED_GROWTH * (w - 1)), bounty: Math.round(d.bounty * incomeMul(g.chapter)) });
   };
   for (let i = 0; i < count; i++) add(minionType(i, w), i * gap);
   const elite = w === eliteWave(ch.waves) && w !== ch.waves;

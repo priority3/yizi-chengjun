@@ -81,7 +81,7 @@ function endWave(g: GameState): void {
     g.events.push({ t: 'won' });
     return;
   }
-  const bonus = waveBonus(g.wave);
+  const bonus = waveBonus(g.wave, g.chapter);
   g.gongde += bonus;
   g.phase = 'build';
   g.refreshes = 0;
