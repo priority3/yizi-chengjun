@@ -1,6 +1,6 @@
 // Wave composition per chapter: minions from both gates, an elite mid-chapter, the chapter boss last,
 // plus whatever the last encounter queued (wolf packs, a thief, a visiting boss, speed/HP/bounty tweaks).
-import { CHAPTERS, MIN_SPAWN_GAP, SPAWN_GAP } from '../config/chapters.ts';
+import { CHAPTERS, incomeMul, MIN_SPAWN_GAP, SPAWN_GAP } from '../config/chapters.ts';
 import { BASE_HP, ENEMIES, SPEED_GROWTH } from '../config/enemies.ts';
 import { defaultWaveMods } from './encounters.ts';
 import { SPAWN_X_MAX, SPAWN_X_MIN } from './grid.ts';
@@ -66,7 +66,7 @@ export function buildWave(g: GameState, w: number): WavePlan {
       x,
       hp: Math.round(waveHp(def, g.chapter, w) * mods.hpMul * (opts.hpMul ?? 1)),
       speed: d.speed * (1 + SPEED_GROWTH * (w - 1)) * mods.speedMul,
-      bounty: opts.bounty ?? Math.round(d.bounty * mods.bountyMul),
+      bounty: opts.bounty ?? Math.round(d.bounty * incomeMul(g.chapter) * mods.bountyMul),
     });
   };
   for (let i = 0; i < count; i++) add(mods.wolves ? '狼' : minionType(i, w), i * gap);

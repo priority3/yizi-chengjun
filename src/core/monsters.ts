@@ -1,5 +1,6 @@
 // Enemies: spawning, walking to the camp, attacking it (or robbing it), and the timed boss traits.
 import { ENEMIES } from '../config/enemies.ts';
+import { incomeMul } from '../config/chapters.ts';
 import { DT } from './clock.ts';
 import { SPAWN_X_MAX, SPAWN_X_MIN, spawnY, stopY } from './grid.ts';
 import { rand } from './rng.ts';
@@ -50,7 +51,7 @@ export function spawnMinions(g: GameState, def: string, count: number, x: number
   for (let i = 0; i < count; i++) {
     const mx = Math.min(SPAWN_X_MAX, Math.max(SPAWN_X_MIN, x + (rand(g) - 0.5) * 60));
     const my = y + (rand(g) - 0.5) * 16;
-    g.enemies.push(makeEnemy(g, def, lane, mx, hp, d.speed, d.bounty, my));
+    g.enemies.push(makeEnemy(g, def, lane, mx, hp, d.speed, Math.round(d.bounty * incomeMul(g.chapter)), my));
   }
 }
 

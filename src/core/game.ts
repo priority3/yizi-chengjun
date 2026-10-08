@@ -102,7 +102,7 @@ function endWave(g: GameState): void {
     g.events.push({ t: 'won' });
     return;
   }
-  const bonus = Math.round(waveBonus(g.wave) * g.activeMods.bonusMul);
+  const bonus = Math.round(waveBonus(g.wave, g.chapter) * g.activeMods.bonusMul);
   g.gongde += bonus;
   if (g.mods.healOnClear > 0 && g.campHp < g.campMax) {
     const amount = Math.min(g.mods.healOnClear, g.campMax - g.campHp);

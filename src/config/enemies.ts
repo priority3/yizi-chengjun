@@ -40,12 +40,12 @@ export const ENEMIES: Record<string, EnemyDef> = {
   黄风怪: boss('黄风怪', '黄风', BOSS_STATS, { t: 'dash', every: 4, dur: 1, mul: 3 }),
   金角大王: boss('金角大王', '金角', BOSS_STATS, { t: 'summon', every: 5, count: 2, minion: '妖' }),
   红孩儿: boss('红孩儿', '红孩', { ...BOSS_STATS, speed: 18 }, { t: 'immune' }),
-  黑熊精: boss('黑熊精', '黑熊', { ...BOSS_STATS, hpK: 18 }, { t: 'armor', flat: 12 }),
+  黑熊精: boss('黑熊精', '黑熊', { ...BOSS_STATS, hpK: 18 }, { t: 'armor', flat: 5 }),
   灵感大王: boss('灵感大王', '灵感', BOSS_STATS, { t: 'regen', pctPerSec: 0.02 }),
   蜘蛛精: boss('蜘蛛精', '蜘蛛', { ...BOSS_STATS, hpK: 18 }, { t: 'split', count: 5, minion: '蛛' }),
-  牛魔王: boss('牛魔王', '牛魔', { ...BOSS_STATS, hpK: 20, atk: 20 }, { t: 'armor', flat: 20 }),
-  金翅大鹏: boss('金翅大鹏', '大鹏', { ...BOSS_STATS, speed: 22 }, { t: 'dash', every: 3, dur: 1, mul: 3.5 }),
-  黄眉大王: boss('黄眉大王', '黄眉', { ...BOSS_STATS, hpK: 18 }, { t: 'summon', every: 5, count: 2, minion: '狼' }),
+  牛魔王: boss('牛魔王', '牛魔', { ...BOSS_STATS, hpK: 15, atk: 14 }, { t: 'armor', flat: 7 }),
+  金翅大鹏: boss('金翅大鹏', '大鹏', { ...BOSS_STATS, hpK: 17, speed: 22 }, { t: 'dash', every: 3, dur: 1, mul: 3.5 }),
+  黄眉大王: boss('黄眉大王', '黄眉', { ...BOSS_STATS, hpK: 16 }, { t: 'summon', every: 5, count: 2, minion: '狼' }),
 };
 
 /** One-line description of a boss trait for banners and tooltips. */

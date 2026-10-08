@@ -93,5 +93,8 @@ GameState 新增 encounter、waveMods / activeMods、shopDiscount、freeRefresh�
 存档升到 zdxy:v3（unlocked、wins、vault），自动迁移 v2。
 
 难度
-阵地血量 150 → 120，各章起始倍率与增长率上调，每波多 1 只，波次奖励 14 + 4×波；牛魔王护甲 25 → 20。
-不带法宝的机器人胜率：第 1 章约 90%、第 5 章约 40%、第 8～10 章约 10%；带三件一阶法宝各章再涨 5～20 个百分点。
+阵地血量 150 → 120，每波多 1 只，波次奖励 14 + 4×波；并入上游的修正（棍射程 115、Boss 护甲下调、功德收入按章递增 INCOME_GROWTH）后，各章血量起始倍率再上调一档（1.05 → 2.5）。
+不带法宝的机器人胜率（pnpm sim 60）：90/92/68/60/50/47/40/30/15/5；带三件一阶法宝各章再涨 5～20 个百分点。
+
+版本号
+首页右下角显示 v<package.json version> · <短 commit hash>（vite.config.ts 用 define 注入，Vercel 构建取 VERCEL_GIT_COMMIT_SHA），方便排查线上是哪个版本。
