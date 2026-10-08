@@ -151,6 +151,15 @@ describe('restore checks', () => {
     expect(restore({ ...s, v: SNAPSHOT_VERSION - 1 })).toBeNull();
   });
 
+  it('fingerprints map layouts stably', () => {
+    const keys = MAPS.map(mapKey);
+    expect(keys.every((k) => /^[0-9a-f]{8}$/.test(k))).toBe(true);
+    expect(new Set(keys).size).toBe(MAPS.length);
+    expect(mapKey({ ...MAPS[0], rows: [...MAPS[0].rows] })).toBe(keys[0]);
+    // No hp tuning means 1, exactly as buildMap reads it.
+    expect(mapKey({ theme: 'ridge', rows: TEST_MAP.rows })).toBe(mapKey({ theme: 'ridge', rows: TEST_MAP.rows, hp: 1 }));
+  });
+
   it('rejects a run played on a different map layout', () => {
     const def = MAPS[0];
     const moved: MapDef = { ...def, rows: def.rows.map((row, i) => (i === 2 ? row.replace('O', '.') : row)) };

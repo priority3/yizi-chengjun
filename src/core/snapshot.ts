@@ -11,7 +11,7 @@ import type { GameState, RunMods, ShopOffer, Tile, WaveMods } from './types.ts';
 
 /**
  * Format of RunSnapshot. Bump it when a saved field changes meaning, so older saves are dropped instead of
- * misread. (Fields that are added or removed are caught by the checks below even without a bump.)
+ * misread. (A newly added field needs no bump: older saves lack it and fail the checks below.)
  */
 export const SNAPSHOT_VERSION = 1;
 
