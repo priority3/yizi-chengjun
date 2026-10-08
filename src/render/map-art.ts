@@ -1,7 +1,7 @@
 // Paints a chapter map: themed ground, scenery, the dirt roads, the monster entrances, 唐僧's camp and the
 // stone pads cards stand on. Painted once per zoom level into an offscreen canvas.
-import { MAPS } from '../config/maps.ts';
-import { buildMap, pathPoint, ROAD_W, type MapData, type PathData, type Pt } from '../core/map.ts';
+import { MAPS, TILE } from '../config/maps.ts';
+import { buildMap, pathPoint, ROAD_W, type MapData, type Pt } from '../core/map.ts';
 import type { Stage } from '../platform/web.ts';
 import { hash01, roundRect, text } from './draw.ts';
 import { brush } from './fonts.ts';
@@ -12,46 +12,119 @@ import { drawLiquids, drawProps, scatter, THEMES, vignette, type Palette } from 
 /** Slot pad radius (world px). */
 export const PAD_R = 25;
 
-function road(ctx: CanvasRenderingContext2D, path: PathData, pal: Palette): void {
-  const pts = path.pts;
+/** Decorations (tracks, pebbles) stay this far from a junction's centre, so nothing crosses the merge. */
+const JUNCTION_R = TILE * 0.95;
+
+/**
+ * Junction squares (three or more road neighbours) and straight stubs from each to its neighbours.
+ * Reason: each road's centre line cuts its corners, so where two roads meet in a T the rounded corners
+ * would leave a notch; the stubs fill the junction squarely underneath.
+ */
+function junctions(map: MapData): { centres: Pt[]; stubs: Array<[Pt, Pt]> } {
+  const { cols, rows, road } = map;
+  const centres: Pt[] = [];
+  const stubs: Array<[Pt, Pt]> = [];
+  const centre = (c: number, r: number): Pt => ({ x: c * TILE + TILE / 2, y: r * TILE + TILE / 2 });
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (!road[r * cols + c]) continue;
+      const ns: Pt[] = [];
+      for (const [dc, dr] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
+        const nc = c + dc;
+        const nr = r + dr;
+        if (nc >= 0 && nc < cols && nr >= 0 && nr < rows && road[nr * cols + nc]) ns.push(centre(nc, nr));
+      }
+      if (ns.length < 3) continue;
+      centres.push(centre(c, r));
+      for (const n of ns) stubs.push([centre(c, r), n]);
+    }
+  }
+  return { centres, stubs };
+}
+
+/** For each road, the point index from which it runs on top of an earlier road (its length when it never does). */
+function sharedFrom(map: MapData): number[] {
+  const seen = new Set<string>();
+  return map.paths.map((p) => {
+    let from = p.pts.length;
+    for (let i = 0; i < p.pts.length; i++) {
+      if (seen.has(`${p.pts[i].x},${p.pts[i].y}`)) {
+        from = i;
+        break;
+      }
+    }
+    for (const q of p.pts) seen.add(`${q.x},${q.y}`);
+    return from;
+  });
+}
+
+/** All roads at once, layer by layer, so overlapping roads merge into one surface instead of stacking. */
+function roads(ctx: CanvasRenderingContext2D, map: MapData, pal: Palette): void {
+  const { centres, stubs } = junctions(map);
+  const shared = sharedFrom(map);
+  const inJunction = (p: Pt): boolean => centres.some((c) => Math.hypot(c.x - p.x, c.y - p.y) < JUNCTION_R);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  const trace = () => {
+  const traceAll = () => {
     ctx.beginPath();
-    pts.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+    for (const p of map.paths) p.pts.forEach((q, i) => (i === 0 ? ctx.moveTo(q.x, q.y) : ctx.lineTo(q.x, q.y)));
+    for (const [a, b] of stubs) {
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+    }
   };
-  trace();
+  traceAll();
   ctx.lineWidth = ROAD_W + 10;
   ctx.strokeStyle = pal.edge;
   ctx.globalAlpha = 0.55;
   ctx.stroke();
   ctx.globalAlpha = 1;
-  trace();
+  traceAll();
   ctx.lineWidth = ROAD_W;
   ctx.strokeStyle = pal.road;
   ctx.stroke();
-  // Worn middle and cart-track lines.
-  trace();
+  traceAll();
   ctx.lineWidth = ROAD_W * 0.55;
   ctx.strokeStyle = 'rgba(255,240,210,0.13)';
   ctx.stroke();
-  trace();
-  ctx.setLineDash([10, 16]);
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = 'rgba(255,245,220,0.22)';
-  ctx.stroke();
-  ctx.setLineDash([]);
-  // Pebbles along both verges.
-  const verge = (ROAD_W / 2 + 4) / 12;
-  for (let d = 10; d < path.length; d += 26) {
-    for (const side of [-verge, verge]) {
-      const p = pathPoint(path, d + hash01(Math.round(d) + (side > 0 ? 1 : 0)) * 10, side);
-      ctx.beginPath();
-      ctx.ellipse(p.x, p.y, 2.6, 1.8, hash01(Math.round(d)) * 3, 0, Math.PI * 2);
-      ctx.fillStyle = hash01(Math.round(d * 3)) > 0.5 ? '#a89a82' : '#8f8370';
-      ctx.fill();
+  // Cart tracks and verge pebbles, drawn once per stretch of road (shared stretches only by the first road).
+  map.paths.forEach((path, k) => {
+    const upto = Math.min(path.pts.length, shared[k] + 1);
+    ctx.beginPath();
+    let pen = false;
+    for (let i = 0; i < upto; i++) {
+      const q = path.pts[i];
+      if (inJunction(q)) {
+        pen = false;
+        continue;
+      }
+      if (pen) ctx.lineTo(q.x, q.y);
+      else ctx.moveTo(q.x, q.y);
+      pen = true;
     }
-  }
+    ctx.setLineDash([10, 16]);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,245,220,0.22)';
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const limit = shared[k] < path.pts.length ? path.cum[shared[k]] : path.length;
+    const verge = (ROAD_W / 2 + 4) / 12;
+    for (let d = 10; d < limit; d += 26) {
+      for (const side of [-verge, verge]) {
+        const p = pathPoint(path, d + hash01(Math.round(d) + (side > 0 ? 1 : 0)) * 10, side);
+        if (inJunction(p)) continue;
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, 2.6, 1.8, hash01(Math.round(d)) * 3, 0, Math.PI * 2);
+        ctx.fillStyle = hash01(Math.round(d * 3)) > 0.5 ? '#a89a82' : '#8f8370';
+        ctx.fill();
+      }
+    }
+  });
 }
 
 /** A dark cave mouth with a stone arch: where the monsters come from. */
@@ -158,7 +231,7 @@ export function paintMap(ctx: CanvasRenderingContext2D, map: MapData): void {
   }
   drawLiquids(ctx, map, pal);
   scatter(ctx, map, pal);
-  map.paths.forEach((p) => road(ctx, p, pal));
+  roads(ctx, map, pal);
   drawProps(ctx, map);
   map.spawns.forEach((s) => entrance(ctx, s));
   camp(ctx, map.camp);
