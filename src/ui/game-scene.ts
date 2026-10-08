@@ -1,5 +1,6 @@
 // The chapter screen: runs the fixed-step simulation, handles the shop, camp drag-and-drop, encounters, pause and results.
 import { CHAPTERS, unlockCost } from '../config/chapters.ts';
+import { heroFor } from '../config/combos.ts';
 import { ENEMIES } from '../config/enemies.ts';
 import { ULTIMATES } from '../config/ultimates.ts';
 import { UNITS } from '../config/units.ts';
@@ -68,6 +69,7 @@ export class GameScene implements Scene {
   private hoverCell = -1;
   private hoverValid = false;
   private hoverTrash = false;
+  private hoverHint: string | null = null;
   private pressed: string | null = null;
   private selected = -1;
   private selectedT = 0;
@@ -147,6 +149,7 @@ export class GameScene implements Scene {
       hoverCell: this.hoverCell,
       hoverValid: this.hoverValid,
       selected: this.selected,
+      hoverHint: this.hoverHint,
     };
   }
 
@@ -255,6 +258,7 @@ export class GameScene implements Scene {
     const trash = this.hoverTrash;
     this.hoverCell = -1;
     this.hoverTrash = false;
+    this.hoverHint = null;
     if (!d || this.overlayOpen()) return;
     if (d.kind === 'shop') {
       if (cell < 0) return;
@@ -272,13 +276,6 @@ export class GameScene implements Scene {
     }
   }
 
-  dragCancel(): void {
-    this.drag = null;
-    this.hoverCell = -1;
-    this.hoverTrash = false;
-    this.pressed = null;
-  }
-
   // ---- helpers -----------------------------------------------------------
 
   private updateHover(): void {
@@ -290,17 +287,25 @@ export class GameScene implements Scene {
     const w = toWorld(d.x, d.y);
     const cell = cellAt(w.x, w.y);
     this.hoverCell = cell;
+    this.hoverHint = null;
     if (cell < 0) {
       this.hoverValid = false;
       return;
     }
-    const outcome = previewDrop({ id: d.unit, level: d.level, divine: d.divine }, g.slots[cell]);
+    const target = g.slots[cell];
+    const outcome = previewDrop({ id: d.unit, level: d.level, divine: d.divine }, target);
     if (d.kind === 'shop') {
       const o = g.shop[d.index];
       const combines = outcome === 'empty' || outcome === 'merge' || outcome === 'hero' || outcome === 'divine';
       this.hoverValid = g.unlocked[cell] && combines && !!o && g.gongde >= offerPrice(g, o);
     } else {
       this.hoverValid = g.unlocked[cell] && outcome !== 'invalid' && cell !== d.index;
+    }
+    // Tell the player what letting go will do when the two cards combine.
+    if (target && this.hoverValid) {
+      if (outcome === 'merge') this.hoverHint = `松开合成 ${target.level + 1} 级`;
+      else if (outcome === 'hero') this.hoverHint = `松开觉醒 ${heroFor(d.unit, target.id) ?? '英雄'}`;
+      else if (outcome === 'divine') this.hoverHint = '松开附神';
     }
   }
 

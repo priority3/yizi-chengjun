@@ -148,10 +148,6 @@ export class TreasureScene implements Scene {
     }
   }
 
-  dragCancel(): void {
-    this.pressed = null;
-  }
-
   dragEnd(): void {
     this.pressed = null;
   }

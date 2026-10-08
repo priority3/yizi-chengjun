@@ -2,7 +2,7 @@
 import { unlockCost } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
 import { UNITS } from '../config/units.ts';
-import { CELL, CELL_COUNT, CELL_POS } from '../core/grid.ts';
+import { CELL, CELL_COUNT, CELL_POS, cellRow } from '../core/grid.ts';
 import { tileRange } from '../core/stats.ts';
 import type { Enemy, GameState, Tile, UnitId } from '../core/types.ts';
 import type { Stage } from '../platform/web.ts';
@@ -51,6 +51,8 @@ export interface GameUi extends PanelUi {
   hoverValid: boolean;
   /** Tapped tile whose range is shown, or -1. */
   selected: number;
+  /** What releasing on hoverCell does when it combines (merge / awaken / 神), shown next to the cell. */
+  hoverHint: string | null;
 }
 
 export class GameRenderer {
@@ -75,7 +77,7 @@ export class GameRenderer {
     ctx.drawImage(this.background(), 0, 0, W, L.H);
     ctx.save();
     if (vfx.shake > 0) ctx.translate((Math.random() - 0.5) * vfx.shake, (Math.random() - 0.5) * vfx.shake);
-    this.drawCells(ctx, g, ui, vfx);
+    this.drawCells(ctx, g, ui, vfx, time);
     this.drawTiles(ctx, g, ui, vfx, time);
     this.drawEnemies(ctx, g, vfx, time);
     vfx.trail(g.projectiles);
@@ -91,7 +93,7 @@ export class GameRenderer {
     if (g.encounter) drawEncounterPanel(ctx, g.encounter, ui.pressed);
   }
 
-  private drawCells(ctx: CanvasRenderingContext2D, g: GameState, ui: GameUi, vfx: Vfx): void {
+  private drawCells(ctx: CanvasRenderingContext2D, g: GameState, ui: GameUi, vfx: Vfx, time: number): void {
     const price = unlockCost(g.unlockCount);
     for (let i = 0; i < CELL_COUNT; i++) {
       const p = CELL_POS[i];
@@ -148,11 +150,43 @@ export class GameRenderer {
     }
     if (ui.drag && ui.hoverCell >= 0) {
       const p = CELL_POS[ui.hoverCell];
-      roundRect(ctx, p.x - CELL / 2 + 1, wy(p.y) - CELL / 2 + 1, CELL - 2, CELL - 2, 10);
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = ui.hoverValid ? '#7dff9a' : '#ff6a5a';
-      ctx.stroke();
+      if (ui.hoverHint) this.drawCombineHint(ctx, ui.hoverCell, ui.hoverHint, time);
+      else {
+        roundRect(ctx, p.x - CELL / 2 + 1, wy(p.y) - CELL / 2 + 1, CELL - 2, CELL - 2, 10);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = ui.hoverValid ? '#7dff9a' : '#ff6a5a';
+        ctx.stroke();
+      }
     }
+  }
+
+  /** A spinning golden ring around the target card plus a label saying what releasing will do. */
+  private drawCombineHint(ctx: CanvasRenderingContext2D, cell: number, hint: string, time: number): void {
+    const p = CELL_POS[cell];
+    const x = p.x;
+    const y = wy(p.y);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, CELL / 2 + 5, 0, Math.PI * 2);
+    ctx.setLineDash([9, 7]);
+    ctx.lineDashOffset = -time * 45;
+    ctx.lineWidth = 3.5;
+    ctx.strokeStyle = '#ffd166';
+    ctx.shadowColor = 'rgba(255,200,60,0.9)';
+    ctx.shadowBlur = 10 + Math.sin(time * 8) * 4;
+    ctx.stroke();
+    ctx.restore();
+    // Reason: put the label on the side away from the camp's edge so it never leaves the screen.
+    const cy = cellRow(cell) < 2 ? y + CELL / 2 + 14 : y - CELL / 2 - 14;
+    ctx.font = sans(10, 800);
+    const w = ctx.measureText(hint).width + 18;
+    roundRect(ctx, x - w / 2, cy - 10, w, 20, 10);
+    ctx.fillStyle = 'rgba(28,14,6,0.9)';
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#ffd166';
+    ctx.stroke();
+    text(ctx, hint, x, cy + 0.5, sans(10, 800), '#ffe9a8');
   }
 
   private drawTiles(ctx: CanvasRenderingContext2D, g: GameState, ui: GameUi, vfx: Vfx, time: number): void {
