@@ -1,13 +1,14 @@
 // A rule-based player for the balance simulation and tests (the game itself has no AI opponent).
 // It only uses the same actions a human can take.
-import { refreshCost, unlockCost } from '../config/chapters.ts';
+import { unlockCost } from '../config/chapters.ts';
 import { heroFor } from '../config/combos.ts';
 import { MAX_LEVEL, UNITS } from '../config/units.ts';
 import { canBeDivine, isStackable } from './board.ts';
 import { CELL_COUNT, coverage } from './grid.ts';
 import { rand, type RngHolder } from './rng.ts';
+import { currentRefreshCost, offerPrice } from './shop.ts';
 import { tileDps, tileRange } from './stats.ts';
-import type { Action, GameState, Tile, UnitId } from './types.ts';
+import type { Action, EncounterId, GameState, Tile, UnitId } from './types.ts';
 
 export interface BotKnobs {
   /** Chance that a purchase goes into a random empty cell instead of the best one. */
@@ -17,7 +18,7 @@ export interface BotKnobs {
 
 export const DEFAULT_BOT: BotKnobs = { mistake: 0.1, maxRefreshes: 2 };
 
-const asTile = (id: UnitId, level = 1, divine = false): Tile => ({ uid: 0, id, level, divine, cd: 0, invested: 0 });
+const asTile = (id: UnitId, level = 1, divine = false): Tile => ({ uid: 0, id, level, divine, cd: 0, invested: 0, rage: 0 });
 
 /** Rough usefulness of a tile: damage per second for fighters, a flat value for everything else. */
 export function tileValue(t: Tile): number {
@@ -110,7 +111,7 @@ function bestPurchase(g: GameState): Action | null {
   const empties = emptyCells(g).length;
   const weak = boardDps(g) < dpsNeeded(g);
   g.shop.forEach((o, i) => {
-    if (o.sold || o.price > g.gongde) return;
+    if (o.sold || offerPrice(g, o) > g.gongde) return;
     const card = asTile(o.id);
     let cell = -1;
     let score = 0;
@@ -136,7 +137,7 @@ function bestPurchase(g: GameState): Action | null {
       // Lone fragments wait for their partner; only worth a cell when there is room to spare.
       if (kind === 'fragment' && empties < 3) return;
       cell = bestEmptyCell(g, card);
-      score = kind === 'fragment' ? 8 : (tileValue(card) / o.price) * 10;
+      score = kind === 'fragment' ? 8 : (tileValue(card) / offerPrice(g, o)) * 10;
     }
     if (cell >= 0 && (!pick || score > pick.score)) pick = { offer: i, cell, score };
   });
@@ -148,8 +149,29 @@ function firstLocked(g: GameState): number {
   return g.unlocked.findIndex((u) => !u);
 }
 
+/** Encounter cards the bot likes, best first: free value, then trades, then the mildest challenges. */
+const ENCOUNTER_PRIORITY: EncounterId[] = [
+  '天降神字', '财神到', '观音赐福', '土地公摆摊', '宝箱', '妖风大作', '盗宝妖', '狼群来袭', '月圆之夜', '妖王亲临',
+];
+
+/** Index of the pending encounter card the bot picks. */
+export function botChoice(g: GameState): number {
+  let best = 0;
+  let bestRank = Infinity;
+  (g.encounter ?? []).forEach((id, i) => {
+    // A full camp makes 观音赐福 worthless; push it behind the trades.
+    const rank = id === '观音赐福' && g.campHp >= g.campMax ? 5.5 : ENCOUNTER_PRIORITY.indexOf(id);
+    if (rank < bestRank) {
+      bestRank = rank;
+      best = i;
+    }
+  });
+  return best;
+}
+
 /** One build-phase decision; returns { t: 'start' } when the bot is done shopping. */
 export function botBuildAction(g: GameState, knobs: BotKnobs, luck: RngHolder): Action {
+  if (g.encounter) return { t: 'choose', option: botChoice(g) };
   const combo = boardCombo(g);
   if (combo) return combo;
   const purchase = bestPurchase(g);
@@ -165,7 +187,7 @@ export function botBuildAction(g: GameState, knobs: BotKnobs, luck: RngHolder): 
     return { t: 'unlock', cell: firstLocked(g) };
   }
   const reserve = boardDps(g) < dpsNeeded(g) ? 0 : 10;
-  if (!purchase && g.refreshes < knobs.maxRefreshes && g.gongde >= refreshCost(g.refreshes) + reserve && emptyCells(g).length > 0) {
+  if (!purchase && g.refreshes < knobs.maxRefreshes && g.gongde >= currentRefreshCost(g) + reserve && emptyCells(g).length > 0) {
     return { t: 'refresh' };
   }
   return { t: 'start' };

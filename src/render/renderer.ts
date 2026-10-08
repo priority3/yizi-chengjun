@@ -8,6 +8,7 @@ import type { Enemy, GameState, Tile, UnitId } from '../core/types.ts';
 import type { Stage } from '../platform/web.ts';
 import { paintBackground } from './background.ts';
 import { CARD, cardSprite } from './cards.ts';
+import { drawEncounterPanel } from './encounter-panel.ts';
 import { drawBar, drawCoin, drawStar, outlined, roundRect, text } from './draw.ts';
 import { brush, sans } from './fonts.ts';
 import { L, W, wy } from './layout.ts';
@@ -75,7 +76,7 @@ export class GameRenderer {
     ctx.save();
     if (vfx.shake > 0) ctx.translate((Math.random() - 0.5) * vfx.shake, (Math.random() - 0.5) * vfx.shake);
     this.drawCells(ctx, g, ui, vfx);
-    this.drawTiles(ctx, g, ui, vfx);
+    this.drawTiles(ctx, g, ui, vfx, time);
     this.drawEnemies(ctx, g, vfx, time);
     vfx.trail(g.projectiles);
     vfx.drawProjectiles(ctx, g.projectiles);
@@ -87,6 +88,7 @@ export class GameRenderer {
     else drawBattleBar(ctx, g, ui);
     if (ui.drag) this.drawDragged(ctx, ui.drag);
     if (vfx.banner) drawBanner(ctx, vfx.banner);
+    if (g.encounter) drawEncounterPanel(ctx, g.encounter, ui.pressed);
   }
 
   private drawCells(ctx: CanvasRenderingContext2D, g: GameState, ui: GameUi, vfx: Vfx): void {
@@ -119,7 +121,7 @@ export class GameRenderer {
     }
     // Range preview for the dragged card (over a cell) or a tapped tile.
     const rangeOf = (unit: UnitId, level: number, divine: boolean) => {
-      const t: Tile = { uid: 0, id: unit, level, divine, cd: 0, invested: 0 };
+      const t: Tile = { uid: 0, id: unit, level, divine, cd: 0, invested: 0, rage: 0 };
       return tileRange(t);
     };
     let ringCell = -1;
@@ -153,18 +155,35 @@ export class GameRenderer {
     }
   }
 
-  private drawTiles(ctx: CanvasRenderingContext2D, g: GameState, ui: GameUi, vfx: Vfx): void {
+  private drawTiles(ctx: CanvasRenderingContext2D, g: GameState, ui: GameUi, vfx: Vfx, time: number): void {
     for (let i = 0; i < CELL_COUNT; i++) {
       const t = g.slots[i];
       if (!t) continue;
       const p = CELL_POS[i];
+      const x = p.x;
+      const y = wy(p.y);
       const shake = vfx.shakes[i] > 0 ? Math.sin(vfx.shakes[i] * 80) * 3 : 0;
       const scale = 1 + vfx.pops[i] * 0.9 + vfx.recoil[i] * 0.7;
       const { img, size } = cardSprite(t.id, t.level, t.divine);
       const dragging = ui.drag?.kind === 'cell' && ui.drag.index === i;
+      const hero = UNITS[t.id].kind === 'hero';
+      const ready = hero && t.rage >= 1;
       ctx.save();
       if (dragging) ctx.globalAlpha = 0.3;
-      blit(ctx, img, p.x + shake, wy(p.y), size, size, scale);
+      if (ready) {
+        // Full rage: the card glows until the next attack unleashes the ultimate.
+        ctx.shadowColor = 'rgba(255,200,60,1)';
+        ctx.shadowBlur = 16 + Math.sin(time * 9) * 6;
+        roundRect(ctx, x - CARD / 2, y - CARD / 2, CARD, CARD, 9);
+        ctx.fillStyle = 'rgba(255,215,90,0.8)';
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+      blit(ctx, img, x + shake, y, size, size, scale);
+      if (hero) {
+        const bw = 38;
+        drawBar(ctx, x - bw / 2, y + CARD / 2 - 5, bw, 4.5, t.rage, ready ? '#ffd166' : '#ff7a2a');
+      }
       ctx.restore();
     }
   }

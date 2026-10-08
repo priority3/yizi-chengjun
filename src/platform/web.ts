@@ -1,5 +1,7 @@
 // Browser glue: fits the canvas to the screen (DPR-aware, adaptive design height), blocks mobile browser
-// gestures, and persists chapter progress. Everything platform-specific stays in this file.
+// gestures, and persists progress (chapters + the 法宝 vault). Everything platform-specific stays in this file.
+import { EQUIP_SLOTS, MAX_TIER } from '../config/treasures.ts';
+import { emptyVault, isTreasureId, type Vault } from '../core/treasures.ts';
 import { L, MAX_H, MIN_H, setDesignHeight, W } from '../render/layout.ts';
 import { sprites } from '../render/sprites.ts';
 
@@ -69,29 +71,56 @@ export interface Progress {
   unlocked: number;
   /** Clears per chapter. */
   wins: number[];
+  vault: Vault;
 }
 
-const STORAGE_KEY = 'zdxy:v2';
+const STORAGE_KEY = 'zdxy:v3';
+/** The v2 save had no vault; it is upgraded on first load. */
+const LEGACY_KEY = 'zdxy:v2';
 let memoryCopy: Progress | null = null;
+
+function parseVault(raw: unknown): Vault {
+  const v = emptyVault();
+  if (!raw || typeof raw !== 'object') return v;
+  const r = raw as Partial<Vault>;
+  v.stones = Math.max(0, Math.floor(Number(r.stones) || 0));
+  for (const s of Array.isArray(r.treasures) ? r.treasures : []) {
+    if (s && isTreasureId(String(s.id)) && Number(s.count) > 0) {
+      v.treasures.push({ id: s.id, tier: Math.min(MAX_TIER, Math.max(1, Math.floor(Number(s.tier) || 1))), count: Math.floor(Number(s.count)) });
+    }
+  }
+  for (const id of Array.isArray(r.equipped) ? r.equipped : []) {
+    if (isTreasureId(String(id)) && !v.equipped.includes(id) && v.equipped.length < EQUIP_SLOTS) v.equipped.push(id);
+  }
+  return v;
+}
+
+function parseProgress(raw: string | null, chapters: number): Progress | null {
+  if (!raw) return null;
+  const p = JSON.parse(raw) as Partial<Progress>;
+  if (typeof p.unlocked !== 'number' || !Array.isArray(p.wins)) return null;
+  const wins = Array.from({ length: chapters }, (_, i) => Number(p.wins?.[i]) || 0);
+  return { unlocked: Math.min(chapters, Math.max(1, p.unlocked)), wins, vault: parseVault(p.vault) };
+}
 
 export function loadProgress(chapters: number): Progress {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const p = JSON.parse(raw) as Partial<Progress>;
-      if (typeof p.unlocked === 'number' && Array.isArray(p.wins)) {
-        const wins = Array.from({ length: chapters }, (_, i) => Number(p.wins?.[i]) || 0);
-        return { unlocked: Math.min(chapters, Math.max(1, p.unlocked)), wins };
-      }
-    }
+    const current = parseProgress(localStorage.getItem(STORAGE_KEY), chapters);
+    if (current) return current;
+    const legacy = parseProgress(localStorage.getItem(LEGACY_KEY), chapters);
+    if (legacy) return legacy;
   } catch {
     // Storage blocked (private mode / some in-app browsers): fall back to the in-memory copy below.
   }
-  return memoryCopy ?? { unlocked: 1, wins: new Array<number>(chapters).fill(0) };
+  return memoryCopy ?? { unlocked: 1, wins: new Array<number>(chapters).fill(0), vault: emptyVault() };
 }
 
 export function saveProgress(p: Progress): void {
-  memoryCopy = { unlocked: p.unlocked, wins: [...p.wins] };
+  memoryCopy = {
+    unlocked: p.unlocked,
+    wins: [...p.wins],
+    vault: { stones: p.vault.stones, treasures: p.vault.treasures.map((s) => ({ ...s })), equipped: [...p.vault.equipped] },
+  };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryCopy));
   } catch {

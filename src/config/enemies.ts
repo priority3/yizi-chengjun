@@ -34,6 +34,8 @@ export const ENEMIES: Record<string, EnemyDef> = {
   熊: minion('熊', '熊怪', { hpK: 3, speed: 19, bounty: 5, atk: 7, atkInterval: 1.3, radius: 15 }),
   蛛: minion('蛛', '小蜘蛛', { hpK: 0.45, speed: 44, bounty: 1, atk: 2, atkInterval: 0.5, radius: 9 }),
   魔: { id: '魔', glyph: '魔', name: '魔将', hpK: 8, speed: 20, bounty: 12, atk: 8, atkInterval: 1, radius: 17, boss: false, elite: true },
+  // The thief from the 盗宝妖 encounter: quick, frail, robs the camp instead of biting it.
+  盗: { id: '盗', glyph: '盗', name: '盗宝妖', hpK: 1.2, speed: 56, bounty: 30, atk: 0, atkInterval: 1, radius: 11, boss: false, elite: false, trait: { t: 'steal', amount: 30 } },
   白骨精: boss('白骨精', '白骨', BOSS_STATS, { t: 'revive', times: 1, pct: 0.4 }),
   黄风怪: boss('黄风怪', '黄风', BOSS_STATS, { t: 'dash', every: 4, dur: 1, mul: 3 }),
   金角大王: boss('金角大王', '金角', BOSS_STATS, { t: 'summon', every: 5, count: 2, minion: '妖' }),
@@ -41,7 +43,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   黑熊精: boss('黑熊精', '黑熊', { ...BOSS_STATS, hpK: 18 }, { t: 'armor', flat: 12 }),
   灵感大王: boss('灵感大王', '灵感', BOSS_STATS, { t: 'regen', pctPerSec: 0.02 }),
   蜘蛛精: boss('蜘蛛精', '蜘蛛', { ...BOSS_STATS, hpK: 18 }, { t: 'split', count: 5, minion: '蛛' }),
-  牛魔王: boss('牛魔王', '牛魔', { ...BOSS_STATS, hpK: 20, atk: 20 }, { t: 'armor', flat: 25 }),
+  牛魔王: boss('牛魔王', '牛魔', { ...BOSS_STATS, hpK: 20, atk: 20 }, { t: 'armor', flat: 20 }),
   金翅大鹏: boss('金翅大鹏', '大鹏', { ...BOSS_STATS, speed: 22 }, { t: 'dash', every: 3, dur: 1, mul: 3.5 }),
   黄眉大王: boss('黄眉大王', '黄眉', { ...BOSS_STATS, hpK: 18 }, { t: 'summon', every: 5, count: 2, minion: '狼' }),
 };
@@ -65,5 +67,7 @@ export function traitText(def: EnemyDef): string {
       return '不断回血';
     case 'split':
       return `死后分裂成 ${tr.count} 只${ENEMIES[tr.minion].name}`;
+    case 'steal':
+      return `摸到阵地偷走 ${tr.amount} 功德`;
   }
 }

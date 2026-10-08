@@ -2,17 +2,17 @@
 import { CHAPTERS } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
 import { loadProgress, saveProgress, type Progress, type Stage } from '../platform/web.ts';
-import { paintBackground } from '../render/background.ts';
 import { fitPx, outlined, roundRect, text } from '../render/draw.ts';
 import { brush, sans } from '../render/fonts.ts';
 import { drawPortrait, type PortraitId } from '../render/heroes-art.ts';
 import { inRect, L, W, type Rect } from '../render/layout.ts';
 import { monsterSprite } from '../render/monsters-art.ts';
 import { NUMERALS } from '../render/panels.ts';
-import { blit, sprites } from '../render/sprites.ts';
-import { drawButton } from '../render/widgets.ts';
+import { blit } from '../render/sprites.ts';
+import { BACK, backdrop, drawButton } from '../render/widgets.ts';
 import { GameScene } from './game-scene.ts';
 import type { GestureHandlers, Pointer } from './input.ts';
+import { TreasureScene } from './treasure-scene.ts';
 
 export interface Scene extends GestureHandlers {
   update(dt: number): void;
@@ -26,6 +26,8 @@ export interface Nav {
   title(): void;
   chapters(): void;
   play(chapter: number): void;
+  /** The 法宝 (treasure) screen. */
+  treasures(): void;
   save(): void;
 }
 
@@ -52,17 +54,13 @@ export class SceneManager implements Nav {
     this.current = new GameScene(this.stage, chapter, this);
   }
 
+  treasures(): void {
+    this.current = new TreasureScene(this, this.stage);
+  }
+
   save(): void {
     saveProgress(this.progress);
   }
-}
-
-/** The painted battlefield, darkened, behind menus. */
-function backdrop(ctx: CanvasRenderingContext2D, stage: Stage, dim: number): void {
-  const img = sprites.get(`bg:${stage.pixelRatio}:${L.H}`, W, L.H, (c) => paintBackground(c, L.H));
-  ctx.drawImage(img, 0, 0, W, L.H);
-  ctx.fillStyle = `rgba(28,14,6,${dim})`;
-  ctx.fillRect(0, 0, W, L.H);
 }
 
 const HEROES: PortraitId[] = ['悟空', '八戒', '沙僧', '白龙'];
@@ -106,6 +104,7 @@ class TitleScene implements Scene {
     });
     drawButton(ctx, this.startRect(), '开始游戏', 'primary');
     text(ctx, '商店买字拖上阵地 · 同字合成升级 · 凑齐名字觉醒英雄', W / 2, L.H * 0.66 + 82, sans(11, 500), '#e8d5b0');
+    text(ctx, '英雄攒满怒气放大招 · 波间奇遇三选一 · 通关得灵石炼法宝', W / 2, L.H * 0.66 + 100, sans(11, 500), '#e8d5b0');
   }
 
   tap(p: Pointer): void {
@@ -113,7 +112,8 @@ class TitleScene implements Scene {
   }
 }
 
-const BACK: Rect = { x: 12, y: 16, w: 66, h: 34 };
+/** 法宝 button, top right of the chapter screen. */
+const TREASURES: Rect = { x: W - 84, y: 12, w: 72, h: 40 };
 
 function chapterRect(i: number): Rect {
   const col = i % 2;
@@ -137,7 +137,8 @@ class ChapterScene implements Scene {
     backdrop(ctx, this.stage, 0.62);
     drawButton(ctx, BACK, '返回', 'ghost');
     outlined(ctx, '选择章节', W / 2, 33, brush(26), '#ffd66b', 'rgba(40,14,4,0.9)', 4);
-    const { unlocked, wins } = this.nav.progress;
+    const { unlocked, wins, vault } = this.nav.progress;
+    drawButton(ctx, TREASURES, '法宝', 'jade', `${vault.stones} 灵石`);
     CHAPTERS.forEach((ch, i) => {
       const r = chapterRect(i);
       const open = ch.id <= unlocked;
@@ -164,6 +165,10 @@ class ChapterScene implements Scene {
   tap(p: Pointer): void {
     if (inRect(p.x, p.y, BACK)) {
       this.nav.title();
+      return;
+    }
+    if (inRect(p.x, p.y, TREASURES)) {
+      this.nav.treasures();
       return;
     }
     CHAPTERS.forEach((ch, i) => {

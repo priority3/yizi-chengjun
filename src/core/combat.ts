@@ -1,12 +1,14 @@
 // Tiles fighting: targeting, instant attacks, travelling projectiles and their effects, supports, and deaths.
 // Projectiles deal damage only when they arrive, so what the player sees matches what happens.
 import { ENEMIES } from '../config/enemies.ts';
-import { DIVINE, HASTE_CAP, LEVEL_MUL, SLOW_CAP, UNITS } from '../config/units.ts';
+import { DIVINE, HASTE_CAP, LEVEL_MUL, UNITS } from '../config/units.ts';
 import { DT } from './clock.ts';
-import { ADJ8, CELL_COUNT, CELL_POS, spawnY, type Pt } from './grid.ts';
+import { applySlow, applyStun, damage, dist2, knock } from './effects.ts';
+import { ADJ8, CELL_COUNT, CELL_POS, type Pt } from './grid.ts';
 import { spawnMinions } from './monsters.ts';
 import { fxScale, tileDamage, tileInterval, tileRange } from './stats.ts';
-import type { Enemy, GameState, Projectile, Tile, UnitId } from './types.ts';
+import type { Enemy, GameState, Projectile, Tile } from './types.ts';
+import { castUltimate, isUltimateReady, rageGain } from './ultimates.ts';
 
 // Reason: reused every step to avoid per-frame allocation.
 const HASTE = new Float64Array(CELL_COUNT);
@@ -26,48 +28,15 @@ export function computeHaste(g: GameState, out: Float64Array = HASTE): Float64Ar
   return out;
 }
 
-export function damage(g: GameState, e: Enemy, amount: number, unit: UnitId): void {
-  const tr = ENEMIES[e.def].trait;
-  const dealt = tr?.t === 'armor' ? Math.max(1, amount - tr.flat) : amount;
-  e.hp -= dealt;
-  g.events.push({ t: 'hit', uid: e.uid, x: e.x, y: e.y, unit, dmg: dealt });
-}
-
-/** Pushes an enemy back toward its gate. Bosses are too heavy to move. */
-export function knock(e: Enemy, px: number): void {
-  if (px <= 0 || ENEMIES[e.def].boss) return;
-  const push = ENEMIES[e.def].elite ? px / 2 : px;
-  const gate = spawnY(e.lane);
-  e.y = e.lane === 0 ? Math.max(gate, e.y - push) : Math.min(gate, e.y + push);
-}
-
-export function applySlow(e: Enemy, pct: number, dur: number): void {
-  if (ENEMIES[e.def].trait?.t === 'immune') return;
-  // Reason: the strongest slow wins and the duration refreshes, so stacking many 冰 never freezes a boss solid.
-  e.slowPct = Math.max(e.slowPct, Math.min(SLOW_CAP, pct));
-  e.slowT = Math.max(e.slowT, dur);
-}
-
-export function applyStun(e: Enemy, dur: number): void {
-  const d = ENEMIES[e.def].boss ? dur * 0.5 : dur;
-  e.stunT = Math.max(e.stunT, d);
-}
-
-function dist2(e: Enemy, x: number, y: number): number {
-  const dx = e.x - x;
-  const dy = e.y - y;
-  return dx * dx + dy * dy;
-}
-
 /** Living enemy in range that is closest to biting the camp (ties -> lower uid). */
 export function findTarget(g: GameState, t: Tile, cell: number): Enemy | null {
   const p = CELL_POS[cell];
-  const r = tileRange(t);
+  const r = tileRange(t, g.mods);
   const r2 = r * r;
   let best: Enemy | null = null;
   let bestRem = Infinity;
   for (const e of g.enemies) {
-    if (e.hp <= 0 || dist2(e, p.x, p.y) > r2) continue;
+    if (e.hp <= 0 || e.gone || dist2(e, p.x, p.y) > r2) continue;
     const rem = Math.abs(e.stopY - e.y);
     if (rem < bestRem || (rem === bestRem && best !== null && e.uid < best.uid)) {
       best = e;
@@ -85,7 +54,7 @@ function fireBeam(g: GameState, t: Tile, cell: number, p: Pt, target: Enemy, dmg
   const len = Math.hypot(target.x - p.x, target.y - p.y) || 1;
   const ux = (target.x - p.x) / len;
   const uy = (target.y - p.y) / len;
-  const reach = tileRange(t) + 30;
+  const reach = tileRange(t, g.mods) + 30;
   const hits: Array<{ e: Enemy; along: number }> = [];
   for (const e of g.enemies) {
     if (e.hp <= 0) continue;
@@ -107,8 +76,15 @@ function fireBeam(g: GameState, t: Tile, cell: number, p: Pt, target: Enemy, dmg
 /** Fires one attack if a target exists. Returns false when there was nothing to shoot at. */
 function fire(g: GameState, t: Tile, cell: number): boolean {
   const def = UNITS[t.id];
-  const dmg = tileDamage(t);
+  const dmg = tileDamage(t, g.mods);
   const p = CELL_POS[cell];
+  if (def.kind === 'hero' && isUltimateReady(t)) {
+    const target = findTarget(g, t, cell);
+    if (!target) return false;
+    castUltimate(g, t, cell, target);
+    t.rage = 0;
+    return true;
+  }
   if (def.shot === 'dragon') {
     let any = false;
     for (const e of g.enemies) {
@@ -147,7 +123,7 @@ function fire(g: GameState, t: Tile, cell: number): boolean {
   if (def.fx.t === 'stun') {
     // 八戒 slams the ground around the target: full damage to it, 60% to the others, and everyone is stunned.
     const r2 = def.fx.radius * def.fx.radius;
-    const dur = def.fx.dur * fxScale(t);
+    const dur = def.fx.dur * fxScale(t) * g.mods.stunMul;
     for (const e of g.enemies) {
       if (e.hp <= 0 || dist2(e, target.x, target.y) > r2) continue;
       damage(g, e, e === target ? dmg : dmg * 0.6, t.id);
@@ -168,7 +144,8 @@ function impact(g: GameState, pr: Projectile, target: Enemy | null): void {
   if (fx.t === 'splash') {
     // Reason: a fireball still bursts where it lands even if its target already died.
     if (target) damage(g, target, pr.dmg, pr.unit);
-    const r2 = fx.radius * fx.radius;
+    const radius = fx.radius * g.mods.splashRadiusMul;
+    const r2 = radius * radius;
     const pct = Math.min(1, fx.pct * pr.fxK);
     for (const e of g.enemies) {
       if (e !== target && e.hp > 0 && dist2(e, pr.tx, pr.ty) <= r2) damage(g, e, pr.dmg * pct, pr.unit);
@@ -179,7 +156,7 @@ function impact(g: GameState, pr: Projectile, target: Enemy | null): void {
   damage(g, target, pr.dmg, pr.unit);
   if (fx.t === 'slow') applySlow(target, fx.pct * pr.fxK, fx.dur * pr.fxK);
   if (fx.t === 'execute') {
-    const pct = (ENEMIES[target.def].boss ? fx.bossPct : fx.pct) * pr.fxK;
+    const pct = (ENEMIES[target.def].boss ? fx.bossPct : fx.pct) * pr.fxK + g.mods.executeBonus;
     if (target.hp > 0 && target.hp < target.maxHp * pct) {
       target.hp = 0;
       g.events.push({ t: 'execute', x: target.x, y: target.y });
@@ -251,6 +228,7 @@ function removeDead(g: GameState): void {
   let w = 0;
   for (let i = 0; i < list.length; i++) {
     const e = list[i];
+    if (e.gone) continue;
     if (e.hp > 0) {
       list[w++] = e;
       continue;
@@ -293,8 +271,11 @@ export function stepCombat(g: GameState): void {
     if (kind !== 'attack' && kind !== 'hero') continue;
     t.cd -= DT * (1 + haste[i]);
     if (t.cd > 0) continue;
+    const wasReady = kind === 'hero' && isUltimateReady(t);
+    const fired = fire(g, t, i);
     // Reason: when idle, clamp at 0 instead of banking cooldown — otherwise a tile would burst-fire on arrival.
-    t.cd = fire(g, t, i) ? t.cd + tileInterval(t) : 0;
+    t.cd = fired ? t.cd + tileInterval(t) : 0;
+    if (fired && kind === 'hero' && !wasReady) t.rage = Math.min(1, t.rage + rageGain(t, g.mods));
   }
   updateProjectiles(g);
   removeDead(g);

@@ -17,7 +17,7 @@ export function canBeDivine(t: Tile): boolean {
 }
 
 export function makeTile(g: GameState, id: UnitId, invested: number): Tile {
-  const t: Tile = { uid: g.nextUid++, id, level: 1, divine: false, cd: 0, invested };
+  const t: Tile = { uid: g.nextUid++, id, level: 1, divine: false, cd: 0, invested, rage: 0 };
   // Reason: attackers may fire at once, but pulsing supports (钱/疗) must wait a full cycle so they can't be spammed.
   if (UNITS[id].kind === 'support') t.cd = tileInterval(t);
   return t;
@@ -40,6 +40,7 @@ export function combineInto(g: GameState, a: Tile, to: number, from: number): Ac
     b.level++;
     b.divine = b.divine || a.divine;
     b.invested += a.invested;
+    b.rage = Math.max(a.rage, b.rage);
     g.events.push({ t: 'merge', cell: to, level: b.level });
     return 'merge';
   }
@@ -73,7 +74,7 @@ export function previewDrop(a: Pick<Tile, 'id' | 'level' | 'divine'>, b: Tile | 
   if (a.id === b.id && a.level === b.level && isStackable(a.id)) return b.level >= MAX_LEVEL ? 'invalid' : 'merge';
   if (heroFor(a.id, b.id)) return 'hero';
   if (a.id === '神' || b.id === '神') {
-    const target = a.id === '神' ? b : { ...a, uid: 0, cd: 0, invested: 0 };
+    const target = a.id === '神' ? b : { ...a, uid: 0, cd: 0, invested: 0, rage: 0 };
     if (target.id === '神' || target.divine || !canBeDivine(target)) return 'invalid';
     return 'divine';
   }

@@ -1,15 +1,17 @@
-// Effective tile stats after level and 神 modifiers. Shared by combat, board and AI.
+// Effective tile stats after level, 神 and (optionally) the run's 法宝 modifiers. Shared by combat, board and AI.
 import { DIVINE, HEAL_EVERY, LEVEL_FX, LEVEL_MUL, UNITS } from '../config/units.ts';
-import type { Tile } from './types.ts';
+import type { RunMods, Tile } from './types.ts';
 
-export function tileDamage(t: Tile): number {
-  const d = UNITS[t.id].dmg * LEVEL_MUL[t.level - 1];
-  return t.divine ? d * DIVINE.dmg : d;
+export function tileDamage(t: Tile, mods?: RunMods): number {
+  let d = UNITS[t.id].dmg * LEVEL_MUL[t.level - 1];
+  if (t.divine) d *= DIVINE.dmg;
+  if (mods) d *= mods.dmgMul * (mods.unitDmgMul[t.id] ?? 1);
+  return d;
 }
 
-export function tileRange(t: Tile): number {
-  const r = UNITS[t.id].range;
-  return t.divine ? r + DIVINE.range : r;
+export function tileRange(t: Tile, mods?: RunMods): number {
+  const r = UNITS[t.id].range + (t.divine ? DIVINE.range : 0);
+  return mods ? r * (mods.unitRangeMul[t.id] ?? 1) : r;
 }
 
 export function tileInterval(t: Tile): number {
@@ -24,7 +26,7 @@ export function fxScale(t: Tile): number {
 }
 
 /** Damage per second ignoring haste; 0 for tiles that don't attack. */
-export function tileDps(t: Tile): number {
+export function tileDps(t: Tile, mods?: RunMods): number {
   const iv = tileInterval(t);
-  return iv > 0 ? tileDamage(t) / iv : 0;
+  return iv > 0 ? tileDamage(t, mods) / iv : 0;
 }

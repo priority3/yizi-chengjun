@@ -1,11 +1,14 @@
 // Visual effects driven by simulation events. Owns every render-only timer (flashes, pops, shakes,
-// particles, banners). Nothing here feeds back into the simulation, so it may use Math.random freely.
+// particles, banners, ultimates). Nothing here feeds back into the simulation, so it may use Math.random freely.
 import { ENEMIES, traitText } from '../config/enemies.ts';
+import { ULTIMATES } from '../config/ultimates.ts';
 import { UNITS } from '../config/units.ts';
-import { CELL_COUNT, CELL_POS, WORLD_H } from '../core/grid.ts';
+import { ENCOUNTERS, KIND_LABEL } from '../core/encounters.ts';
+import { CELL_COUNT, CELL_POS, GRID_H, GRID_Y, WORLD_H, WORLD_W } from '../core/grid.ts';
 import type { HeroId, Projectile, SimEvent } from '../core/types.ts';
 import { COLORS } from './draw.ts';
 import { drawFloater, drawFx, drawParticle, drawProjectile, type Floater, type Fx, type FxKind, type Particle, type ParticleShape } from './fx-draw.ts';
+import { drawUltimate, ultLife, type UltFx } from './fx-ultimate.ts';
 import { W, wy } from './layout.ts';
 
 export interface Banner {
@@ -20,9 +23,11 @@ export interface Banner {
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 /** Reason: 白龙 and splash can hit dozens of enemies per tick; cap live particles to protect frame time. */
 const MAX_PARTICLES = 260;
+const KIND_COLOR = { boon: '#aef0b8', trade: '#ffd166', challenge: '#ff8a5c' } as const;
 
 export class Vfx {
   private fx: Fx[] = [];
+  private ults: UltFx[] = [];
   private particles: Particle[] = [];
   private floaters: Floater[] = [];
   banner: Banner | null = null;
@@ -57,7 +62,9 @@ export class Vfx {
     this.banner = { title, sub, color, portrait, t: 0, life };
   }
 
+  /** Screen position of a cell; cell -1 means "the camp as a whole". */
   private cell(cell: number): { x: number; y: number } {
+    if (cell < 0) return { x: WORLD_W / 2, y: wy(GRID_Y + GRID_H / 2) };
     const p = CELL_POS[cell];
     return { x: p.x, y: wy(p.y) };
   }
@@ -116,6 +123,17 @@ export class Vfx {
     }
   }
 
+  private onUltimate(e: Extract<SimEvent, { t: 'ultimate' }>): void {
+    const p = this.cell(e.cell);
+    const pts = e.targets.map((q) => ({ x: q.x, y: wy(q.y) }));
+    this.ults.push({ hero: e.hero, x: p.x, y: p.y, tx: e.tx, ty: wy(e.ty), lane: e.lane, pts, t: 0, life: ultLife(e.hero, pts.length) });
+    this.recoil[e.cell] = 0.3;
+    this.pops[e.cell] = 0.3;
+    this.float(p.x, p.y - 36, ULTIMATES[e.hero].name, '#ffd166', 16, true, 1.2);
+    for (const q of pts) this.burst(q.x, q.y, 4, 'star', '#ffe27a', 120, 3.5, 0.5);
+    this.shake = Math.max(this.shake, e.hero === '沙僧' ? 2 : 6);
+  }
+
   consume(events: readonly SimEvent[]): void {
     for (const e of events) {
       switch (e.t) {
@@ -124,6 +142,9 @@ export class Vfx {
           break;
         case 'impact':
           this.onImpact(e);
+          break;
+        case 'ultimate':
+          this.onUltimate(e);
           break;
         case 'hit': {
           this.flash.set(e.uid, 0.12);
@@ -150,6 +171,15 @@ export class Vfx {
           this.burst(e.x, wy(e.y) + (e.y < 260 ? 10 : -10), 2, 'dot', '#ff6a5a', 60, 2, 0.3);
           this.shake = Math.max(this.shake, 0.7);
           break;
+        case 'steal': {
+          const x = e.x;
+          const y = wy(e.y);
+          this.float(x, y - 12, `-${e.amount} 功德`, '#ff6a5a', 15, false, 1.1);
+          this.float(x, y - 34, '溜了', '#ffd166', 18, true, 1);
+          this.burst(x, y, 8, 'coin', '', 120, 3, 0.7, 150);
+          this.shake = Math.max(this.shake, 2);
+          break;
+        }
         case 'revive':
           this.add('ring', e.x, wy(e.y), 0, 0, '#ffffff', 34, 0.5);
           this.float(e.x, wy(e.y) - 22, '复活！', '#ffffff', 16, true);
@@ -169,6 +199,18 @@ export class Vfx {
           this.burst(p.x, p.y + 18, 6, 'dot', 'rgba(170,130,80,0.7)', 70, 2.6, 0.35);
           break;
         }
+        case 'chest': {
+          const p = this.cell(e.cell);
+          this.burst(p.x, p.y, 12, 'coin', '', 130, 3.5, 0.8, 160);
+          if (e.cell >= 0 && e.unit) {
+            this.pops[e.cell] = 0.4;
+            this.add('burst', p.x, p.y, 0, 0, '#ffd27a', 60, 0.5);
+            this.float(p.x, p.y - 30, `宝箱 · ${e.unit}`, '#fff1c2', 15, true, 1.2);
+          } else {
+            this.float(p.x, p.y, '宝箱 · +30 功德', COLORS.gold, 15, true, 1.2);
+          }
+          break;
+        }
         case 'merge': {
           this.pops[e.cell] = 0.32;
           const p = this.cell(e.cell);
@@ -184,7 +226,7 @@ export class Vfx {
           this.add('burst', p.x, p.y, 0, 0, '#ffd27a', 70, 0.5);
           this.burst(p.x, p.y, 18, 'star', '#ffd27a', 170, 4.5, 0.9);
           const hero = e.unit as HeroId;
-          this.showBanner(`${hero} 觉醒！`, UNITS[hero].desc, '#ffd166', hero, 1.8);
+          this.showBanner(`${hero} 觉醒！`, `${UNITS[hero].desc} · 大招：${ULTIMATES[hero].name}`, '#ffd166', hero, 2);
           this.shake = Math.max(this.shake, 3);
           break;
         }
@@ -215,10 +257,15 @@ export class Vfx {
           this.burst(p.x, p.y, 6, 'star', '#8ff0a0', 60, 2.6, 0.5);
           break;
         }
+        case 'encounter': {
+          const def = ENCOUNTERS[e.id];
+          this.showBanner(`${KIND_LABEL[def.kind]} · ${e.id}`, def.desc, KIND_COLOR[def.kind], null, 2.2);
+          break;
+        }
         case 'waveStart': {
           const boss = e.boss ? ENEMIES[e.boss] : null;
-          const sub = boss ? `Boss ${boss.name}：${traitText(boss)}` : e.elite ? '魔将压阵，小心！' : '妖怪从上下两座城门杀来了';
-          this.showBanner(`第 ${e.wave} 波`, sub, boss ? '#ff8a5c' : '#fff1c2');
+          const sub = boss ? `Boss ${boss.name}：${traitText(boss)}` : e.elite ? '魔将压阵，小心！' : e.mods ? `劫难：${e.mods}` : '妖怪从上下两座城门杀来了';
+          this.showBanner(`第 ${e.wave} 波`, sub, boss ? '#ff8a5c' : e.mods ? '#ffb07a' : '#fff1c2');
           break;
         }
         case 'waveClear':
@@ -245,6 +292,8 @@ export class Vfx {
   update(dt: number): void {
     for (const f of this.fx) f.t += dt;
     this.fx = this.fx.filter((f) => f.t < f.life);
+    for (const u of this.ults) u.t += dt;
+    this.ults = this.ults.filter((u) => u.t < u.life);
     for (const p of this.particles) {
       p.t += dt;
       p.vx *= 1 - 2.5 * dt;
@@ -276,6 +325,7 @@ export class Vfx {
 
   drawWorld(ctx: CanvasRenderingContext2D): void {
     for (const f of this.fx) drawFx(ctx, f);
+    for (const u of this.ults) drawUltimate(ctx, u);
     for (const p of this.particles) drawParticle(ctx, p);
   }
 

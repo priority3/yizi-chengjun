@@ -5,9 +5,9 @@ import { buildWave, eliteWave, minionType, waveHp, waveSize } from '../src/core/
 
 describe('waves', () => {
   it('grows by two enemies per wave, plus a little per chapter', () => {
-    expect(waveSize(1, 1)).toBe(7);
-    expect(waveSize(1, 2)).toBe(9);
-    expect(waveSize(4, 1)).toBe(9);
+    expect(waveSize(1, 1)).toBe(8);
+    expect(waveSize(1, 2)).toBe(10);
+    expect(waveSize(4, 1)).toBe(10);
   });
 
   it('adds an elite mid-chapter and the boss on the last wave', () => {

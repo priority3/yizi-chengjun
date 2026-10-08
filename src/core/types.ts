@@ -60,6 +60,8 @@ export interface Tile {
   cd: number;
   /** 功德 spent to produce this tile; selling refunds a share of it. */
   invested: number;
+  /** Hero rage 0..1; at 1 the next attack is the ultimate (always 0 for non-heroes). */
+  rage: number;
 }
 
 export type BossTrait =
@@ -69,7 +71,9 @@ export type BossTrait =
   | { t: 'immune' }
   | { t: 'armor'; flat: number }
   | { t: 'regen'; pctPerSec: number }
-  | { t: 'split'; count: number; minion: string };
+  | { t: 'split'; count: number; minion: string }
+  /** Reaching the camp steals 功德 instead of biting, then the thief vanishes. */
+  | { t: 'steal'; amount: number };
 
 export interface EnemyDef {
   id: string;
@@ -115,6 +119,8 @@ export interface Enemy {
   traitT: number;
   dashT: number;
   bounty: number;
+  /** Left the field without dying (a thief that got away): removed silently, no bounty. */
+  gone: boolean;
 }
 
 export interface Projectile {
@@ -160,7 +166,53 @@ export type Action =
   | { t: 'drop'; from: number; to: number | 'sell' }
   | { t: 'refresh' }
   | { t: 'unlock'; cell: number }
-  | { t: 'start' };
+  | { t: 'start' }
+  /** Pick one of the pending encounter cards. */
+  | { t: 'choose'; option: number };
+
+export type EncounterId =
+  | '观音赐福'
+  | '财神到'
+  | '天降神字'
+  | '土地公摆摊'
+  | '宝箱'
+  | '妖风大作'
+  | '月圆之夜'
+  | '狼群来袭'
+  | '盗宝妖'
+  | '妖王亲临';
+
+/** Modifiers an encounter applies to the next wave. */
+export interface WaveMods {
+  speedMul: number;
+  hpMul: number;
+  bountyMul: number;
+  /** Multiplies the 功德 paid when the wave is cleared. */
+  bonusMul: number;
+  /** Replace the minions with 1.5x as many wolves. */
+  wolves: boolean;
+  /** Add a 功德-stealing thief mid-wave. */
+  thief: boolean;
+  /** Add this boss at half HP at the end of the wave. */
+  miniBoss: string | null;
+}
+
+/** Run-wide modifiers granted by equipped 法宝, read by the simulation. */
+export interface RunMods {
+  dmgMul: number;
+  unitDmgMul: Partial<Record<UnitId, number>>;
+  unitRangeMul: Partial<Record<UnitId, number>>;
+  splashRadiusMul: number;
+  stunMul: number;
+  /** Added to execute thresholds. */
+  executeBonus: number;
+  rageMul: number;
+  campHpBonus: number;
+  /** Camp HP restored whenever a wave is cleared. */
+  healOnClear: number;
+  startGongde: number;
+  enemySpeedMul: number;
+}
 
 export type ActionResult =
   | 'ok'
@@ -197,7 +249,14 @@ export type SimEvent =
   | { t: 'heal'; cell: number; amount: number }
   | { t: 'unlock'; cell: number }
   | { t: 'refresh' }
-  | { t: 'waveStart'; wave: number; boss: string | null; elite: boolean }
+  | { t: 'ultimate'; hero: HeroId; cell: number; x: number; y: number; tx: number; ty: number; lane: Lane; targets: Array<{ x: number; y: number }> }
+  | { t: 'encounterOffer'; options: EncounterId[] }
+  | { t: 'encounter'; id: EncounterId }
+  /** A 宝箱 opened: a card landed on `cell`, or 功德 when the camp had no room (cell -1, unit null). */
+  | { t: 'chest'; cell: number; unit: UnitId | null }
+  | { t: 'steal'; x: number; y: number; amount: number }
+  /** `mods` is the HUD label of the encounter modifiers in force, '' for a plain wave. */
+  | { t: 'waveStart'; wave: number; boss: string | null; elite: boolean; mods: string }
   | { t: 'waveClear'; wave: number; bonus: number }
   | { t: 'won' }
   | { t: 'lost' };
@@ -226,6 +285,21 @@ export interface GameState {
   shop: ShopOffer[];
   /** Refreshes used in the current build phase (drives the refresh price). */
   refreshes: number;
+  /** Pending encounter cards; shopping and the next wave wait until one is chosen. */
+  encounter: EncounterId[] | null;
+  /** Encounters offered so far this run (every second cleared wave). */
+  encounters: number;
+  /** Modifiers queued for the next wave by an encounter. */
+  waveMods: WaveMods;
+  /** Modifiers of the wave currently being fought (for bonus multipliers and the HUD). */
+  activeMods: WaveMods;
+  /** Price multiplier this build phase (土地公摆摊 = 0.5). */
+  shopDiscount: number;
+  freeRefresh: boolean;
+  /** A 宝箱 opens after the next wave. */
+  chest: boolean;
+  /** 法宝 effects for this run. */
+  mods: RunMods;
   /** Gameplay RNG state (shop offers, spawn positions). */
   rng: number;
   kills: number;

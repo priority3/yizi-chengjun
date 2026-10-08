@@ -1,7 +1,21 @@
 // Reusable UI widgets drawn on the canvas: buttons, panels, the trash bin, speech bubbles.
+import type { Stage } from '../platform/web.ts';
+import { paintBackground } from './background.ts';
 import { COLORS, fitPx, roundRect, text } from './draw.ts';
 import { brush, sans } from './fonts.ts';
 import { L, W, type Rect } from './layout.ts';
+import { sprites } from './sprites.ts';
+
+/** The back button shared by every menu screen. */
+export const BACK: Rect = { x: 12, y: 16, w: 66, h: 34 };
+
+/** The painted battlefield, darkened, behind menus. */
+export function backdrop(ctx: CanvasRenderingContext2D, stage: Stage, dim: number): void {
+  const img = sprites.get(`bg:${stage.pixelRatio}:${L.H}`, W, L.H, (c) => paintBackground(c, L.H));
+  ctx.drawImage(img, 0, 0, W, L.H);
+  ctx.fillStyle = `rgba(28,14,6,${dim})`;
+  ctx.fillRect(0, 0, W, L.H);
+}
 
 export type ButtonStyle = 'primary' | 'jade' | 'danger' | 'ghost' | 'disabled';
 

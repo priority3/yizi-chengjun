@@ -13,20 +13,20 @@ export interface ChapterDef {
 }
 
 export const CHAPTERS: readonly ChapterDef[] = [
-  { id: 1, name: '白虎岭', boss: '白骨精', waves: 5, hpStart: 1, hpGrowth: 1.16 },
-  { id: 2, name: '黄风岭', boss: '黄风怪', waves: 5, hpStart: 1.05, hpGrowth: 1.2 },
-  { id: 3, name: '平顶山', boss: '金角大王', waves: 6, hpStart: 1.1, hpGrowth: 1.22 },
-  { id: 4, name: '火云洞', boss: '红孩儿', waves: 6, hpStart: 1.15, hpGrowth: 1.24 },
-  { id: 5, name: '黑风山', boss: '黑熊精', waves: 6, hpStart: 1.2, hpGrowth: 1.26 },
-  { id: 6, name: '通天河', boss: '灵感大王', waves: 7, hpStart: 1.25, hpGrowth: 1.27 },
-  { id: 7, name: '盘丝洞', boss: '蜘蛛精', waves: 7, hpStart: 1.3, hpGrowth: 1.28 },
-  { id: 8, name: '火焰山', boss: '牛魔王', waves: 7, hpStart: 1.35, hpGrowth: 1.29 },
-  { id: 9, name: '狮驼岭', boss: '金翅大鹏', waves: 8, hpStart: 1.4, hpGrowth: 1.3 },
-  { id: 10, name: '小雷音寺', boss: '黄眉大王', waves: 8, hpStart: 1.45, hpGrowth: 1.31 },
+  { id: 1, name: '白虎岭', boss: '白骨精', waves: 5, hpStart: 1, hpGrowth: 1.18 },
+  { id: 2, name: '黄风岭', boss: '黄风怪', waves: 5, hpStart: 1.1, hpGrowth: 1.22 },
+  { id: 3, name: '平顶山', boss: '金角大王', waves: 6, hpStart: 1.2, hpGrowth: 1.24 },
+  { id: 4, name: '火云洞', boss: '红孩儿', waves: 6, hpStart: 1.3, hpGrowth: 1.26 },
+  { id: 5, name: '黑风山', boss: '黑熊精', waves: 6, hpStart: 1.4, hpGrowth: 1.28 },
+  { id: 6, name: '通天河', boss: '灵感大王', waves: 7, hpStart: 1.5, hpGrowth: 1.29 },
+  { id: 7, name: '盘丝洞', boss: '蜘蛛精', waves: 7, hpStart: 1.6, hpGrowth: 1.3 },
+  { id: 8, name: '火焰山', boss: '牛魔王', waves: 7, hpStart: 1.7, hpGrowth: 1.31 },
+  { id: 9, name: '狮驼岭', boss: '金翅大鹏', waves: 8, hpStart: 1.95, hpGrowth: 1.32 },
+  { id: 10, name: '小雷音寺', boss: '黄眉大王', waves: 8, hpStart: 2.15, hpGrowth: 1.33 },
 ];
 
 export const START_GONGDE = 70;
-export const CAMP_HP = 150;
+export const CAMP_HP = 120;
 export const SHOP_SIZE = 3;
 /** Attack cards guaranteed in the very first shop, and in every later one. */
 export const FIRST_SHOP_ATTACKERS = 2;
@@ -40,7 +40,7 @@ export const MIN_SPAWN_GAP = 0.45;
 
 /** 功德 paid out when wave `w` is cleared. */
 export function waveBonus(w: number): number {
-  return 15 + 5 * w;
+  return 14 + 4 * w;
 }
 
 /** Price of the next shop refresh in the current build phase. */

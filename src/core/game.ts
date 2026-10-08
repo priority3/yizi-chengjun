@@ -1,22 +1,29 @@
-// A chapter run: build phase (shop open) <-> battle phase (a wave attacks) until the boss falls or the camp does.
+// A chapter run: build phase (shop open, maybe an encounter to pick) <-> battle phase (a wave attacks)
+// until the boss falls or the camp does.
 import { CAMP_HP, CHAPTERS, FIRST_SHOP_ATTACKERS, START_GONGDE, STARTER_CELL, waveBonus } from '../config/chapters.ts';
 import { makeTile, resolveDrop } from './board.ts';
 import { DT } from './clock.ts';
 import { stepCombat } from './combat.ts';
+import { chooseEncounter, defaultWaveMods, encounterDue, modsLabel, offerEncounter, openChest } from './encounters.ts';
 import { CELL_COUNT, initialUnlocked } from './grid.ts';
 import { makeEnemy, moveEnemies } from './monsters.ts';
 import { mixSeed } from './rng.ts';
 import { buy, refresh, restock, unlock } from './shop.ts';
+import { defaultMods } from './treasures.ts';
 import { buildWave } from './waves.ts';
-import type { Action, ActionResult, GameState } from './types.ts';
+import type { Action, ActionResult, GameState, RunMods } from './types.ts';
 
 export interface GameOptions {
   seed: number;
   chapter: number;
+  /** 法宝 effects; defaults to none. */
+  mods?: RunMods;
 }
 
 export function createGame(opts: GameOptions): GameState {
   const ch = CHAPTERS[opts.chapter - 1];
+  const mods = opts.mods ?? defaultMods();
+  const campMax = CAMP_HP + mods.campHpBonus;
   const g: GameState = {
     seed: opts.seed,
     chapter: opts.chapter,
@@ -25,9 +32,9 @@ export function createGame(opts: GameOptions): GameState {
     wave: 0,
     totalWaves: ch.waves,
     waveTime: 0,
-    gongde: START_GONGDE,
-    campHp: CAMP_HP,
-    campMax: CAMP_HP,
+    gongde: START_GONGDE + mods.startGongde,
+    campHp: campMax,
+    campMax,
     unlocked: initialUnlocked(),
     unlockCount: 0,
     slots: new Array<null>(CELL_COUNT).fill(null),
@@ -36,6 +43,14 @@ export function createGame(opts: GameOptions): GameState {
     spawns: [],
     shop: [],
     refreshes: 0,
+    encounter: null,
+    encounters: 0,
+    waveMods: defaultWaveMods(),
+    activeMods: defaultWaveMods(),
+    shopDiscount: 1,
+    freeRefresh: false,
+    chest: false,
+    mods,
     rng: mixSeed(opts.seed, 7),
     kills: 0,
     events: [],
@@ -49,17 +64,21 @@ export function createGame(opts: GameOptions): GameState {
 
 function startWave(g: GameState): ActionResult {
   g.wave++;
+  g.shopDiscount = 1;
+  g.freeRefresh = false;
   const plan = buildWave(g, g.wave);
   g.spawns = plan.spawns;
   g.waveTime = 0;
   g.phase = 'battle';
-  g.events.push({ t: 'waveStart', wave: g.wave, boss: plan.boss, elite: plan.elite });
+  g.events.push({ t: 'waveStart', wave: g.wave, boss: plan.boss, elite: plan.elite, mods: modsLabel(plan.mods) });
   return 'ok';
 }
 
 /** Applies a player (or bot) action immediately. Events it produces are appended to `g.events`. */
 export function act(g: GameState, a: Action): ActionResult {
   if (g.phase === 'won' || g.phase === 'lost') return 'phase';
+  // Reason: a pending encounter must be answered before the shop reopens or the next wave starts.
+  if (g.encounter && a.t !== 'choose' && a.t !== 'drop') return 'phase';
   switch (a.t) {
     case 'buy':
       return g.phase === 'build' ? buy(g, a.offer, a.cell) : 'phase';
@@ -67,6 +86,8 @@ export function act(g: GameState, a: Action): ActionResult {
       return g.phase === 'build' ? refresh(g) : 'phase';
     case 'start':
       return g.phase === 'build' ? startWave(g) : 'phase';
+    case 'choose':
+      return chooseEncounter(g, a.option);
     case 'unlock':
       return unlock(g, a.cell);
     case 'drop':
@@ -81,12 +102,19 @@ function endWave(g: GameState): void {
     g.events.push({ t: 'won' });
     return;
   }
-  const bonus = waveBonus(g.wave);
+  const bonus = Math.round(waveBonus(g.wave) * g.activeMods.bonusMul);
   g.gongde += bonus;
+  if (g.mods.healOnClear > 0 && g.campHp < g.campMax) {
+    const amount = Math.min(g.mods.healOnClear, g.campMax - g.campHp);
+    g.campHp += amount;
+    g.events.push({ t: 'heal', cell: -1, amount });
+  }
   g.phase = 'build';
   g.refreshes = 0;
   restock(g);
   g.events.push({ t: 'waveClear', wave: g.wave, bonus });
+  if (g.chest) openChest(g);
+  if (encounterDue(g.wave, g.totalWaves)) offerEncounter(g);
 }
 
 /** Advances the run by one fixed tick (1/60 s). Nothing moves during the build phase. */
@@ -116,27 +144,41 @@ export function hashState(g: GameState): number {
     h ^= n | 0;
     h = Math.imul(h, 0x01000193);
   };
+  const mixText = (s: string) => {
+    for (const ch of s) mix(ch.charCodeAt(0));
+  };
   mix(g.tick);
   mix(g.wave);
   mix(g.gongde);
   mix(Math.round(g.campHp * 100));
+  mix(g.campMax);
   mix(g.kills);
   mix(g.rng);
   mix(g.unlockCount);
+  mix(g.encounters);
+  mix(Math.round(g.shopDiscount * 100));
+  mix(g.chest ? 1 : 0);
+  for (const id of g.encounter ?? []) mixText(id);
+  const m = g.waveMods;
+  mix(Math.round(m.speedMul * 100));
+  mix(Math.round(m.hpMul * 100));
+  mix((m.wolves ? 1 : 0) + (m.thief ? 2 : 0));
+  if (m.miniBoss) mixText(m.miniBoss);
   for (const t of g.slots) {
     if (!t) {
       mix(-1);
       continue;
     }
-    for (const ch of t.id) mix(ch.charCodeAt(0));
+    mixText(t.id);
     mix(t.level);
     mix(t.divine ? 1 : 0);
+    mix(Math.round(t.rage * 100));
   }
   for (const e of g.enemies) {
     mix(e.uid);
     mix(Math.round(e.hp * 100));
     mix(Math.round(e.y * 100));
   }
-  for (const o of g.shop) for (const ch of o.id) mix(ch.charCodeAt(0));
+  for (const o of g.shop) mixText(o.id);
   return h >>> 0;
 }

@@ -13,7 +13,7 @@ export function emptyGame(chapter = 1, seed = 1): GameState {
 }
 
 export function put(g: GameState, cell: number, id: UnitId, level = 1, divine = false): Tile {
-  const t: Tile = { uid: g.nextUid++, id, level, divine, cd: 0, invested: 10 };
+  const t: Tile = { uid: g.nextUid++, id, level, divine, cd: 0, invested: 10, rage: 0 };
   g.unlocked[cell] = true;
   g.slots[cell] = t;
   return t;

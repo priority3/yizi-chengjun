@@ -1,21 +1,23 @@
-// The chapter screen: runs the fixed-step simulation, handles shop and camp drag-and-drop, pause and results.
-import { CHAPTERS, refreshCost, unlockCost } from '../config/chapters.ts';
+// The chapter screen: runs the fixed-step simulation, handles the shop, camp drag-and-drop, encounters, pause and results.
+import { CHAPTERS, unlockCost } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
+import { ULTIMATES } from '../config/ultimates.ts';
 import { UNITS } from '../config/units.ts';
 import { previewDrop } from '../core/board.ts';
 import { DT } from '../core/clock.ts';
 import { act, createGame, step } from '../core/game.ts';
 import { cellAt } from '../core/grid.ts';
+import { currentRefreshCost, offerPrice } from '../core/shop.ts';
 import { tileDamage, tileRange } from '../core/stats.ts';
-import type { GameState, SimEvent, Tile } from '../core/types.ts';
+import { buildMods, clearRewards, type ClearRewards } from '../core/treasures.ts';
+import type { Action, GameState, HeroId, RunMods, SimEvent, Tile } from '../core/types.ts';
 import type { Stage } from '../platform/web.ts';
-import { brush, sans } from '../render/fonts.ts';
-import { text } from '../render/draw.ts';
-import { inRect, L, toWorld, W, type Rect } from '../render/layout.ts';
+import { encounterCardRects } from '../render/encounter-panel.ts';
+import { inRect, L, toWorld } from '../render/layout.ts';
 import { NUMERALS } from '../render/panels.ts';
 import { GameRenderer, type DragUi, type GameUi } from '../render/renderer.ts';
 import { Vfx } from '../render/vfx.ts';
-import { drawButton, drawPanel } from '../render/widgets.ts';
+import { drawPause, drawResult, pausePanel, resultPanel, tapButtons, type OverlayButton, type ResultInfo } from './game-overlays.ts';
 import { Toasts } from './hud.ts';
 import type { Pointer } from './input.ts';
 import type { Nav, Scene } from './scenes.ts';
@@ -25,27 +27,23 @@ const RESULT_DELAY = 1;
 /** How far above a finger a dragged card is drawn. */
 const TOUCH_LIFT = 44;
 
-function panelRect(): Rect {
-  return { x: 36, y: L.H / 2 - 170, w: W - 72, h: 330 };
-}
-
-function panelButtons(): Rect[] {
-  const p = panelRect();
-  return [0, 1, 2].map((i) => ({ x: p.x + 34, y: p.y + 170 + i * 52, w: p.w - 68, h: 42 }));
-}
-
 /** Reason: a function call instead of an inline check, because step() changes the phase behind TS's narrowing. */
 function isOver(g: GameState): boolean {
   return g.phase === 'won' || g.phase === 'lost';
 }
 
-function describe(t: Pick<Tile, 'id' | 'level' | 'divine'>): string {
+function describe(t: Pick<Tile, 'id' | 'level' | 'divine'>, mods: RunMods): string {
   const def = UNITS[t.id];
   const name = `${t.divine ? '神' : ''}${t.id}${t.level > 1 ? ` ${t.level}级` : ''}`;
-  if (def.kind === 'attack' || def.kind === 'hero') {
-    const tile: Tile = { uid: 0, cd: 0, invested: 0, ...t };
-    const range = tileRange(tile);
-    return `${name} · ${def.desc}（伤害 ${Math.round(tileDamage(tile))}，射程 ${Number.isFinite(range) ? Math.round(range) : '全场'}）`;
+  if (def.kind === 'hero') {
+    const u = ULTIMATES[t.id as HeroId];
+    const tile: Tile = { uid: 0, cd: 0, invested: 0, rage: 0, ...t };
+    return `${name} · 大招「${u.name}」：${u.desc}（伤害 ${Math.round(tileDamage(tile, mods))}）`;
+  }
+  if (def.kind === 'attack') {
+    const tile: Tile = { uid: 0, cd: 0, invested: 0, rage: 0, ...t };
+    const range = tileRange(tile, mods);
+    return `${name} · ${def.desc}（伤害 ${Math.round(tileDamage(tile, mods))}，射程 ${Number.isFinite(range) ? Math.round(range) : '全场'}）`;
   }
   return `${name} · ${def.desc}`;
 }
@@ -63,6 +61,8 @@ export class GameScene implements Scene {
   private clock = 0;
   /** Seconds since the run ended; -1 while it is still running. */
   private endT = -1;
+  /** Rewards banked when the chapter was cleared. */
+  private rewards: ClearRewards | null = null;
   private drag: DragUi | null = null;
   private lift = 0;
   private hoverCell = -1;
@@ -77,12 +77,14 @@ export class GameScene implements Scene {
   constructor(stage: Stage, chapter: number, nav: Nav) {
     this.nav = nav;
     this.chapter = chapter;
+    const vault = nav.progress.vault;
     // Reason: Math.random is fine here — only the seed is random; the run itself stays deterministic.
-    this.g = createGame({ seed: (Math.random() * 0x7fffffff) | 0, chapter });
+    this.g = createGame({ seed: (Math.random() * 0x7fffffff) | 0, chapter, mods: buildMods(vault) });
     this.renderer = new GameRenderer(stage);
     this.tutorial = chapter === 1;
     const ch = CHAPTERS[chapter - 1];
-    this.vfx.showBanner(`第${NUMERALS[chapter - 1]}章 · ${ch.name}`, `守住阵地，打败${ENEMIES[ch.boss].name}`, '#ffd166', null, 2.4);
+    const gear = vault.equipped.length > 0 ? ` · 带了 ${vault.equipped.length} 件法宝` : '';
+    this.vfx.showBanner(`第${NUMERALS[chapter - 1]}章 · ${ch.name}`, `守住阵地，打败${ENEMIES[ch.boss].name}${gear}`, '#ffd166', null, 2.4);
     this.tip('drag', '把商店里的卡拖到阵地的空格上');
   }
 
@@ -121,15 +123,15 @@ export class GameScene implements Scene {
   render(ctx: CanvasRenderingContext2D): void {
     this.renderer.draw(ctx, this.g, this.ui(), this.vfx, this.clock);
     this.toasts.draw(ctx, this.g.phase === 'build' ? L.shop.y - 24 : L.bar.y - 18);
-    if (this.g.phase === 'won' || this.g.phase === 'lost') {
-      if (this.endT >= RESULT_DELAY) this.drawResult(ctx);
+    if (isOver(this.g)) {
+      if (this.endT >= RESULT_DELAY) drawResult(ctx, this.resultInfo(), this.resultButtons());
     } else if (this.paused) {
-      this.drawPause(ctx);
+      drawPause(ctx, this.pauseButtons());
     }
   }
 
   pause(): void {
-    if (this.g.phase === 'won' || this.g.phase === 'lost') return;
+    if (isOver(this.g)) return;
     this.paused = true;
     this.drag = null;
   }
@@ -148,8 +150,9 @@ export class GameScene implements Scene {
     };
   }
 
+  /** Pause panel, result panel or a pending encounter: the camp and shop don't take input. */
   private overlayOpen(): boolean {
-    return this.paused || this.g.phase === 'won' || this.g.phase === 'lost';
+    return this.paused || isOver(this.g) || this.g.encounter !== null;
   }
 
   private buttonAt(p: Pointer): string | null {
@@ -165,29 +168,43 @@ export class GameScene implements Scene {
   // ---- input -------------------------------------------------------------
 
   press(p: Pointer): void {
+    if (this.g.encounter && !this.paused && !isOver(this.g)) {
+      const i = encounterCardRects().findIndex((r) => inRect(p.x, p.y, r));
+      this.pressed = i >= 0 ? `enc:${i}` : null;
+      return;
+    }
     if (!this.overlayOpen()) this.pressed = this.buttonAt(p);
   }
 
   tap(p: Pointer): void {
     this.pressed = null;
     const g = this.g;
-    if (g.phase === 'won' || g.phase === 'lost') {
-      if (this.endT >= RESULT_DELAY) this.tapPanel(p, this.resultButtons());
+    if (isOver(g)) {
+      if (this.endT >= RESULT_DELAY) tapButtons(p, resultPanel(this.resultInfo()), this.resultButtons());
       return;
     }
     if (this.paused) {
-      this.tapPanel(p, this.pauseButtons());
+      tapButtons(p, pausePanel(), this.pauseButtons());
+      return;
+    }
+    if (g.encounter) {
+      if (this.buttonAt(p) === 'pause') {
+        this.pause();
+        return;
+      }
+      const i = encounterCardRects().findIndex((r) => inRect(p.x, p.y, r));
+      if (i >= 0) this.doAct({ t: 'choose', option: i });
       return;
     }
     const button = this.buttonAt(p);
     if (button === 'pause') this.pause();
     else if (button === 'speed') this.speed = this.speed === 1 ? 2 : 1;
-    else if (button === 'refresh') this.doAct({ t: 'refresh' }, `功德不够：刷新要 ${refreshCost(g.refreshes)}`);
+    else if (button === 'refresh') this.doAct({ t: 'refresh' }, `功德不够：刷新要 ${currentRefreshCost(g)}`);
     else if (button === 'start') this.startWave();
     else if (g.phase === 'build' && L.shopCards.some((r) => inRect(p.x, p.y, r))) {
       const i = L.shopCards.findIndex((r) => inRect(p.x, p.y, r));
       const o = g.shop[i];
-      if (o && !o.sold) this.toasts.push(`${describe({ id: o.id, level: 1, divine: false })} · 拖到阵地上购买`);
+      if (o && !o.sold) this.toasts.push(`${describe({ id: o.id, level: 1, divine: false }, g.mods)} · 拖到阵地上购买`);
     } else {
       const w = toWorld(p.x, p.y);
       const cell = cellAt(w.x, w.y);
@@ -197,7 +214,7 @@ export class GameScene implements Scene {
       } else if (g.slots[cell]) {
         this.selected = cell;
         this.selectedT = 2.5;
-        this.toasts.push(describe(g.slots[cell] as Tile));
+        this.toasts.push(describe(g.slots[cell] as Tile, g.mods));
       }
     }
   }
@@ -242,8 +259,9 @@ export class GameScene implements Scene {
     if (d.kind === 'shop') {
       if (cell < 0) return;
       const o = this.g.shop[d.index];
+      const price = o ? offerPrice(this.g, o) : 0;
       if (!this.g.unlocked[cell]) this.toasts.push('这格还没解锁：点「+」花功德解锁');
-      else if (o && this.g.gongde < o.price) this.toasts.push(`功德不够：这张卡要 ${o.price}`);
+      else if (o && this.g.gongde < price) this.toasts.push(`功德不够：这张卡要 ${price}`);
       else this.doAct({ t: 'buy', offer: d.index, cell });
       return;
     }
@@ -280,13 +298,13 @@ export class GameScene implements Scene {
     if (d.kind === 'shop') {
       const o = g.shop[d.index];
       const combines = outcome === 'empty' || outcome === 'merge' || outcome === 'hero' || outcome === 'divine';
-      this.hoverValid = g.unlocked[cell] && combines && !!o && g.gongde >= o.price;
+      this.hoverValid = g.unlocked[cell] && combines && !!o && g.gongde >= offerPrice(g, o);
     } else {
       this.hoverValid = g.unlocked[cell] && outcome !== 'invalid' && cell !== d.index;
     }
   }
 
-  private doAct(a: Parameters<typeof act>[1], poorMsg = '功德不够'): void {
+  private doAct(a: Action, poorMsg = '功德不够'): void {
     const before = this.g.events.length;
     const r = act(this.g, a);
     if (r === 'poor') this.toasts.push(poorMsg);
@@ -312,6 +330,8 @@ export class GameScene implements Scene {
         if (UNITS[e.unit].kind === 'fragment') this.tip('frag', '名字碎片：凑齐「悟」「空」这样的另一半就能觉醒英雄');
       } else if (e.t === 'waveClear') this.tip('merge', '两张同名同级的卡叠在一起会升级');
       else if (e.t === 'waveStart' && e.wave === 2) this.tip('trash', '不要的字可以拖到垃圾桶卖掉');
+      else if (e.t === 'encounterOffer') this.tip('enc', '奇遇三选一：福缘立刻生效，劫难下一波生效但赏金更多');
+      else if (e.t === 'hero') this.tip('rage', '英雄普攻十下攒满怒气，下一击就是大招');
     }
   }
 
@@ -320,14 +340,20 @@ export class GameScene implements Scene {
     this.drag = null;
     if (this.g.phase !== 'won') return;
     const p = this.nav.progress;
+    const firstClear = (p.wins[this.chapter - 1] ?? 0) === 0;
     p.unlocked = Math.max(p.unlocked, Math.min(CHAPTERS.length, this.chapter + 1));
     p.wins[this.chapter - 1] = (p.wins[this.chapter - 1] ?? 0) + 1;
+    this.rewards = clearRewards(p.vault, this.chapter, firstClear);
     this.nav.save();
   }
 
   // ---- overlays ----------------------------------------------------------
 
-  private pauseButtons(): Array<{ label: string; go: () => void }> {
+  private resultInfo(): ResultInfo {
+    return { g: this.g, chapter: this.chapter, rewards: this.rewards };
+  }
+
+  private pauseButtons(): OverlayButton[] {
     return [
       { label: '继续', go: () => (this.paused = false) },
       { label: '重新开始', go: () => this.nav.play(this.chapter) },
@@ -335,46 +361,16 @@ export class GameScene implements Scene {
     ];
   }
 
-  private resultButtons(): Array<{ label: string; go: () => void }> {
-    const out: Array<{ label: string; go: () => void }> = [];
-    if (this.g.phase === 'won' && this.chapter < CHAPTERS.length) out.push({ label: '下一章', go: () => this.nav.play(this.chapter + 1) });
-    out.push({ label: '再来一次', go: () => this.nav.play(this.chapter) });
+  private resultButtons(): OverlayButton[] {
+    const out: OverlayButton[] = [];
+    if (this.g.phase === 'won') {
+      if (this.chapter < CHAPTERS.length) out.push({ label: '下一章', go: () => this.nav.play(this.chapter + 1) });
+      out.push({ label: '再来一次', go: () => this.nav.play(this.chapter) });
+    } else {
+      out.push({ label: '再来一次', go: () => this.nav.play(this.chapter) });
+      out.push({ label: '法宝炼器', go: () => this.nav.treasures() });
+    }
     out.push({ label: '返回选章', go: () => this.nav.chapters() });
     return out;
-  }
-
-  private tapPanel(p: Pointer, buttons: Array<{ label: string; go: () => void }>): void {
-    const rects = panelButtons();
-    buttons.forEach((b, i) => {
-      if (inRect(p.x, p.y, rects[i])) b.go();
-    });
-  }
-
-  private drawButtons(ctx: CanvasRenderingContext2D, buttons: Array<{ label: string }>): void {
-    const rects = panelButtons();
-    buttons.forEach((b, i) => drawButton(ctx, rects[i], b.label, i === 0 ? 'primary' : 'ghost'));
-  }
-
-  private drawPause(ctx: CanvasRenderingContext2D): void {
-    const r = panelRect();
-    drawPanel(ctx, r);
-    text(ctx, '暂停', W / 2, r.y + 58, brush(34), '#6b1c1c');
-    text(ctx, '妖怪也在原地等你', W / 2, r.y + 104, sans(13, 500), '#7a6248');
-    this.drawButtons(ctx, this.pauseButtons());
-  }
-
-  private drawResult(ctx: CanvasRenderingContext2D): void {
-    const g = this.g;
-    const r = panelRect();
-    const ch = CHAPTERS[this.chapter - 1];
-    const won = g.phase === 'won';
-    drawPanel(ctx, r);
-    const title = won ? (this.chapter === CHAPTERS.length ? '取得真经！' : '章节通关！') : '阵地失守';
-    text(ctx, title, W / 2, r.y + 50, brush(34), won ? '#b3261e' : '#4a3a2e');
-    const sub = won ? `打败了${ENEMIES[ch.boss].name}` : `坚持到第 ${g.wave}/${g.totalWaves} 波`;
-    text(ctx, sub, W / 2, r.y + 94, sans(14, 600), '#6a4a26');
-    const stats = won ? `击杀 ${g.kills} · 阵地剩余 ${Math.ceil(g.campHp)}/${g.campMax}` : '试试把「棍」放最外圈、「箭」「火」放中间';
-    text(ctx, stats, W / 2, r.y + 126, sans(12, 500), '#7a6248');
-    this.drawButtons(ctx, this.resultButtons());
   }
 }

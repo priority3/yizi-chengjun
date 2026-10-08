@@ -1,4 +1,4 @@
-// Enemies: spawning, walking to the camp, attacking it, and the timed boss traits (dash, summon, regen).
+// Enemies: spawning, walking to the camp, attacking it (or robbing it), and the timed boss traits.
 import { ENEMIES } from '../config/enemies.ts';
 import { DT } from './clock.ts';
 import { SPAWN_X_MAX, SPAWN_X_MIN, spawnY, stopY } from './grid.ts';
@@ -27,7 +27,8 @@ export function makeEnemy(
     y,
     lane,
     stopY: stopY(lane, d.radius),
-    speed,
+    // 定风珠 and similar 法宝 slow every enemy that enters the field.
+    speed: speed * g.mods.enemySpeedMul,
     slowPct: 0,
     slowT: 0,
     stunT: 0,
@@ -38,6 +39,7 @@ export function makeEnemy(
     traitT: tr?.t === 'dash' || tr?.t === 'summon' ? tr.every : 0,
     dashT: 0,
     bounty,
+    gone: false,
   };
 }
 
@@ -58,7 +60,7 @@ export function moveEnemies(g: GameState): void {
   const n = g.enemies.length;
   for (let i = 0; i < n; i++) {
     const e = g.enemies[i];
-    if (e.hp <= 0) continue;
+    if (e.hp <= 0 || e.gone) continue;
     const d = ENEMIES[e.def];
     const tr = d.trait;
     if (tr?.t === 'regen') e.hp = Math.min(e.maxHp, e.hp + e.maxHp * tr.pctPerSec * DT);
@@ -91,6 +93,14 @@ export function moveEnemies(g: GameState): void {
         e.dashT -= DT;
       }
       e.y += dir * Math.min(remaining, v * DT);
+      continue;
+    }
+    if (tr?.t === 'steal') {
+      // The thief grabs 功德 and slips away instead of biting.
+      const amount = Math.min(g.gongde, tr.amount);
+      g.gongde -= amount;
+      e.gone = true;
+      g.events.push({ t: 'steal', x: e.x, y: e.y, amount });
       continue;
     }
     // At the camp: bite on a cooldown. Slows also slow the biting.

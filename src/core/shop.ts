@@ -56,13 +56,24 @@ export function restock(g: GameState, minAttackers = SHOP_ATTACKERS): void {
   g.shop = ids.map((id): ShopOffer => ({ id, price: UNITS[id].price, sold: false }));
 }
 
+/** What an offer costs right now (土地公摆摊 halves prices for one build phase). */
+export function offerPrice(g: GameState, o: ShopOffer): number {
+  return Math.max(1, Math.round(o.price * g.shopDiscount));
+}
+
+/** What the next refresh costs right now (0 while 土地公摆摊 is active). */
+export function currentRefreshCost(g: GameState): number {
+  return g.freeRefresh ? 0 : refreshCost(g.refreshes);
+}
+
 /** Buys shop card `offer` and puts it on `cell` — an empty cell, or a tile it combines with. */
 export function buy(g: GameState, offer: number, cell: number): ActionResult {
   const o = g.shop[offer];
   if (!o || o.sold) return 'none';
   if (!g.unlocked[cell]) return 'locked';
-  if (g.gongde < o.price) return 'poor';
-  const card = makeTile(g, o.id, o.price);
+  const price = offerPrice(g, o);
+  if (g.gongde < price) return 'poor';
+  const card = makeTile(g, o.id, price);
   if (g.slots[cell]) {
     const r = combineInto(g, card, cell, -1);
     if (r === null) {
@@ -70,19 +81,19 @@ export function buy(g: GameState, offer: number, cell: number): ActionResult {
       return 'occupied';
     }
     if (r !== 'merge' && r !== 'hero' && r !== 'divine') return r;
-    g.gongde -= o.price;
+    g.gongde -= price;
     o.sold = true;
     return r;
   }
   g.slots[cell] = card;
-  g.gongde -= o.price;
+  g.gongde -= price;
   o.sold = true;
   g.events.push({ t: 'buy', cell, unit: o.id });
   return 'ok';
 }
 
 export function refresh(g: GameState): ActionResult {
-  const cost = refreshCost(g.refreshes);
+  const cost = currentRefreshCost(g);
   if (g.gongde < cost) return 'poor';
   g.gongde -= cost;
   g.refreshes++;

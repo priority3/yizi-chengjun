@@ -1,9 +1,11 @@
 // HUD and bottom panels: chapter title, 功德, camp HP with 唐僧, wave nodes, the shop, the battle bar, banners.
-import { CHAPTERS, refreshCost } from '../config/chapters.ts';
+import { CHAPTERS } from '../config/chapters.ts';
 import { UNITS } from '../config/units.ts';
+import { modsLabel } from '../core/encounters.ts';
+import { currentRefreshCost, offerPrice } from '../core/shop.ts';
 import type { GameState } from '../core/types.ts';
 import { cardSprite } from './cards.ts';
-import { COLORS, drawBar, drawCoin, outlined, roundRect, text } from './draw.ts';
+import { COLORS, drawBar, drawCoin, fitPx, outlined, roundRect, text } from './draw.ts';
 import { brush, sans } from './fonts.ts';
 import { drawPortrait } from './heroes-art.ts';
 import { L, W } from './layout.ts';
@@ -81,7 +83,9 @@ function drawOffer(ctx: CanvasRenderingContext2D, g: GameState, i: number, ui: P
     text(ctx, o?.sold ? '已买' : '', cx, r.y + r.h / 2, brush(18), 'rgba(120,80,40,0.45)');
     return;
   }
-  const afford = g.gongde >= o.price;
+  const price = offerPrice(g, o);
+  const afford = g.gongde >= price;
+  const discounted = g.shopDiscount < 1;
   const { img, size } = cardSprite(o.id, 1, false, 58);
   ctx.save();
   if (!afford) ctx.globalAlpha = 0.55;
@@ -89,7 +93,14 @@ function drawOffer(ctx: CanvasRenderingContext2D, g: GameState, i: number, ui: P
   ctx.restore();
   text(ctx, UNITS[o.id].label, cx, r.y + 73, sans(10, 600), '#6a4a26');
   drawCoin(ctx, cx - 14, r.y + 87, 6);
-  text(ctx, String(o.price), cx - 5, r.y + 87.5, sans(13, 800), afford ? '#7a4a08' : '#c8322a', 'left');
+  text(ctx, String(price), cx - 5, r.y + 87.5, sans(13, 800), !afford ? '#c8322a' : discounted ? '#1b7a5a' : '#7a4a08', 'left');
+  if (discounted) {
+    // 土地公摆摊: a little "半价" tag on every card.
+    roundRect(ctx, r.x + r.w - 30, r.y + 4, 26, 14, 4);
+    ctx.fillStyle = '#2f9c86';
+    ctx.fill();
+    text(ctx, '半价', r.x + r.w - 17, r.y + 11.5, sans(8, 800), '#f2fffb');
+  }
 }
 
 export function drawShop(ctx: CanvasRenderingContext2D, g: GameState, ui: PanelUi): void {
@@ -118,11 +129,17 @@ export function drawShop(ctx: CanvasRenderingContext2D, g: GameState, ui: PanelU
   text(ctx, '商  店', W / 2, s.y + 3.5, brush(17), '#fbeed2');
   ctx.restore();
   for (let i = 0; i < L.shopCards.length; i++) drawOffer(ctx, g, i, ui);
-  const cost = refreshCost(g.refreshes);
-  drawButton(ctx, L.btnRefresh, '刷新', g.gongde >= cost ? 'jade' : 'disabled', `${cost} 功德`, ui.pressed === 'refresh');
+  const cost = currentRefreshCost(g);
+  drawButton(ctx, L.btnRefresh, '刷新', g.gongde >= cost ? 'jade' : 'disabled', cost === 0 ? '免费' : `${cost} 功德`, ui.pressed === 'refresh');
   drawButton(ctx, L.btnStart, '出战', 'primary', `迎战第 ${g.wave + 1} 波`, ui.pressed === 'start');
   drawTrash(ctx, L.trash, ui.hoverTrash);
-  if (ui.dragging) text(ctx, '拖到阵地空格上 · 叠到同名卡上升级', W / 2, s.y + 24, sans(9, 600), '#8a5a2a');
+  // One line under the ribbon: drag help, or what the chosen encounter queued for the next wave.
+  const queued = modsLabel(g.waveMods);
+  const hint = ui.dragging ? '拖到阵地空格上 · 叠到同名卡上升级' : queued ? `下一波：${queued}` : g.chest ? '宝箱：打完下一波开出一张卡' : '';
+  if (hint) {
+    const px = fitPx(ctx, hint, s.w - 120, 9, (n) => sans(n, 600), 7);
+    text(ctx, hint, W / 2, s.y + 24, sans(px, 600), queued && !ui.dragging ? '#b3261e' : '#8a5a2a');
+  }
 }
 
 export function drawBattleBar(ctx: CanvasRenderingContext2D, g: GameState, ui: PanelUi): void {
@@ -134,7 +151,10 @@ export function drawBattleBar(ctx: CanvasRenderingContext2D, g: GameState, ui: P
   ctx.fillRect(b.x, b.y, b.w, b.h);
   const left = g.enemies.length + g.spawns.length;
   outlined(ctx, `第 ${g.wave}/${g.totalWaves} 波`, 16, b.y + 17, brush(17), '#fbeed2', 'rgba(20,10,4,0.9)', 3, 'left');
-  text(ctx, `剩余妖怪 ${left}`, 16, b.y + 37, sans(11, 600), COLORS.dim, 'left');
+  const active = modsLabel(g.activeMods);
+  const info = active ? `剩余妖怪 ${left} · ${active}` : `剩余妖怪 ${left}`;
+  const px = fitPx(ctx, info, W - 160, 11, (n) => sans(n, 600), 8);
+  text(ctx, info, 16, b.y + 37, sans(px, 600), active ? '#ffb07a' : COLORS.dim, 'left');
   text(ctx, ui.dragging ? '拖到垃圾桶卖出 →' : '可以随时拖动场上的字', W - 64, b.y + 26, sans(10, 600), COLORS.dim, 'right');
   drawTrash(ctx, L.barTrash, ui.hoverTrash);
 }
@@ -156,10 +176,14 @@ export function drawBanner(ctx: CanvasRenderingContext2D, b: Banner): void {
     const pulse = 1 + Math.sin(b.t * 12) * 0.04;
     drawPortrait(ctx, b.portrait, 72, y, 30 * pulse);
     outlined(ctx, b.title, 118, y - 12, brush(28), b.color, 'rgba(20,10,4,0.9)', 4, 'left');
-    text(ctx, b.sub, 118, y + 20, sans(11, 600), '#f3e6c8', 'left');
+    const px = fitPx(ctx, b.sub, W - 48 - 118 + 24 - 12, 11, (n) => sans(n, 600), 8);
+    text(ctx, b.sub, 118, y + 20, sans(px, 600), '#f3e6c8', 'left');
   } else {
     outlined(ctx, b.title, W / 2, y - (b.sub ? 9 : 0), brush(24), b.color, 'rgba(20,10,4,0.9)', 4);
-    if (b.sub) text(ctx, b.sub, W / 2, y + 17, sans(11, 600), '#f3e6c8');
+    if (b.sub) {
+      const px = fitPx(ctx, b.sub, W - 72, 11, (n) => sans(n, 600), 8);
+      text(ctx, b.sub, W / 2, y + 17, sans(px, 600), '#f3e6c8');
+    }
   }
   ctx.restore();
 }
