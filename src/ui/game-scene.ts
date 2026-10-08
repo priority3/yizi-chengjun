@@ -110,8 +110,10 @@ export class GameScene implements Scene {
   }
 
   update(dt: number): void {
-    this.clock += dt;
-    this.vfx.update(dt);
+    // Reason: the animation clock (walk cycles, auras, spinning hints) freezes while paused and runs at the game
+    // speed in battle, so monsters don't tread on the spot or slide along at ×2.
+    if (!this.paused) this.clock += this.g.phase === 'battle' ? dt * this.speed : dt;
+    if (!this.paused) this.vfx.update(dt);
     this.toasts.update(dt);
     this.tutorial.update(dt);
     this.selectedT = Math.max(0, this.selectedT - dt);

@@ -140,7 +140,8 @@ class TitleScene implements Scene {
     text(ctx, '商店买字拖上阵地 · 同字合成升级 · 凑齐名字觉醒英雄', W / 2, L.H * 0.66 + 82, sans(11, 500), '#e8d5b0');
     text(ctx, '英雄攒满怒气放大招 · 波间奇遇三选一 · 通关得灵石炼法宝', W / 2, L.H * 0.66 + 100, sans(11, 500), '#e8d5b0');
     // Faint version label for telling deployments apart when something needs debugging.
-    text(ctx, `v${__APP_VERSION__} · ${__APP_BUILD__}`, W - 8, L.H - 9, sans(9, 500), 'rgba(255,240,210,0.45)', 'right');
+    // Reason: the host tells apart the entry points (vercel.app, a custom domain, localhost) when a player reports a bug.
+    text(ctx, `v${__APP_VERSION__} · ${__APP_BUILD__} · ${location.host}`, W - 8, L.H - 9, sans(9, 500), 'rgba(255,240,210,0.45)', 'right');
   }
 
   tap(p: Pointer): void {
