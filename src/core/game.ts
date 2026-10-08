@@ -1,6 +1,6 @@
 // A chapter run: build phase (shop open, maybe an encounter to pick) <-> battle phase (a wave attacks)
 // until the boss falls or the camp does.
-import { CAMP_HP, CHAPTERS, FIRST_SHOP_ATTACKERS, START_GONGDE, waveBonus } from '../config/chapters.ts';
+import { CAMP_HP, CHAPTERS, FIRST_SHOP_ATTACKERS, startGongde, waveBonus } from '../config/chapters.ts';
 import { MAPS, type MapDef } from '../config/maps.ts';
 import { makeTile, resolveDrop } from './board.ts';
 import { DT } from './clock.ts';
@@ -37,7 +37,7 @@ export function createGame(opts: GameOptions): GameState {
     wave: 0,
     totalWaves: ch.waves,
     waveTime: 0,
-    gongde: START_GONGDE + mods.startGongde,
+    gongde: startGongde(opts.chapter) + mods.startGongde,
     campHp: campMax,
     campMax,
     unlocked: [...map.open],

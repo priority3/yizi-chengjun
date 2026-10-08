@@ -18,6 +18,15 @@ describe('shop offers', () => {
     }
   });
 
+  it('never offers a hero from the board, even with only heroes owned', () => {
+    for (let seed = 1; seed <= 300; seed++) {
+      const g = emptyGame(1, seed);
+      put(g, 5, '八戒');
+      put(g, 6, '悟空');
+      for (let i = 0; i < 5; i++) expect(UNITS[rollOffer(g)].kind).not.toBe('hero');
+    }
+  });
+
   it('keeps 神 out of the shop before wave 2', () => {
     for (let seed = 1; seed <= 300; seed++) {
       const g = createGame({ seed, chapter: 1 });

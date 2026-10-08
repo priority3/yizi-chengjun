@@ -209,7 +209,7 @@ export const MAPS: readonly MapDef[] = [
   },
   {
     theme: 'lion',
-    hp: 1.0,
+    hp: 0.92,
     rows: [
       '.1..........2.',
       '.#..T....T..#.',
@@ -233,7 +233,7 @@ export const MAPS: readonly MapDef[] = [
   },
   {
     theme: 'temple',
-    hp: 1.25,
+    hp: 1.35,
     rows: [
       '.1..........2.',
       '.#....TT....#.',

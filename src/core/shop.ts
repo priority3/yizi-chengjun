@@ -28,7 +28,11 @@ export function rollOffer(g: GameState): UnitId {
   const r2 = rand(g);
   const r3 = rand(g);
   const r4 = rand(g);
-  const owned = g.slots.filter((t) => t !== null && t.level === 1 && isStackable(t.id)).map((t) => t!.id);
+  // Reason: only cards the shop really sells qualify — a hero is awakened, never bought (its price is 0, which
+  // used to put a 1-功德 copy on the shelf that merged straight into the hero).
+  const owned = g.slots
+    .filter((t) => t !== null && t.level === 1 && isStackable(t.id) && UNITS[t.id].price > 0)
+    .map((t) => t!.id);
   if (owned.length > 0 && r1 < OWNED_BIAS) return owned[Math.floor(r2 * owned.length)];
   const weights = g.wave < DIVINE_FROM_WAVE ? SHOP_WEIGHTS.filter(([k]) => k !== '神') : SHOP_WEIGHTS;
   const pick = pickWeighted(r2, weights);

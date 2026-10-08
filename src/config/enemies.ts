@@ -44,7 +44,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   蜘蛛精: boss('蜘蛛精', '蜘蛛', { ...BOSS_STATS, hpK: 18 }, { t: 'split', count: 5, minion: '蛛' }),
   牛魔王: boss('牛魔王', '牛魔', { ...BOSS_STATS, hpK: 15, atk: 14 }, { t: 'armor', flat: 7 }),
   金翅大鹏: boss('金翅大鹏', '大鹏', { ...BOSS_STATS, hpK: 17, speed: 22 }, { t: 'dash', every: 3, dur: 1, mul: 3.5 }),
-  黄眉大王: boss('黄眉大王', '黄眉', { ...BOSS_STATS, hpK: 16 }, { t: 'summon', every: 5, count: 2, minion: '狼' }),
+  黄眉大王: boss('黄眉大王', '黄眉', { ...BOSS_STATS, hpK: 18 }, { t: 'summon', every: 5, count: 2, minion: '狼' }),
 };
 
 /** One-line description of a boss trait for banners and tooltips. */

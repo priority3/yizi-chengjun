@@ -14,18 +14,29 @@ export interface ChapterDef {
 
 export const CHAPTERS: readonly ChapterDef[] = [
   { id: 1, name: '白虎岭', boss: '白骨精', waves: 5, hpStart: 1.05, hpGrowth: 1.19 },
-  { id: 2, name: '黄风岭', boss: '黄风怪', waves: 5, hpStart: 1.2, hpGrowth: 1.23 },
-  { id: 3, name: '平顶山', boss: '金角大王', waves: 6, hpStart: 1.35, hpGrowth: 1.25 },
-  { id: 4, name: '火云洞', boss: '红孩儿', waves: 6, hpStart: 1.5, hpGrowth: 1.27 },
-  { id: 5, name: '黑风山', boss: '黑熊精', waves: 6, hpStart: 1.65, hpGrowth: 1.29 },
-  { id: 6, name: '通天河', boss: '灵感大王', waves: 7, hpStart: 1.8, hpGrowth: 1.3 },
-  { id: 7, name: '盘丝洞', boss: '蜘蛛精', waves: 7, hpStart: 1.95, hpGrowth: 1.31 },
-  { id: 8, name: '火焰山', boss: '牛魔王', waves: 7, hpStart: 2.1, hpGrowth: 1.32 },
-  { id: 9, name: '狮驼岭', boss: '金翅大鹏', waves: 8, hpStart: 2.3, hpGrowth: 1.33 },
-  { id: 10, name: '小雷音寺', boss: '黄眉大王', waves: 8, hpStart: 2.5, hpGrowth: 1.34 },
+  { id: 2, name: '黄风岭', boss: '黄风怪', waves: 5, hpStart: 1.2, hpGrowth: 1.245 },
+  { id: 3, name: '平顶山', boss: '金角大王', waves: 6, hpStart: 1.35, hpGrowth: 1.28 },
+  { id: 4, name: '火云洞', boss: '红孩儿', waves: 6, hpStart: 1.5, hpGrowth: 1.315 },
+  { id: 5, name: '黑风山', boss: '黑熊精', waves: 6, hpStart: 1.5, hpGrowth: 1.37 },
+  { id: 6, name: '通天河', boss: '灵感大王', waves: 7, hpStart: 1.65, hpGrowth: 1.385 },
+  { id: 7, name: '盘丝洞', boss: '蜘蛛精', waves: 7, hpStart: 1.85, hpGrowth: 1.41 },
+  { id: 8, name: '火焰山', boss: '牛魔王', waves: 7, hpStart: 1.9, hpGrowth: 1.45 },
+  { id: 9, name: '狮驼岭', boss: '金翅大鹏', waves: 8, hpStart: 2.15, hpGrowth: 1.475 },
+  { id: 10, name: '小雷音寺', boss: '黄眉大王', waves: 8, hpStart: 2.45, hpGrowth: 1.475 },
 ];
 
 export const START_GONGDE = 70;
+/**
+ * Extra starting 功德 for each chapter after the first.
+ * Reason: later chapters open against much tougher first waves; without more to spend before wave 1 the camp
+ * used to lose most of its HP right away (`pnpm sim --leaks`).
+ */
+export const START_GROWTH = 6;
+
+/** 功德 a fresh run of `chapter` starts with (before 法宝). */
+export function startGongde(chapter: number): number {
+  return START_GONGDE + START_GROWTH * (chapter - 1);
+}
 export const CAMP_HP = 120;
 /** Camp damage per leaked monster = its atk x this. */
 export const LEAK_MUL = 3;

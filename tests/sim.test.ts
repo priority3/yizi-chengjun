@@ -1,6 +1,6 @@
 // Headless chapter runs played by the bot with fixed seeds: robust balance guarantees, never flaky.
 import { beforeAll, describe, expect, it } from 'vitest';
-import { CHAPTERS, START_GONGDE } from '../src/config/chapters.ts';
+import { CHAPTERS, startGongde } from '../src/config/chapters.ts';
 import { traceChapter, type WaveTrace } from '../src/core/sim-trace.ts';
 import { MAX_SIM_TICKS, playChapter, runChapter, type RunResult } from '../src/core/sim.ts';
 import { addTreasure, buildMods, emptyVault } from '../src/core/treasures.ts';
@@ -151,11 +151,11 @@ describe('traceChapter', () => {
   });
 
   it('reads 功德 when a wave starts (after shopping) and when it ends (after the clear bonus)', () => {
-    for (const { name, waves, seen } of cases) {
+    for (const { name, ch, waves, seen } of cases) {
       // Between two waves no tick runs, so only the bot's build actions (buys, refreshes, unlocks, 奇遇 rewards)
       // separate one wave's closing 功德 from the next wave's opening 功德.
       waves.forEach((w, i) => {
-        const closing = i === 0 ? START_GONGDE : waves[i - 1].gongdeAfter;
+        const closing = i === 0 ? startGongde(ch) : waves[i - 1].gongdeAfter;
         expect(w.gongdeBefore, `${name} wave ${w.wave}`).toBe(closing + (seen.shopping.get(w.wave) ?? 0));
       });
       expect(waves[waves.length - 1].gongdeAfter, name).toBe(seen.final.gongde);
