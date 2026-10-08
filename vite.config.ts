@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
@@ -21,5 +22,9 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __APP_BUILD__: JSON.stringify(commitHash()),
+  },
+  test: {
+    // Reason: parallel agents work in git worktrees under .claude/worktrees; never pick up their copies of the tests.
+    exclude: ['**/node_modules/**', '**/.git/**', '**/dist/**', '.claude/**'],
   },
 });

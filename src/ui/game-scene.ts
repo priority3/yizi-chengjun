@@ -1,37 +1,31 @@
 // The chapter screen: runs the fixed-step simulation, moves the camera (drag to pan, pinch or wheel to zoom),
 // handles the shop, drag-and-drop onto the map's slots, encounters, pause and results.
 import { CHAPTERS, unlockCost } from '../config/chapters.ts';
-import { heroFor } from '../config/combos.ts';
 import { ENEMIES } from '../config/enemies.ts';
-import { ULTIMATES } from '../config/ultimates.ts';
 import { UNITS } from '../config/units.ts';
-import { previewDrop } from '../core/board.ts';
 import { DT } from '../core/clock.ts';
 import { act, createGame, step } from '../core/game.ts';
 import { slotAt } from '../core/map.ts';
-import { currentRefreshCost, offerPrice } from '../core/shop.ts';
-import { tileDamage, tileRange } from '../core/stats.ts';
+import { currentRefreshCost } from '../core/shop.ts';
 import { buildMods, clearRewards, type ClearRewards } from '../core/treasures.ts';
-import type { Action, GameState, HeroId, RunMods, SimEvent, Tile } from '../core/types.ts';
+import type { Action, GameState, SimEvent, Tile } from '../core/types.ts';
 import type { Stage } from '../platform/web.ts';
 import { Camera } from '../render/camera.ts';
 import { encounterCardRects } from '../render/encounter-panel.ts';
 import { inRect, L, viewRect, type Rect } from '../render/layout.ts';
 import { NUMERALS } from '../render/panels.ts';
-import { GameRenderer, type DragUi, type GameUi } from '../render/renderer.ts';
+import { GameRenderer, type GameUi } from '../render/renderer.ts';
 import { Vfx } from '../render/vfx.ts';
+import { describe } from './describe.ts';
 import { drawPause, drawResult, pausePanel, resultPanel, tapButtons, type OverlayButton, type ResultInfo } from './game-overlays.ts';
 import { Toasts } from './hud.ts';
 import type { Pointer } from './input.ts';
+import { CameraControls, CardDrag } from './map-controls.ts';
 import type { Nav, Scene } from './scenes.ts';
 import { Tutorial } from './tutorial.ts';
 
 /** Seconds after the run ends before the result panel appears (let the last effects play). */
 const RESULT_DELAY = 1;
-/** How far above a finger a dragged card is drawn. */
-const TOUCH_LIFT = 44;
-/** Zoom step per wheel notch. */
-const WHEEL_STEP = 1.12;
 /** Starting zoom: map cards come out about the size of the shop cards. */
 const START_ZOOM = 1;
 
@@ -40,21 +34,6 @@ function isOver(g: GameState): boolean {
   return g.phase === 'won' || g.phase === 'lost';
 }
 
-function describe(t: Pick<Tile, 'id' | 'level' | 'divine'>, mods: RunMods): string {
-  const def = UNITS[t.id];
-  const name = `${t.divine ? '神' : ''}${t.id}${t.level > 1 ? ` ${t.level}级` : ''}`;
-  if (def.kind === 'hero') {
-    const u = ULTIMATES[t.id as HeroId];
-    const tile: Tile = { uid: 0, cd: 0, invested: 0, rage: 0, ...t };
-    return `${name} · 大招「${u.name}」：${u.desc}（伤害 ${Math.round(tileDamage(tile, mods))}）`;
-  }
-  if (def.kind === 'attack') {
-    const tile: Tile = { uid: 0, cd: 0, invested: 0, rage: 0, ...t };
-    const range = tileRange(tile, mods);
-    return `${name} · ${def.desc}（伤害 ${Math.round(tileDamage(tile, mods))}，射程 ${Number.isFinite(range) ? Math.round(range) : '全场'}）`;
-  }
-  return `${name} · ${def.desc}`;
-}
 
 export class GameScene implements Scene {
   private readonly nav: Nav;
@@ -72,15 +51,9 @@ export class GameScene implements Scene {
   private endT = -1;
   /** Rewards banked when the chapter was cleared. */
   private rewards: ClearRewards | null = null;
-  private drag: DragUi | null = null;
-  private lift = 0;
-  private hoverCell = -1;
-  private hoverValid = false;
-  private hoverTrash = false;
-  private hoverHint: string | null = null;
-  /** Camera position when a pan started, and where the finger was. */
-  private pan: { x: number; y: number; sx: number; sy: number } | null = null;
-  private pinch: { dist: number; x: number; y: number } | null = null;
+  private readonly cards = new CardDrag();
+  private readonly camCtl = new CameraControls();
+  private readonly slotUnderFn = (x: number, y: number) => this.slotUnder(x, y);
   private pressed: string | null = null;
   private selected = -1;
   private selectedT = 0;
@@ -157,7 +130,7 @@ export class GameScene implements Scene {
 
   render(ctx: CanvasRenderingContext2D): void {
     this.renderer.draw(ctx, this.g, this.ui(), this.vfx, this.clock, this.cam);
-    if (!this.paused && !this.drag) this.tutorial.draw(ctx, this.g, this.cam);
+    if (!this.paused && !this.cards.drag) this.tutorial.draw(ctx, this.g, this.cam);
     this.toasts.draw(ctx, this.g.phase === 'build' ? L.shop.y - 24 : L.bar.y - 18);
     if (isOver(this.g)) {
       if (this.endT >= RESULT_DELAY) drawResult(ctx, this.resultInfo(), this.resultButtons());
@@ -169,23 +142,22 @@ export class GameScene implements Scene {
   pause(): void {
     if (isOver(this.g)) return;
     this.paused = true;
-    this.drag = null;
-    this.pan = null;
-    this.pinch = null;
+    this.cards.clear();
+    this.camCtl.reset();
   }
 
   private ui(): GameUi {
     return {
       pressed: this.pressed,
       speed: this.speed,
-      hoverTrash: this.hoverTrash,
-      draggingOffer: this.drag?.kind === 'shop' ? this.drag.index : -1,
-      dragging: this.drag !== null,
-      drag: this.drag,
-      hoverCell: this.hoverCell,
-      hoverValid: this.hoverValid,
+      hoverTrash: this.cards.hoverTrash,
+      draggingOffer: this.cards.drag?.kind === 'shop' ? this.cards.drag.index : -1,
+      dragging: this.cards.drag !== null,
+      drag: this.cards.drag,
+      hoverCell: this.cards.hoverCell,
+      hoverValid: this.cards.hoverValid,
       selected: this.selected,
-      hoverHint: this.hoverHint,
+      hoverHint: this.cards.hoverHint,
     };
   }
 
@@ -260,125 +232,45 @@ export class GameScene implements Scene {
   dragStart(start: Pointer, p: Pointer): void {
     this.pressed = null;
     if (this.overlayOpen()) return;
-    const g = this.g;
-    this.lift = p.touch ? TOUCH_LIFT : 0;
-    if (g.phase === 'build') {
-      const i = L.shopCards.findIndex((r) => inRect(start.x, start.y, r));
-      const o = i >= 0 ? g.shop[i] : undefined;
-      if (o && !o.sold) {
-        this.drag = { kind: 'shop', index: i, unit: o.id, level: 1, divine: false, x: p.x, y: p.y - this.lift };
-        this.updateHover();
-        return;
-      }
-    }
-    const cell = this.slotUnder(start.x, start.y);
-    const t = cell >= 0 ? g.slots[cell] : null;
-    if (t) {
-      this.drag = { kind: 'cell', index: cell, unit: t.id, level: t.level, divine: t.divine, x: p.x, y: p.y - this.lift };
-      this.updateHover();
-      return;
-    }
+    if (this.cards.begin(this.g, this.slotUnderFn, start, p)) return;
     // Empty ground: drag the map around.
-    if (inRect(start.x, start.y, this.view())) this.pan = { x: this.cam.x, y: this.cam.y, sx: start.x, sy: start.y };
+    if (inRect(start.x, start.y, this.view())) this.camCtl.beginPan(this.cam, start);
   }
 
   dragMove(p: Pointer): void {
-    if (this.drag) {
-      this.drag.x = p.x;
-      this.drag.y = p.y - this.lift;
-      this.updateHover();
-    } else if (this.pan) {
-      const v = this.view();
-      this.cam.x = this.pan.x - (p.x - this.pan.sx) / this.cam.zoom;
-      this.cam.y = this.pan.y - (p.y - this.pan.sy) / this.cam.zoom;
-      this.cam.clamp(v);
-    }
+    if (this.cards.drag) this.cards.move(this.g, this.slotUnderFn, p);
+    else this.camCtl.movePan(this.cam, this.view(), p);
   }
 
   dragEnd(): void {
-    this.pan = null;
-    const d = this.drag;
-    this.drag = null;
-    const cell = this.hoverCell;
-    const trash = this.hoverTrash;
-    this.hoverCell = -1;
-    this.hoverTrash = false;
-    this.hoverHint = null;
-    if (!d || this.overlayOpen()) return;
-    if (d.kind === 'shop') {
-      if (cell < 0) return;
-      const o = this.g.shop[d.index];
-      const price = o ? offerPrice(this.g, o) : 0;
-      if (!this.g.unlocked[cell]) this.toasts.push('这个石台还没解锁：点它花功德解锁');
-      else if (o && this.g.gongde < price) this.toasts.push(`功德不够：这张卡要 ${price}`);
-      else this.doAct({ t: 'buy', offer: d.index, cell });
-      return;
-    }
-    if (trash) this.doAct({ t: 'drop', from: d.index, to: 'sell' });
-    else if (cell >= 0 && cell !== d.index) {
-      if (!this.g.unlocked[cell]) this.toasts.push('这个石台还没解锁');
-      else this.doAct({ t: 'drop', from: d.index, to: cell });
-    }
+    this.camCtl.reset();
+    const r = this.cards.finish(this.g);
+    if (!r || this.overlayOpen()) return;
+    if ('toast' in r) this.toasts.push(r.toast);
+    else this.doAct(r.action, r.poorMsg);
   }
 
   pinchStart(c: Pointer, dist: number): void {
     if (this.overlayOpen()) return;
     // A second finger while holding a card drops it where it is, then the fingers zoom the map.
-    if (this.drag) this.dragEnd();
-    this.pan = null;
-    this.pinch = { dist: Math.max(1, dist), x: c.x, y: c.y };
+    if (this.cards.drag) this.dragEnd();
+    this.camCtl.beginPinch(c, dist);
   }
 
   pinchMove(c: Pointer, dist: number): void {
-    if (!this.pinch) return;
-    const v = this.view();
-    this.cam.zoomAt(this.pinch.x, this.pinch.y, Math.max(1, dist) / this.pinch.dist, v);
-    this.cam.x -= (c.x - this.pinch.x) / this.cam.zoom;
-    this.cam.y -= (c.y - this.pinch.y) / this.cam.zoom;
-    this.cam.clamp(v);
-    this.pinch = { dist: Math.max(1, dist), x: c.x, y: c.y };
+    this.camCtl.movePinch(this.cam, this.view(), c, dist);
   }
 
   pinchEnd(): void {
-    this.pinch = null;
+    this.camCtl.reset();
   }
 
   wheel(p: Pointer, deltaY: number): void {
     if (this.overlayOpen() || !inRect(p.x, p.y, this.view())) return;
-    this.cam.zoomAt(p.x, p.y, deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP, this.view());
+    this.camCtl.wheel(this.cam, this.view(), p, deltaY);
   }
 
   // ---- helpers -----------------------------------------------------------
-
-  private updateHover(): void {
-    const d = this.drag;
-    if (!d) return;
-    const g = this.g;
-    const trashRect = g.phase === 'build' ? L.trash : L.barTrash;
-    this.hoverTrash = d.kind === 'cell' && inRect(d.x, d.y, { x: trashRect.x - 10, y: trashRect.y - 10, w: trashRect.w + 20, h: trashRect.h + 20 });
-    const cell = this.slotUnder(d.x, d.y);
-    this.hoverCell = cell;
-    this.hoverHint = null;
-    if (cell < 0) {
-      this.hoverValid = false;
-      return;
-    }
-    const target = g.slots[cell];
-    const outcome = previewDrop({ id: d.unit, level: d.level, divine: d.divine }, target);
-    if (d.kind === 'shop') {
-      const o = g.shop[d.index];
-      const combines = outcome === 'empty' || outcome === 'merge' || outcome === 'hero' || outcome === 'divine';
-      this.hoverValid = g.unlocked[cell] && combines && !!o && g.gongde >= offerPrice(g, o);
-    } else {
-      this.hoverValid = g.unlocked[cell] && outcome !== 'invalid' && cell !== d.index;
-    }
-    // Tell the player what letting go will do when the two cards combine.
-    if (target && this.hoverValid) {
-      if (outcome === 'merge') this.hoverHint = `松开合成 ${target.level + 1} 级`;
-      else if (outcome === 'hero') this.hoverHint = `松开觉醒 ${heroFor(d.unit, target.id) ?? '英雄'}`;
-      else if (outcome === 'divine') this.hoverHint = '松开附神';
-    }
-  }
 
   private doAct(a: Action, poorMsg = '功德不够'): void {
     const before = this.g.events.length;
@@ -418,8 +310,8 @@ export class GameScene implements Scene {
 
   private onEnd(): void {
     this.endT = 0;
-    this.drag = null;
-    this.pan = null;
+    this.cards.clear();
+    this.camCtl.reset();
     if (this.g.phase !== 'won') return;
     const p = this.nav.progress;
     p.tutorialDone = true;
