@@ -8,7 +8,7 @@ import { cardSprite } from './cards.ts';
 import { COLORS, drawBar, drawCoin, fitPx, outlined, roundRect, text } from './draw.ts';
 import { brush, sans } from './fonts.ts';
 import { drawPortrait } from './heroes-art.ts';
-import { L, W } from './layout.ts';
+import { L, W, type Rect } from './layout.ts';
 import { blit } from './sprites.ts';
 import type { Banner, Vfx } from './vfx.ts';
 import { drawButton, drawIconButton, drawTrash } from './widgets.ts';
@@ -22,6 +22,54 @@ export interface PanelUi {
   /** Shop offer being dragged (drawn hollow in its slot), or -1. */
   draggingOffer: number;
   dragging: boolean;
+  /** Sound is off: the HUD speaker is crossed out. */
+  muted: boolean;
+}
+
+/** The HUD mute toggle: drawIconButton's frame around a drawn speaker with two sound waves, or a slash when muted. */
+function drawSoundButton(ctx: CanvasRenderingContext2D, r: Rect, muted: boolean, pressed: boolean): void {
+  const dy = pressed ? 1 : 0;
+  const cx = r.x + r.w / 2;
+  const cy = r.y + r.h / 2 + dy;
+  roundRect(ctx, r.x, r.y + dy, r.w, r.h, 9);
+  ctx.fillStyle = 'rgba(255,245,225,0.16)';
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(255,230,190,0.55)';
+  ctx.stroke();
+  ctx.save();
+  // Speaker: a small box and its cone.
+  ctx.beginPath();
+  ctx.moveTo(cx - 8, cy - 3);
+  ctx.lineTo(cx - 4.5, cy - 3);
+  ctx.lineTo(cx, cy - 7);
+  ctx.lineTo(cx, cy + 7);
+  ctx.lineTo(cx - 4.5, cy + 3);
+  ctx.lineTo(cx - 8, cy + 3);
+  ctx.closePath();
+  ctx.fillStyle = muted ? COLORS.dim : COLORS.hudText;
+  ctx.fill();
+  ctx.lineCap = 'round';
+  if (muted) {
+    // A slash across the whole icon, with a dark edge so it reads on the speaker.
+    for (const [color, width] of [['rgba(20,10,4,0.9)', 4], ['#ff7a6a', 2]] as const) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(cx - 9, cy - 8);
+      ctx.lineTo(cx + 9, cy + 8);
+      ctx.stroke();
+    }
+  } else {
+    ctx.strokeStyle = COLORS.hudText;
+    ctx.lineWidth = 1.6;
+    for (const radius of [4, 7.5]) {
+      ctx.beginPath();
+      ctx.arc(cx + 0.5, cy, radius, -0.8, 0.8);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
 }
 
 export function drawHud(ctx: CanvasRenderingContext2D, g: GameState, ui: PanelUi, vfx: Vfx): void {
@@ -33,8 +81,12 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: GameState, ui: PanelUi
   ctx.fillRect(0, 0, W, hud.h + 8);
   drawIconButton(ctx, L.btnPause, 'pause', ui.pressed === 'pause');
   drawIconButton(ctx, L.btnSpeed, ui.speed === 2 ? 'x2' : 'x1', ui.pressed === 'speed');
+  drawSoundButton(ctx, L.btnSound, ui.muted, ui.pressed === 'sound');
   const ch = CHAPTERS[g.chapter - 1];
-  outlined(ctx, `第${NUMERALS[g.chapter - 1]}章 · ${ch.name}`, W / 2, 20, brush(18), '#fbeed2', 'rgba(20,10,4,0.9)', 3);
+  const title = `第${NUMERALS[g.chapter - 1]}章 · ${ch.name}`;
+  // Reason: the title stays centred, so it must clear the sound button on the left (and as much on the right).
+  const titleW = W - 2 * (L.btnSound.x + L.btnSound.w + 6);
+  outlined(ctx, title, W / 2, 20, brush(fitPx(ctx, title, titleW, 18, brush, 12)), '#fbeed2', 'rgba(20,10,4,0.9)', 3);
   drawCoin(ctx, W - 74, 20, 9);
   text(ctx, String(g.gongde), W - 60, 21, sans(16, 800), COLORS.gold, 'left');
 

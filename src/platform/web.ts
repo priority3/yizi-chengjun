@@ -66,6 +66,13 @@ export function installGuards(): void {
   document.addEventListener('touchmove', stop, { passive: false });
 }
 
+export interface SoundSettings {
+  /** All sound off (the HUD speaker button). */
+  muted: boolean;
+  /** Background music on (the pause panel switch). */
+  music: boolean;
+}
+
 export interface Progress {
   /** Highest chapter the player may start (1-based). */
   unlocked: number;
@@ -74,6 +81,7 @@ export interface Progress {
   vault: Vault;
   /** The chapter-1 animated guide has been completed. */
   tutorialDone: boolean;
+  sound: SoundSettings;
 }
 
 const STORAGE_KEY = 'zdxy:v3';
@@ -97,12 +105,25 @@ function parseVault(raw: unknown): Vault {
   return v;
 }
 
-function parseProgress(raw: string | null, chapters: number): Progress | null {
+/** Sound settings with defaults (sound on, music on) for saves made before they existed. */
+export function parseSound(raw: unknown): SoundSettings {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<SoundSettings>;
+  return { muted: r.muted === true, music: r.music !== false };
+}
+
+/** Parses a saved progress string (null when it isn't one); missing fields get their defaults. Pure. */
+export function parseProgress(raw: string | null, chapters: number): Progress | null {
   if (!raw) return null;
   const p = JSON.parse(raw) as Partial<Progress>;
   if (typeof p.unlocked !== 'number' || !Array.isArray(p.wins)) return null;
   const wins = Array.from({ length: chapters }, (_, i) => Number(p.wins?.[i]) || 0);
-  return { unlocked: Math.min(chapters, Math.max(1, p.unlocked)), wins, vault: parseVault(p.vault), tutorialDone: p.tutorialDone === true };
+  return {
+    unlocked: Math.min(chapters, Math.max(1, p.unlocked)),
+    wins,
+    vault: parseVault(p.vault),
+    tutorialDone: p.tutorialDone === true,
+    sound: parseSound(p.sound),
+  };
 }
 
 export function loadProgress(chapters: number): Progress {
@@ -114,7 +135,7 @@ export function loadProgress(chapters: number): Progress {
   } catch {
     // Storage blocked (private mode / some in-app browsers): fall back to the in-memory copy below.
   }
-  return memoryCopy ?? { unlocked: 1, wins: new Array<number>(chapters).fill(0), vault: emptyVault(), tutorialDone: false };
+  return memoryCopy ?? { unlocked: 1, wins: new Array<number>(chapters).fill(0), vault: emptyVault(), tutorialDone: false, sound: parseSound(null) };
 }
 
 export function saveProgress(p: Progress): void {
@@ -123,6 +144,7 @@ export function saveProgress(p: Progress): void {
     wins: [...p.wins],
     vault: { stones: p.vault.stones, treasures: p.vault.treasures.map((s) => ({ ...s })), equipped: [...p.vault.equipped] },
     tutorialDone: p.tutorialDone,
+    sound: { ...p.sound },
   };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryCopy));

@@ -18,6 +18,8 @@ export interface Layout {
   hud: Rect;
   btnPause: Rect;
   btnSpeed: Rect;
+  /** Mute toggle (speaker icon), right of the speed button. */
+  btnSound: Rect;
   /** Build-phase shop panel. */
   shop: Rect;
   shopCards: Rect[];
@@ -39,6 +41,7 @@ export function computeLayout(H: number): Layout {
     hud: { x: 0, y: 0, w: W, h: 58 },
     btnPause: { x: 6, y: 6, w: 30, h: 28 },
     btnSpeed: { x: 40, y: 6, w: 36, h: 28 },
+    btnSound: { x: 80, y: 6, w: 30, h: 28 },
     shop,
     shopCards,
     btnRefresh: { x: 20, y: shop.y + 134, w: 150, h: 40 },
