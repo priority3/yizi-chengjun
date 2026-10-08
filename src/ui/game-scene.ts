@@ -9,12 +9,15 @@ import { slotAt } from '../core/map.ts';
 import { currentRefreshCost } from '../core/shop.ts';
 import { buildMods, clearRewards, type ClearRewards } from '../core/treasures.ts';
 import type { Action, GameState, SimEvent, Tile } from '../core/types.ts';
+import { audio } from '../platform/audio.ts';
+import { music, type MusicMode } from '../platform/music.ts';
 import type { Stage } from '../platform/web.ts';
 import { Camera } from '../render/camera.ts';
 import { encounterCardRects } from '../render/encounter-panel.ts';
 import { inRect, L, viewRect, type Rect } from '../render/layout.ts';
 import { NUMERALS } from '../render/panels.ts';
 import { GameRenderer, type GameUi } from '../render/renderer.ts';
+import { Sfx } from '../render/sfx.ts';
 import { Vfx } from '../render/vfx.ts';
 import { describe } from './describe.ts';
 import { drawPause, drawResult, pausePanel, resultPanel, tapButtons, type OverlayButton, type ResultInfo } from './game-overlays.ts';
@@ -43,6 +46,7 @@ export class GameScene implements Scene {
   private readonly vfx: Vfx;
   private readonly cam: Camera;
   private readonly toasts = new Toasts();
+  private readonly sfx = new Sfx();
   private acc = 0;
   private speed = 1;
   private paused = false;
@@ -115,6 +119,7 @@ export class GameScene implements Scene {
       return;
     }
     if (this.paused) return;
+    music.want(this.musicMode(), this.chapter);
     this.acc += dt * this.speed;
     const cap = 5 * this.speed;
     let steps = 0;
@@ -158,6 +163,7 @@ export class GameScene implements Scene {
       hoverValid: this.cards.hoverValid,
       selected: this.selected,
       hoverHint: this.cards.hoverHint,
+      muted: this.nav.progress.sound.muted,
     };
   }
 
@@ -169,6 +175,7 @@ export class GameScene implements Scene {
   private buttonAt(p: Pointer): string | null {
     if (inRect(p.x, p.y, L.btnPause)) return 'pause';
     if (inRect(p.x, p.y, L.btnSpeed)) return 'speed';
+    if (inRect(p.x, p.y, L.btnSound)) return 'sound';
     if (this.g.phase === 'build') {
       if (inRect(p.x, p.y, L.btnRefresh)) return 'refresh';
       if (inRect(p.x, p.y, L.btnStart)) return 'start';
@@ -195,12 +202,17 @@ export class GameScene implements Scene {
       return;
     }
     if (this.paused) {
-      tapButtons(p, pausePanel(), this.pauseButtons());
+      const buttons = this.pauseButtons();
+      tapButtons(p, pausePanel(buttons.length), buttons);
       return;
     }
     if (g.encounter) {
       if (this.buttonAt(p) === 'pause') {
         this.pause();
+        return;
+      }
+      if (this.buttonAt(p) === 'sound') {
+        this.toggleMute();
         return;
       }
       const i = encounterCardRects().findIndex((r) => inRect(p.x, p.y, r));
@@ -210,6 +222,7 @@ export class GameScene implements Scene {
     const button = this.buttonAt(p);
     if (button === 'pause') this.pause();
     else if (button === 'speed') this.speed = this.speed === 1 ? 2 : 1;
+    else if (button === 'sound') this.toggleMute();
     else if (button === 'refresh') this.doAct({ t: 'refresh' }, `功德不够：刷新要 ${currentRefreshCost(g)}`);
     else if (button === 'start') this.startWave();
     else if (g.phase === 'build' && L.shopCards.some((r) => inRect(p.x, p.y, r))) {
@@ -276,6 +289,8 @@ export class GameScene implements Scene {
     const before = this.g.events.length;
     const r = act(this.g, a);
     if (r === 'poor') this.toasts.push(poorMsg);
+    // A purchase refused for lack of 功德 has no sim event; it gets the same buzz as an invalid drop.
+    if (r === 'poor') this.sfx.play('invalid');
     // Reason: g.events still holds the last step's events (already shown); only react to the new ones.
     this.handleEvents(this.g.events.slice(before));
   }
@@ -291,6 +306,7 @@ export class GameScene implements Scene {
 
   private handleEvents(events: readonly SimEvent[]): void {
     this.vfx.consume(events);
+    this.sfx.consume(events);
     for (const e of events) {
       if (e.t === 'invalid') this.toasts.push(e.msg);
       else if (e.t === 'buy') {
@@ -328,9 +344,31 @@ export class GameScene implements Scene {
     return { g: this.g, chapter: this.chapter, rewards: this.rewards };
   }
 
+  /** Background music for the moment: calm while building, faster in battle, darker for the boss wave. */
+  private musicMode(): MusicMode {
+    if (this.g.phase !== 'battle') return 'build';
+    return this.g.wave === this.g.totalWaves ? 'boss' : 'battle';
+  }
+
+  private toggleMute(): void {
+    const s = this.nav.progress.sound;
+    s.muted = !s.muted;
+    audio.setMuted(s.muted);
+    this.nav.save();
+    this.toasts.push(s.muted ? '已静音' : '声音已打开');
+  }
+
+  private toggleMusic(): void {
+    const s = this.nav.progress.sound;
+    s.music = !s.music;
+    audio.setMusicOn(s.music);
+    this.nav.save();
+  }
+
   private pauseButtons(): OverlayButton[] {
     return [
       { label: '继续', go: () => (this.paused = false) },
+      { label: this.nav.progress.sound.music ? '音乐：开' : '音乐：关', go: () => this.toggleMusic() },
       { label: '重新开始', go: () => this.nav.play(this.chapter) },
       { label: '返回选章', go: () => this.nav.chapters() },
     ];

@@ -1,4 +1,5 @@
 // Entry point: sets up the stage, waits for the brush font, then runs the scene loop.
+import { audio } from './platform/audio.ts';
 import { createStage, installGuards } from './platform/web.ts';
 import { loadFonts } from './render/fonts.ts';
 import { L, W } from './render/layout.ts';
@@ -28,6 +29,25 @@ sprites.clear();
 
 const scenes = new SceneManager(stage);
 attachGestures(stage, () => scenes.current);
+// The saved sound settings apply before the first tap creates the AudioContext.
+audio.setMuted(scenes.progress.sound.muted);
+audio.setMusicOn(scenes.progress.sound.music);
+
+/** Gestures that may start audio. Reason: a touch only counts as a user activation on release (touchend / pointerup). */
+const UNLOCK_EVENTS = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'] as const;
+
+function unlockAudio(e: Event): void {
+  // Reason: Chrome logs a warning for audio started on a touch's pointerdown; its touchend follows anyway.
+  if (e.type === 'pointerdown' && (e as PointerEvent).pointerType !== 'mouse') return;
+  audio.unlock();
+  if (audio.running) for (const t of UNLOCK_EVENTS) window.removeEventListener(t, unlockAudio, true);
+}
+
+/** Listens (capture phase, so nothing can swallow it) until a gesture has the audio running. Idempotent. */
+function armAudioUnlock(): void {
+  for (const t of UNLOCK_EVENTS) window.addEventListener(t, unlockAudio, true);
+}
+armAudioUnlock();
 if (import.meta.env.DEV) window.__zdxy = scenes;
 
 let last = performance.now();
@@ -47,5 +67,12 @@ requestAnimationFrame(frame);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) scenes.current.pause?.();
   last = performance.now();
+  if (document.hidden) {
+    audio.suspend();
+  } else {
+    audio.resume();
+    // Reason: iOS may refuse to resume outside a gesture; then the next tap unlocks the audio again.
+    armAudioUnlock();
+  }
 });
 window.addEventListener('pagehide', () => scenes.current.pause?.());

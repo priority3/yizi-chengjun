@@ -40,12 +40,16 @@ function drawButtons(ctx: CanvasRenderingContext2D, panel: Rect, buttons: readon
   buttons.forEach((b, i) => drawButton(ctx, rects[i], b.label, i === 0 ? 'primary' : 'ghost'));
 }
 
-export function pausePanel(): Rect {
-  return panelRect(300);
+/** Height of the pause panel above its buttons: title and subtitle, clear of the first button. */
+const PAUSE_TOP = 144;
+
+/** The pause panel, tall enough for `buttons` stacked buttons below its title. */
+export function pausePanel(buttons: number): Rect {
+  return panelRect(PAUSE_TOP + buttons * (BUTTON_H + BUTTON_GAP));
 }
 
 export function drawPause(ctx: CanvasRenderingContext2D, buttons: readonly OverlayButton[]): void {
-  const r = pausePanel();
+  const r = pausePanel(buttons.length);
   drawPanel(ctx, r);
   text(ctx, '暂停', W / 2, r.y + 52, brush(34), '#6b1c1c');
   text(ctx, '妖怪也在原地等你', W / 2, r.y + 94, sans(13, 500), '#7a6248');
