@@ -8,7 +8,8 @@ import { act, createGame, step } from '../core/game.ts';
 import { slotAt } from '../core/map.ts';
 import { currentRefreshCost } from '../core/shop.ts';
 import { buildMods, clearRewards, type ClearRewards } from '../core/treasures.ts';
-import type { Action, GameState, SimEvent, Tile } from '../core/types.ts';
+import type { Action, ActionResult, GameState, SimEvent, Tile } from '../core/types.ts';
+import { clearRun, saveRun, type CameraPos, type SavedRun } from '../platform/save.ts';
 import type { Stage } from '../platform/web.ts';
 import { Camera } from '../render/camera.ts';
 import { encounterCardRects } from '../render/encounter-panel.ts';
@@ -28,6 +29,8 @@ import { Tutorial } from './tutorial.ts';
 const RESULT_DELAY = 1;
 /** Starting zoom: map cards come out about the size of the shop cards. */
 const START_ZOOM = 1;
+/** Action results that changed the run: each one is autosaved while the run is in its build phase. */
+const CHANGED: ReadonlySet<ActionResult> = new Set<ActionResult>(['ok', 'merge', 'hero', 'divine', 'move', 'swap', 'sold']);
 
 /** Reason: a function call instead of an inline check, because step() changes the phase behind TS's narrowing. */
 function isOver(g: GameState): boolean {
@@ -61,12 +64,14 @@ export class GameScene implements Scene {
   private readonly tips: boolean;
   private told = new Set<string>();
 
-  constructor(stage: Stage, chapter: number, nav: Nav) {
+  /** `resumed`: a saved unfinished run of `chapter` to continue instead of starting a fresh one. */
+  constructor(stage: Stage, chapter: number, nav: Nav, resumed?: SavedRun) {
     this.nav = nav;
     this.chapter = chapter;
     const vault = nav.progress.vault;
     // Reason: Math.random is fine here — only the seed is random; the run itself stays deterministic.
-    this.g = createGame({ seed: (Math.random() * 0x7fffffff) | 0, chapter, mods: buildMods(vault) });
+    // A resumed run is used as saved: its 法宝 modifiers stay what they were, whatever the vault holds now.
+    this.g = resumed?.g ?? createGame({ seed: (Math.random() * 0x7fffffff) | 0, chapter, mods: buildMods(vault) });
     this.renderer = new GameRenderer(stage);
     this.vfx = new Vfx(this.g.map);
     this.cam = new Camera(this.g.map);
@@ -75,10 +80,11 @@ export class GameScene implements Scene {
     const focus = starter >= 0 ? this.g.map.slots[starter] : { x: this.g.map.w / 2, y: this.g.map.h / 2 };
     this.cam.lookAt(focus.x, focus.y, START_ZOOM, this.view());
     this.tips = chapter === 1;
-    this.tutorial = new Tutorial(chapter === 1 && !nav.progress.tutorialDone);
+    this.tutorial = new Tutorial(!resumed && chapter === 1 && !nav.progress.tutorialDone);
     const ch = CHAPTERS[chapter - 1];
     const gear = vault.equipped.length > 0 ? ` · 带了 ${vault.equipped.length} 件法宝` : '';
-    this.vfx.showBanner(`第${NUMERALS[chapter - 1]}章 · ${ch.name}`, `别让妖怪走到唐僧的营地，打败${ENEMIES[ch.boss].name}${gear}`, '#ffd166', null, 2.6);
+    if (resumed) this.resumeView(resumed.camera);
+    else this.vfx.showBanner(`第${NUMERALS[chapter - 1]}章 · ${ch.name}`, `别让妖怪走到唐僧的营地，打败${ENEMIES[ch.boss].name}${gear}`, '#ffd166', null, 2.6);
   }
 
   private tip(key: string, msg: string): void {
@@ -121,6 +127,8 @@ export class GameScene implements Scene {
     while (this.acc >= DT && steps < cap && !isOver(g)) {
       step(g);
       this.handleEvents(g.events);
+      // A cleared wave puts the run back in its build phase (a pending encounter or an opened chest included): autosave it.
+      if (g.events.some((e) => e.t === 'waveClear')) this.persist();
       this.acc -= DT;
       steps++;
     }
@@ -144,6 +152,8 @@ export class GameScene implements Scene {
     this.paused = true;
     this.cards.clear();
     this.camCtl.reset();
+    // Also called when the page is hidden: the tab may never come back, so keep the latest camera too.
+    this.persist();
   }
 
   private ui(): GameUi {
@@ -278,6 +288,7 @@ export class GameScene implements Scene {
     if (r === 'poor') this.toasts.push(poorMsg);
     // Reason: g.events still holds the last step's events (already shown); only react to the new ones.
     this.handleEvents(this.g.events.slice(before));
+    if (CHANGED.has(r)) this.persist();
   }
 
   private startWave(): void {
@@ -312,6 +323,8 @@ export class GameScene implements Scene {
     this.endT = 0;
     this.cards.clear();
     this.camCtl.reset();
+    // Won or lost, the run is over: nothing left to resume.
+    clearRun();
     if (this.g.phase !== 'won') return;
     const p = this.nav.progress;
     p.tutorialDone = true;
@@ -320,6 +333,30 @@ export class GameScene implements Scene {
     p.wins[this.chapter - 1] = (p.wins[this.chapter - 1] ?? 0) + 1;
     this.rewards = clearRewards(p.vault, this.chapter, firstClear);
     this.nav.save();
+  }
+
+  // ---- 局中存档 ------------------------------------------------------------
+
+  /** Autosaves the run in its build phase; battles are never saved, so a reload replays the wave from its build phase. */
+  private persist(): void {
+    if (this.g.phase === 'build') saveRun(this.g, this.cam);
+  }
+
+  /** A resumed run: the camera goes back where the player left it, and a banner says which wave comes next. */
+  private resumeView(camera: CameraPos): void {
+    this.cam.x = camera.x;
+    this.cam.y = camera.y;
+    this.cam.zoom = camera.zoom;
+    // Reason: the screen may be another height than when the run was saved; keep the view on the map.
+    this.cam.clamp(this.view());
+    const title = `继续 · 第${NUMERALS[this.chapter - 1]}章 第 ${this.g.wave + 1} 波`;
+    this.vfx.showBanner(title, `${CHAPTERS[this.chapter - 1].name} · 回到这一波开打前，摆好的字都在`, '#ffd166', null, 2.6);
+  }
+
+  /** 返回选章 from the pause menu gives the run up, so its save goes too (重新开始 clears it through nav.play). */
+  private abandon(): void {
+    clearRun();
+    this.nav.chapters();
   }
 
   // ---- overlays ----------------------------------------------------------
@@ -332,7 +369,7 @@ export class GameScene implements Scene {
     return [
       { label: '继续', go: () => (this.paused = false) },
       { label: '重新开始', go: () => this.nav.play(this.chapter) },
-      { label: '返回选章', go: () => this.nav.chapters() },
+      { label: '返回选章', go: () => this.abandon() },
     ];
   }
 
