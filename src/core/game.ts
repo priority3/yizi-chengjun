@@ -1,11 +1,12 @@
 // A chapter run: build phase (shop open, maybe an encounter to pick) <-> battle phase (a wave attacks)
 // until the boss falls or the camp does.
-import { CAMP_HP, CHAPTERS, FIRST_SHOP_ATTACKERS, START_GONGDE, STARTER_CELL, waveBonus } from '../config/chapters.ts';
+import { CAMP_HP, CHAPTERS, FIRST_SHOP_ATTACKERS, START_GONGDE, waveBonus } from '../config/chapters.ts';
+import { MAPS, type MapDef } from '../config/maps.ts';
 import { makeTile, resolveDrop } from './board.ts';
 import { DT } from './clock.ts';
 import { stepCombat } from './combat.ts';
 import { chooseEncounter, defaultWaveMods, encounterDue, modsLabel, offerEncounter, openChest } from './encounters.ts';
-import { CELL_COUNT, initialUnlocked } from './grid.ts';
+import { bestOpenSlot, buildMap } from './map.ts';
 import { makeEnemy, moveEnemies } from './monsters.ts';
 import { mixSeed } from './rng.ts';
 import { buy, refresh, restock, unlock } from './shop.ts';
@@ -18,15 +19,19 @@ export interface GameOptions {
   chapter: number;
   /** 法宝 effects; defaults to none. */
   mods?: RunMods;
+  /** Map override (tests); defaults to the chapter's map. */
+  map?: MapDef;
 }
 
 export function createGame(opts: GameOptions): GameState {
   const ch = CHAPTERS[opts.chapter - 1];
   const mods = opts.mods ?? defaultMods();
   const campMax = CAMP_HP + mods.campHpBonus;
+  const map = buildMap(opts.map ?? MAPS[opts.chapter - 1]);
   const g: GameState = {
     seed: opts.seed,
     chapter: opts.chapter,
+    map,
     tick: 0,
     phase: 'build',
     wave: 0,
@@ -35,9 +40,9 @@ export function createGame(opts: GameOptions): GameState {
     gongde: START_GONGDE + mods.startGongde,
     campHp: campMax,
     campMax,
-    unlocked: initialUnlocked(),
+    unlocked: [...map.open],
     unlockCount: 0,
-    slots: new Array<null>(CELL_COUNT).fill(null),
+    slots: new Array<null>(map.slots.length).fill(null),
     enemies: [],
     projectiles: [],
     spawns: [],
@@ -56,8 +61,8 @@ export function createGame(opts: GameOptions): GameState {
     events: [],
     nextUid: 1,
   };
-  // Every chapter starts with one free 箭 on the camp and a shop with at least two attack cards.
-  g.slots[STARTER_CELL] = makeTile(g, '箭', 0);
+  // Every chapter starts with one free 箭 on the slot that sees the most road, and a shop with attack cards.
+  g.slots[bestOpenSlot(map)] = makeTile(g, '箭', 0);
   restock(g, FIRST_SHOP_ATTACKERS);
   return g;
 }
@@ -125,7 +130,7 @@ export function step(g: GameState): void {
   g.waveTime += DT;
   while (g.spawns.length > 0 && g.spawns[0].at <= g.waveTime) {
     const s = g.spawns.shift();
-    if (s) g.enemies.push(makeEnemy(g, s.def, s.lane, s.x, s.hp, s.speed, s.bounty));
+    if (s) g.enemies.push(makeEnemy(g, s.def, s.path, s.hp, s.speed, s.bounty, 0, s.side));
   }
   moveEnemies(g);
   stepCombat(g);
@@ -177,7 +182,7 @@ export function hashState(g: GameState): number {
   for (const e of g.enemies) {
     mix(e.uid);
     mix(Math.round(e.hp * 100));
-    mix(Math.round(e.y * 100));
+    mix(Math.round(e.dist * 100));
   }
   for (const o of g.shop) mixText(o.id);
   return h >>> 0;

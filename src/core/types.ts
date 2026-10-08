@@ -1,5 +1,6 @@
 // Plain-data types shared by the deterministic simulation. Nothing here touches the DOM,
 // so a whole run can be snapshotted, hashed and replayed in tests.
+import type { MapData } from './map.ts';
 
 export type AttackId = '棍' | '箭' | '火' | '冰' | '雷';
 export type SupportId = '速' | '钱' | '疗';
@@ -81,12 +82,11 @@ export interface EnemyDef {
   glyph: string;
   name: string;
   hpK: number;
-  /** Pixels per second. */
+  /** Pixels per second along the road (before MAP_SPEED). */
   speed: number;
   bounty: number;
-  /** Damage dealt to the camp per attack. */
+  /** Camp damage when it reaches the end of the road (times LEAK_MUL). */
   atk: number;
-  atkInterval: number;
   /** Body radius in world pixels. */
   radius: number;
   boss: boolean;
@@ -94,32 +94,32 @@ export interface EnemyDef {
   trait?: BossTrait;
 }
 
-/** 0 = comes through the top gate, 1 = through the bottom gate. */
-export type Lane = 0 | 1;
-
 export interface Enemy {
   uid: number;
   def: string;
   hp: number;
   maxHp: number;
+  /** World position, derived from `dist` along the road every tick. */
   x: number;
   y: number;
-  lane: Lane;
-  /** y at which it stops in front of the camp and starts attacking. */
-  stopY: number;
+  /** Which road it walks (index into map.paths). */
+  path: number;
+  /** Distance travelled along the road, in px. */
+  dist: number;
+  /** Sideways offset factor (-1..1) so a crowd spreads across the road. */
+  side: number;
   speed: number;
   slowPct: number;
   slowT: number;
   stunT: number;
+  /** Camp damage (times LEAK_MUL) if it reaches the end of the road. */
   atk: number;
-  /** Countdown to the next attack on the camp. */
-  atkT: number;
   revives: number;
   /** Countdown for periodic traits (dash / summon). */
   traitT: number;
   dashT: number;
   bounty: number;
-  /** Left the field without dying (a thief that got away): removed silently, no bounty. */
+  /** Left the field without dying (reached the camp, or a thief that got away): removed, no bounty. */
   gone: boolean;
 }
 
@@ -145,9 +145,10 @@ export interface Spawn {
   /** Seconds after the wave started. */
   at: number;
   def: string;
-  lane: Lane;
-  /** Horizontal spawn position (world px). */
-  x: number;
+  /** Road to walk (index into map.paths). */
+  path: number;
+  /** Sideways offset factor (-1..1). */
+  side: number;
   hp: number;
   speed: number;
   bounty: number;
@@ -234,7 +235,8 @@ export type SimEvent =
   | { t: 'hit'; uid: number; x: number; y: number; unit: UnitId; dmg: number }
   | { t: 'impact'; kind: ShotKind; unit: UnitId; x: number; y: number }
   | { t: 'kill'; def: string; x: number; y: number; bounty: number }
-  | { t: 'campHit'; x: number; y: number; dmg: number }
+  /** A monster reached the camp and hurt it. */
+  | { t: 'leak'; x: number; y: number; dmg: number }
   | { t: 'revive'; x: number; y: number }
   | { t: 'split'; x: number; y: number }
   | { t: 'summon'; x: number; y: number }
@@ -249,7 +251,8 @@ export type SimEvent =
   | { t: 'heal'; cell: number; amount: number }
   | { t: 'unlock'; cell: number }
   | { t: 'refresh' }
-  | { t: 'ultimate'; hero: HeroId; cell: number; x: number; y: number; tx: number; ty: number; lane: Lane; targets: Array<{ x: number; y: number }> }
+  /** `dir` is the road direction (radians) at the target, for the sweep animation. */
+  | { t: 'ultimate'; hero: HeroId; cell: number; x: number; y: number; tx: number; ty: number; path: number; dir: number; targets: Array<{ x: number; y: number }> }
   | { t: 'encounterOffer'; options: EncounterId[] }
   | { t: 'encounter'; id: EncounterId }
   /** A 宝箱 opened: a card landed on `cell`, or 功德 when the camp had no room (cell -1, unit null). */
@@ -264,6 +267,8 @@ export type SimEvent =
 export interface GameState {
   seed: number;
   chapter: number;
+  /** The chapter's map: roads, slots, camp. Built once per run, never mutated. */
+  map: MapData;
   tick: number;
   phase: Phase;
   /** Current wave (1-based) during battle; waves already cleared during build. */

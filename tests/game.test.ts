@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { START_GONGDE, STARTER_CELL, waveBonus } from '../src/config/chapters.ts';
+import { START_GONGDE, waveBonus } from '../src/config/chapters.ts';
 import { act, createGame, hashState, step } from '../src/core/game.ts';
-import { stopY } from '../src/core/grid.ts';
 import { runChapter } from '../src/core/sim.ts';
 import { emptyGame, enemy, put } from './helpers.ts';
 
@@ -9,7 +8,10 @@ describe('run flow', () => {
   it('starts in the build phase with a free 箭 and some 功德', () => {
     const g = createGame({ seed: 1, chapter: 1 });
     expect(g.phase).toBe('build');
-    expect(g.slots[STARTER_CELL]?.id).toBe('箭');
+    const starter = g.slots.findIndex((t) => t?.id === '箭');
+    expect(starter).toBeGreaterThanOrEqual(0);
+    expect(g.unlocked[starter]).toBe(true);
+    expect(g.slots.filter((t) => t !== null)).toHaveLength(1);
     expect(g.gongde).toBe(START_GONGDE);
   });
 
@@ -50,16 +52,16 @@ describe('run flow', () => {
     act(h, { t: 'start' });
     h.spawns = [];
     h.campHp = 2;
-    const e = enemy(h, '妖', 150, stopY(0, 12));
-    e.atkT = 0.001;
+    enemy(h, '妖', h.map.paths[0].length - 0.1);
     step(h);
     expect(h.phase).toBe('lost');
+    expect(h.events.some((e) => e.t === 'leak')).toBe(true);
   });
 
   it('keeps fighting tiles working through a wave', () => {
     const g = emptyGame();
     put(g, 5, '雷', 5, true);
-    put(g, 10, '雷', 5, true);
+    put(g, 6, '雷', 5, true);
     act(g, { t: 'start' });
     for (let i = 0; i < 60 * 60 && g.phase === 'battle'; i++) step(g);
     expect(g.phase).toBe('build');

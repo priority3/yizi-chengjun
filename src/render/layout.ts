@@ -1,6 +1,6 @@
-// Screen layout in design units. Width is fixed at 360; height adapts to the phone (640..800)
-// so the painted battlefield fills tall screens instead of leaving black bars.
-import { WORLD_W } from '../core/grid.ts';
+// Screen layout in design units. Width is fixed at 360; height adapts to the phone (640..800).
+// The world (map) is shown through a viewport between the HUD and the bottom panel; the camera maps it.
+import type { Phase } from '../core/types.ts';
 
 export interface Rect {
   x: number;
@@ -9,14 +9,12 @@ export interface Rect {
   h: number;
 }
 
-export const W = WORLD_W;
+export const W = 360;
 export const MIN_H = 640;
 export const MAX_H = 800;
 
 export interface Layout {
   H: number;
-  /** Screen y of the world's top edge (world x maps 1:1 to screen x). */
-  worldY: number;
   hud: Rect;
   btnPause: Rect;
   btnSpeed: Rect;
@@ -32,14 +30,12 @@ export interface Layout {
 }
 
 export function computeLayout(H: number): Layout {
-  const worldY = 60 + Math.round((H - MIN_H) * 0.4);
   const shop: Rect = { x: 8, y: H - 190, w: W - 16, h: 184 };
   const cardW = 92;
   const gap = (shop.w - 3 * cardW) / 4;
   const shopCards = [0, 1, 2].map((k) => ({ x: shop.x + gap + k * (cardW + gap), y: shop.y + 30, w: cardW, h: 96 }));
   return {
     H,
-    worldY,
     hud: { x: 0, y: 0, w: W, h: 58 },
     btnPause: { x: 6, y: 6, w: 30, h: 28 },
     btnSpeed: { x: 40, y: 6, w: 36, h: 28 },
@@ -60,18 +56,11 @@ export function setDesignHeight(h: number): void {
   if (h !== L.H) L = computeLayout(h);
 }
 
-/** World coordinates -> screen design coordinates. */
-export function wx(x: number): number {
-  return x;
-}
-
-export function wy(y: number): number {
-  return L.worldY + y;
-}
-
-/** Screen design coordinates -> world coordinates. */
-export function toWorld(sx: number, sy: number): { x: number; y: number } {
-  return { x: sx, y: sy - L.worldY };
+/** The part of the screen that shows the world: between the HUD and the bottom panel of the current phase. */
+export function viewRect(phase: Phase): Rect {
+  const top = L.hud.h;
+  const bottom = phase === 'build' ? L.shop.y : L.bar.y;
+  return { x: 0, y: top, w: W, h: bottom - top };
 }
 
 export function inRect(x: number, y: number, r: Rect): boolean {

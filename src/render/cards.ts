@@ -1,17 +1,23 @@
-// Card sprites: brush-lettered paper cards with a level badge, hero portraits and the red 神 seal.
+// Card sprites: brush-lettered paper cards with an illustration that grows with the level, a level badge,
+// hero portraits, torn-scroll fragments and the red 神 seal.
+import { HERO_RECIPES } from '../config/combos.ts';
 import { UNITS } from '../config/units.ts';
 import type { HeroId, UnitId } from '../core/types.ts';
 import { COLORS, hash01, roundRect, text } from './draw.ts';
 import { brush, sans } from './fonts.ts';
 import { drawPortrait } from './heroes-art.ts';
 import { sprites } from './sprites.ts';
+import { drawLevelDressing, drawTornPaper, drawUnitIcon } from './unit-art.ts';
 
-/** Card size on the camp (a cell is 58). */
+/** Card size on the camp (a slot pad is 50 wide). */
 export const CARD = 52;
 /** Padding around a card sprite for the 神 glow and shadow. */
 const PAD = 6;
 
 export const LEVEL_EDGE = ['#b39462', '#4f9d5b', '#3f78c9', '#8a55c9', '#e0862a'];
+
+/** Fragments that are the right half of a name (空/戒/僧/龙) are torn on the left. */
+const RIGHT_HALF = new Set<UnitId>(HERO_RECIPES.map((r) => r.b));
 
 function paintCard(ctx: CanvasRenderingContext2D, id: UnitId, level: number, divine: boolean, s: number): void {
   const def = UNITS[id];
@@ -73,14 +79,22 @@ function paintCard(ctx: CanvasRenderingContext2D, id: UnitId, level: number, div
 
   const cx = x + s / 2;
   if (def.kind === 'hero') {
+    drawLevelDressing(ctx, cx, y + s * 0.4, s * 0.56, level);
     drawPortrait(ctx, id as HeroId, cx, y + s * 0.4, s * 0.28);
     text(ctx, id, cx, y + s * 0.82, brush(Math.round(s * 0.25)), def.color);
+  } else if (def.kind === 'fragment') {
+    drawTornPaper(ctx, cx, y + s * 0.5, s * 0.62, s * 0.7, RIGHT_HALF.has(id));
+    text(ctx, id, cx, y + s * 0.52, brush(Math.round(s * 0.46)), def.color);
   } else {
+    // Illustration on top, the character underneath like a caption.
+    const iy = y + s * 0.38;
+    drawLevelDressing(ctx, cx, iy, s * 0.56, level);
+    drawUnitIcon(ctx, id, cx, iy, s * 0.5, level);
     ctx.save();
     ctx.globalAlpha = 0.18;
-    text(ctx, id, cx + 1.2, y + s * 0.53 + 1.5, brush(Math.round(s * 0.7)), COLORS.ink);
+    text(ctx, id, cx + 1, y + s * 0.8 + 1.2, brush(Math.round(s * 0.32)), COLORS.ink);
     ctx.restore();
-    text(ctx, id, cx, y + s * 0.53, brush(Math.round(s * (def.kind === 'fragment' ? 0.62 : 0.7))), def.color);
+    text(ctx, id, cx, y + s * 0.8, brush(Math.round(s * 0.32)), def.color);
   }
   if (level > 1) {
     const bx = x + s * 0.16;
@@ -96,7 +110,7 @@ function paintCard(ctx: CanvasRenderingContext2D, id: UnitId, level: number, div
   }
   if (divine) {
     // A red seal stamp in the corner, like a painter's chop.
-    const sx = x + s * 0.78;
+    const sx = x + s * 0.8;
     const sy = y + s * 0.8;
     const ss = s * 0.3;
     ctx.save();

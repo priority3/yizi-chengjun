@@ -4,40 +4,42 @@ import { ENEMIES } from '../config/enemies.ts';
 import { DIVINE, HASTE_CAP, LEVEL_MUL, UNITS } from '../config/units.ts';
 import { DT } from './clock.ts';
 import { applySlow, applyStun, damage, dist2, knock } from './effects.ts';
-import { ADJ8, CELL_COUNT, CELL_POS, type Pt } from './grid.ts';
+import type { Pt } from './map.ts';
 import { spawnMinions } from './monsters.ts';
 import { fxScale, tileDamage, tileInterval, tileRange } from './stats.ts';
 import type { Enemy, GameState, Projectile, Tile } from './types.ts';
 import { castUltimate, isUltimateReady, rageGain } from './ultimates.ts';
 
-// Reason: reused every step to avoid per-frame allocation.
-const HASTE = new Float64Array(CELL_COUNT);
+// Reason: reused every step to avoid per-frame allocation; resized when a map has a different slot count.
+let haste = new Float64Array(0);
 
-/** Attack-speed bonus each cell receives from neighbouring 速 tiles. */
-export function computeHaste(g: GameState, out: Float64Array = HASTE): Float64Array {
-  out.fill(0);
+/** Attack-speed bonus each slot receives from 速 tiles within SUPPORT_RANGE. */
+export function computeHaste(g: GameState): Float64Array {
+  const n = g.slots.length;
+  if (haste.length !== n) haste = new Float64Array(n);
+  haste.fill(0);
   const fx = UNITS['速'].fx;
   const pct = fx.t === 'haste' ? fx.pct : 0;
-  for (let i = 0; i < CELL_COUNT; i++) {
+  for (let i = 0; i < n; i++) {
     const t = g.slots[i];
     if (!t || t.id !== '速') continue;
     const bonus = pct * t.level * (t.divine ? DIVINE.fx : 1);
-    for (const j of ADJ8[i]) out[j] += bonus;
+    for (const j of g.map.adj[i]) haste[j] += bonus;
   }
-  for (let i = 0; i < CELL_COUNT; i++) out[i] = Math.min(HASTE_CAP, out[i]);
-  return out;
+  for (let i = 0; i < n; i++) haste[i] = Math.min(HASTE_CAP, haste[i]);
+  return haste;
 }
 
-/** Living enemy in range that is closest to biting the camp (ties -> lower uid). */
+/** Living enemy in range that is furthest along its road, i.e. closest to the camp (ties -> lower uid). */
 export function findTarget(g: GameState, t: Tile, cell: number): Enemy | null {
-  const p = CELL_POS[cell];
+  const p = g.map.slots[cell];
   const r = tileRange(t, g.mods);
   const r2 = r * r;
   let best: Enemy | null = null;
   let bestRem = Infinity;
   for (const e of g.enemies) {
     if (e.hp <= 0 || e.gone || dist2(e, p.x, p.y) > r2) continue;
-    const rem = Math.abs(e.stopY - e.y);
+    const rem = g.map.paths[e.path].length - e.dist;
     if (rem < bestRem || (rem === bestRem && best !== null && e.uid < best.uid)) {
       best = e;
       bestRem = rem;
@@ -57,7 +59,7 @@ function fireBeam(g: GameState, t: Tile, cell: number, p: Pt, target: Enemy, dmg
   const reach = tileRange(t, g.mods) + 30;
   const hits: Array<{ e: Enemy; along: number }> = [];
   for (const e of g.enemies) {
-    if (e.hp <= 0) continue;
+    if (e.hp <= 0 || e.gone) continue;
     const ex = e.x - p.x;
     const ey = e.y - p.y;
     const along = ex * ux + ey * uy;
@@ -68,7 +70,7 @@ function fireBeam(g: GameState, t: Tile, cell: number, p: Pt, target: Enemy, dmg
   const count = Math.round(fx.count * (t.divine ? DIVINE.fx : 1));
   for (const h of hits.slice(0, count)) {
     damage(g, h.e, dmg, t.id);
-    knock(h.e, def.knockback);
+    knock(g, h.e, def.knockback);
   }
   g.events.push({ t: 'shot', kind: 'beam', unit: t.id, cell, x: p.x, y: p.y, tx: p.x + ux * reach, ty: p.y + uy * reach, divine: t.divine });
 }
@@ -77,7 +79,7 @@ function fireBeam(g: GameState, t: Tile, cell: number, p: Pt, target: Enemy, dmg
 function fire(g: GameState, t: Tile, cell: number): boolean {
   const def = UNITS[t.id];
   const dmg = tileDamage(t, g.mods);
-  const p = CELL_POS[cell];
+  const p = g.map.slots[cell];
   if (def.kind === 'hero' && isUltimateReady(t)) {
     const target = findTarget(g, t, cell);
     if (!target) return false;
@@ -88,7 +90,7 @@ function fire(g: GameState, t: Tile, cell: number): boolean {
   if (def.shot === 'dragon') {
     let any = false;
     for (const e of g.enemies) {
-      if (e.hp <= 0) continue;
+      if (e.hp <= 0 || e.gone) continue;
       damage(g, e, dmg, t.id);
       any = true;
     }
@@ -125,15 +127,15 @@ function fire(g: GameState, t: Tile, cell: number): boolean {
     const r2 = def.fx.radius * def.fx.radius;
     const dur = def.fx.dur * fxScale(t) * g.mods.stunMul;
     for (const e of g.enemies) {
-      if (e.hp <= 0 || dist2(e, target.x, target.y) > r2) continue;
+      if (e.hp <= 0 || e.gone || dist2(e, target.x, target.y) > r2) continue;
       damage(g, e, e === target ? dmg : dmg * 0.6, t.id);
       applyStun(e, dur);
-      knock(e, def.knockback);
+      knock(g, e, def.knockback);
     }
     return true;
   }
   damage(g, target, dmg, t.id);
-  knock(target, def.knockback);
+  knock(g, target, def.knockback);
   return true;
 }
 
@@ -148,7 +150,7 @@ function impact(g: GameState, pr: Projectile, target: Enemy | null): void {
     const r2 = radius * radius;
     const pct = Math.min(1, fx.pct * pr.fxK);
     for (const e of g.enemies) {
-      if (e !== target && e.hp > 0 && dist2(e, pr.tx, pr.ty) <= r2) damage(g, e, pr.dmg * pct, pr.unit);
+      if (e !== target && e.hp > 0 && !e.gone && dist2(e, pr.tx, pr.ty) <= r2) damage(g, e, pr.dmg * pct, pr.unit);
     }
     return;
   }
@@ -171,7 +173,7 @@ export function updateProjectiles(g: GameState): void {
     const pr = list[i];
     let target: Enemy | null = null;
     for (const e of g.enemies) {
-      if (e.uid === pr.target && e.hp > 0) {
+      if (e.uid === pr.target && e.hp > 0 && !e.gone) {
         target = e;
         break;
       }
@@ -252,7 +254,7 @@ function removeDead(g: GameState): void {
   for (const e of splits) {
     const tr = ENEMIES[e.def].trait;
     if (tr?.t !== 'split') continue;
-    spawnMinions(g, tr.minion, tr.count, e.x, e.y, e.lane);
+    spawnMinions(g, tr.minion, tr.count, e);
     g.events.push({ t: 'split', x: e.x, y: e.y });
   }
 }
@@ -260,7 +262,7 @@ function removeDead(g: GameState): void {
 /** Advances all tiles, projectiles and deaths by one tick (battle phase only). */
 export function stepCombat(g: GameState): void {
   const haste = computeHaste(g);
-  for (let i = 0; i < CELL_COUNT; i++) {
+  for (let i = 0; i < g.slots.length; i++) {
     const t = g.slots[i];
     if (!t) continue;
     const kind = UNITS[t.id].kind;

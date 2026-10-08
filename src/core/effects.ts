@@ -1,7 +1,7 @@
 // Damage and status primitives shared by normal attacks and hero ultimates.
 import { ENEMIES } from '../config/enemies.ts';
 import { SLOW_CAP } from '../config/units.ts';
-import { spawnY } from './grid.ts';
+import { pathPoint } from './map.ts';
 import type { Enemy, GameState, UnitId } from './types.ts';
 
 export function damage(g: GameState, e: Enemy, amount: number, unit: UnitId): void {
@@ -11,12 +11,14 @@ export function damage(g: GameState, e: Enemy, amount: number, unit: UnitId): vo
   g.events.push({ t: 'hit', uid: e.uid, x: e.x, y: e.y, unit, dmg: dealt });
 }
 
-/** Pushes an enemy back toward its gate. Bosses are too heavy to move; elites move half as far. */
-export function knock(e: Enemy, px: number): void {
+/** Pushes an enemy back along its road. Bosses are too heavy to move; elites move half as far. */
+export function knock(g: GameState, e: Enemy, px: number): void {
   if (px <= 0 || ENEMIES[e.def].boss) return;
   const push = ENEMIES[e.def].elite ? px / 2 : px;
-  const gate = spawnY(e.lane);
-  e.y = e.lane === 0 ? Math.max(gate, e.y - push) : Math.min(gate, e.y + push);
+  e.dist = Math.max(0, e.dist - push);
+  const p = pathPoint(g.map.paths[e.path], e.dist, e.side);
+  e.x = p.x;
+  e.y = p.y;
 }
 
 export function applySlow(e: Enemy, pct: number, dur: number): void {

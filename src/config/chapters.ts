@@ -27,12 +27,13 @@ export const CHAPTERS: readonly ChapterDef[] = [
 
 export const START_GONGDE = 70;
 export const CAMP_HP = 120;
+/** Camp damage per leaked monster = its atk x this. */
+export const LEAK_MUL = 3;
 export const SHOP_SIZE = 3;
 /** Attack cards guaranteed in the very first shop, and in every later one. */
 export const FIRST_SHOP_ATTACKERS = 2;
 export const SHOP_ATTACKERS = 1;
 /** A free 箭 already stands on this cell when a chapter starts (row 2, col 1). */
-export const STARTER_CELL = 9;
 export const SELL_REFUND = 0.5;
 /** Seconds between spawns inside a wave (shrinks a little each wave). */
 export const SPAWN_GAP = 1.0;

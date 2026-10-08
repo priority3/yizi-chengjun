@@ -16,7 +16,7 @@ const KIND_STYLE: Record<EncounterKind, { bg: string; edge: string; chip: string
 };
 
 export function encounterPanel(): Rect {
-  return { x: 16, y: L.worldY + 36, w: W - 32, h: 96 + 3 * CARD_H + 2 * CARD_GAP + 18 };
+  return { x: 16, y: L.hud.h + 20, w: W - 32, h: 96 + 3 * CARD_H + 2 * CARD_GAP + 18 };
 }
 
 export function encounterCardRects(): Rect[] {

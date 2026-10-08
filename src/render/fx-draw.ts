@@ -241,11 +241,12 @@ export function drawParticle(ctx: CanvasRenderingContext2D, p: Particle): void {
   ctx.globalAlpha = 1;
 }
 
-export function drawFloater(ctx: CanvasRenderingContext2D, f: Floater): void {
+/** `textScale` multiplies the font size (the renderer passes 1 / zoom so text keeps its on-screen size). */
+export function drawFloater(ctx: CanvasRenderingContext2D, f: Floater, textScale = 1): void {
   const k = f.t / f.life;
   ctx.globalAlpha = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
-  const pop = k < 0.12 ? 0.6 + (k / 0.12) * 0.4 : 1;
-  outlined(ctx, f.msg, f.x, f.y - k * 26, f.brushFont ? brush(Math.round(f.px * pop)) : sans(Math.round(f.px * pop), 800), f.color);
+  const pop = (k < 0.12 ? 0.6 + (k / 0.12) * 0.4 : 1) * textScale;
+  outlined(ctx, f.msg, f.x, f.y - k * 26 * textScale, f.brushFont ? brush(Math.round(f.px * pop)) : sans(Math.round(f.px * pop), 800), f.color, 'rgba(30,15,5,0.85)', 3 * textScale);
   ctx.globalAlpha = 1;
 }
 

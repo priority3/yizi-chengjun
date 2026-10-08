@@ -4,7 +4,7 @@ import { unlockCost } from '../config/chapters.ts';
 import { heroFor } from '../config/combos.ts';
 import { MAX_LEVEL, UNITS } from '../config/units.ts';
 import { canBeDivine, isStackable } from './board.ts';
-import { CELL_COUNT, coverage } from './grid.ts';
+import { coverage } from './map.ts';
 import { rand, type RngHolder } from './rng.ts';
 import { currentRefreshCost, offerPrice } from './shop.ts';
 import { tileDps, tileRange } from './stats.ts';
@@ -32,25 +32,24 @@ export function tileValue(t: Tile): number {
 /** How well a cell suits a tile: lane coverage for fighters, out-of-the-way cells for the rest. */
 function cellScore(g: GameState, cell: number, t: Tile): number {
   const kind = UNITS[t.id].kind;
-  if (kind === 'attack' || kind === 'hero') return coverage(cell, tileRange(t));
+  if (kind === 'attack' || kind === 'hero') return coverage(g.map, cell, tileRange(t, g.mods));
   if (t.id === '速') {
-    // 速 wants fighters around it.
+    // 速 wants fighters within its reach.
     let n = 0;
-    for (let j = 0; j < CELL_COUNT; j++) {
+    for (const j of g.map.adj[cell]) {
       const o = g.slots[j];
-      if (o && Math.abs((j % 4) - (cell % 4)) <= 1 && Math.abs(Math.floor(j / 4) - Math.floor(cell / 4)) <= 1 && j !== cell) {
-        const k = UNITS[o.id].kind;
-        if (k === 'attack' || k === 'hero') n++;
-      }
+      if (!o) continue;
+      const k = UNITS[o.id].kind;
+      if (k === 'attack' || k === 'hero') n++;
     }
     return n;
   }
-  return -coverage(cell, 160);
+  return -coverage(g.map, cell, 160);
 }
 
 function emptyCells(g: GameState): number[] {
   const out: number[] = [];
-  for (let i = 0; i < CELL_COUNT; i++) if (g.unlocked[i] && !g.slots[i]) out.push(i);
+  for (let i = 0; i < g.slots.length; i++) if (g.unlocked[i] && !g.slots[i]) out.push(i);
   return out;
 }
 
@@ -70,10 +69,10 @@ function bestEmptyCell(g: GameState, t: Tile): number {
 /** Merges, awakenings and 神 that are already possible on the board. */
 function boardCombo(g: GameState): Action | null {
   const s = g.slots;
-  for (let i = 0; i < CELL_COUNT; i++) {
+  for (let i = 0; i < s.length; i++) {
     const a = s[i];
     if (!a) continue;
-    for (let j = i + 1; j < CELL_COUNT; j++) {
+    for (let j = i + 1; j < s.length; j++) {
       const b = s[j];
       if (!b) continue;
       const hero = heroFor(a.id, b.id);
@@ -87,7 +86,7 @@ function boardCombo(g: GameState): Action | null {
   const god = s.findIndex((t) => t?.id === '神');
   if (god >= 0) {
     let best = -1;
-    for (let i = 0; i < CELL_COUNT; i++) {
+    for (let i = 0; i < s.length; i++) {
       const t = s[i];
       if (t && canBeDivine(t) && (best < 0 || tileValue(t) > tileValue(s[best] as Tile))) best = i;
     }
@@ -115,7 +114,7 @@ function bestPurchase(g: GameState): Action | null {
     const card = asTile(o.id);
     let cell = -1;
     let score = 0;
-    for (let c = 0; c < CELL_COUNT; c++) {
+    for (let c = 0; c < g.slots.length; c++) {
       const t = g.slots[c];
       if (!t) continue;
       if (t.id === o.id && t.level === 1 && isStackable(o.id)) {
@@ -145,8 +144,19 @@ function bestPurchase(g: GameState): Action | null {
   return p ? { t: 'buy', offer: p.offer, cell: p.cell } : null;
 }
 
-function firstLocked(g: GameState): number {
-  return g.unlocked.findIndex((u) => !u);
+/** The locked slot that sees the most road, or -1 when everything is open. */
+function bestLockedSlot(g: GameState): number {
+  let best = -1;
+  let bestCov = -1;
+  g.unlocked.forEach((open, i) => {
+    if (open) return;
+    const c = coverage(g.map, i, 180);
+    if (c > bestCov) {
+      bestCov = c;
+      best = i;
+    }
+  });
+  return best;
 }
 
 /** Encounter cards the bot likes, best first: free value, then trades, then the mildest challenges. */
@@ -183,8 +193,9 @@ export function botBuildAction(g: GameState, knobs: BotKnobs, luck: RngHolder): 
     }
     return purchase;
   }
-  if (emptyCells(g).length === 0 && firstLocked(g) >= 0 && g.gongde >= unlockCost(g.unlockCount)) {
-    return { t: 'unlock', cell: firstLocked(g) };
+  const locked = bestLockedSlot(g);
+  if (emptyCells(g).length === 0 && locked >= 0 && g.gongde >= unlockCost(g.unlockCount)) {
+    return { t: 'unlock', cell: locked };
   }
   const reserve = boardDps(g) < dpsNeeded(g) ? 0 : 10;
   if (!purchase && g.refreshes < knobs.maxRefreshes && g.gongde >= currentRefreshCost(g) + reserve && emptyCells(g).length > 0) {

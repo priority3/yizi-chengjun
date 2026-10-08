@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CHAPTERS } from '../src/config/chapters.ts';
 import { createGame } from '../src/core/game.ts';
 import { buildWave, eliteWave, minionType, waveHp, waveSize } from '../src/core/waves.ts';
+import { TWO_ROADS } from './helpers.ts';
 
 describe('waves', () => {
   it('grows by two enemies per wave, plus a little per chapter', () => {
@@ -33,9 +34,13 @@ describe('waves', () => {
     for (let c = 2; c <= CHAPTERS.length; c++) expect(waveHp('妖', c, 5)).toBeGreaterThan(waveHp('妖', c - 1, 5));
   });
 
-  it('sends enemies through both gates', () => {
-    const g = createGame({ seed: 11, chapter: 3 });
-    const lanes = new Set(buildWave(g, 4).spawns.map((s) => s.lane));
-    expect(lanes).toEqual(new Set([0, 1]));
+  it('sends enemies down every road, spread across its width', () => {
+    const g = createGame({ seed: 11, chapter: 3, map: TWO_ROADS });
+    const spawns = buildWave(g, 4).spawns;
+    expect(new Set(spawns.map((s) => s.path))).toEqual(new Set([0, 1]));
+    for (const s of spawns) {
+      expect(s.side).toBeGreaterThanOrEqual(-1);
+      expect(s.side).toBeLessThanOrEqual(1);
+    }
   });
 });

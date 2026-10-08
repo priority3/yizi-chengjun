@@ -4,7 +4,6 @@ import { ENEMIES } from '../src/config/enemies.ts';
 import { stepCombat } from '../src/core/combat.ts';
 import { applyEncounter, defaultWaveMods, encounterDue, modsLabel, rollEncounters } from '../src/core/encounters.ts';
 import { act, createGame, step } from '../src/core/game.ts';
-import { stopY } from '../src/core/grid.ts';
 import { moveEnemies } from '../src/core/monsters.ts';
 import { currentRefreshCost, offerPrice } from '../src/core/shop.ts';
 import { MINI_BOSS_BOUNTY, THIEF_BOUNTY, waveHp, waveSize } from '../src/core/waves.ts';
@@ -124,7 +123,7 @@ describe('challenges', () => {
     const g = emptyGame();
     applyEncounter(g, '月圆之夜');
     act(g, { t: 'start' });
-    for (const s of g.spawns) expect(s.hp).toBe(Math.round(waveHp(s.def, 1, 1) * 1.5));
+    for (const s of g.spawns) expect(s.hp).toBe(Math.round(waveHp(s.def, 1, 1) * g.map.hpScale * 1.5));
   });
 
   it('狼群来袭 replaces the wave with half again as many wolves', () => {
@@ -155,7 +154,7 @@ describe('challenges', () => {
     expect(['白骨精', '黄风怪']).toContain(boss);
     act(g, { t: 'start' });
     const last = g.spawns.at(-1);
-    expect(last).toMatchObject({ def: boss, bounty: MINI_BOSS_BOUNTY, hp: Math.round(waveHp(boss, 3, 1) * 0.5) });
+    expect(last).toMatchObject({ def: boss, bounty: MINI_BOSS_BOUNTY, hp: Math.round(waveHp(boss, 3, 1) * g.map.hpScale * 0.5) });
     const h = emptyGame(1);
     applyEncounter(h, '妖王亲临');
     expect(h.waveMods.miniBoss).toBe('白骨精');
@@ -163,7 +162,7 @@ describe('challenges', () => {
 
   it('the thief robs the camp and vanishes without bounty', () => {
     const g = battle(emptyGame());
-    const thief = enemy(g, '盗', 150, stopY(0, ENEMIES['盗'].radius));
+    const thief = enemy(g, '盗', g.map.paths[0].length - 1);
     g.gongde = 50;
     moveEnemies(g);
     expect(g.gongde).toBe(20);

@@ -10,7 +10,6 @@ interface Stats {
   speed: number;
   bounty: number;
   atk: number;
-  atkInterval: number;
   radius: number;
 }
 
@@ -26,16 +25,16 @@ const boss = (id: string, glyph: string, s: Stats, trait?: BossTrait): EnemyDef 
   trait,
 });
 
-const BOSS_STATS: Stats = { hpK: 14, speed: 14, bounty: 40, atk: 9, atkInterval: 1, radius: 22 };
+const BOSS_STATS: Stats = { hpK: 14, speed: 14, bounty: 40, atk: 9, radius: 22 };
 
 export const ENEMIES: Record<string, EnemyDef> = {
-  妖: minion('妖', '小妖', { hpK: 1, speed: 30, bounty: 2, atk: 3, atkInterval: 1, radius: 12 }),
-  狼: minion('狼', '狼妖', { hpK: 0.6, speed: 48, bounty: 2, atk: 2, atkInterval: 0.6, radius: 11 }),
-  熊: minion('熊', '熊怪', { hpK: 3, speed: 19, bounty: 5, atk: 7, atkInterval: 1.3, radius: 15 }),
-  蛛: minion('蛛', '小蜘蛛', { hpK: 0.45, speed: 44, bounty: 1, atk: 2, atkInterval: 0.5, radius: 9 }),
-  魔: { id: '魔', glyph: '魔', name: '魔将', hpK: 8, speed: 20, bounty: 12, atk: 8, atkInterval: 1, radius: 17, boss: false, elite: true },
+  妖: minion('妖', '小妖', { hpK: 1, speed: 30, bounty: 2, atk: 3, radius: 12 }),
+  狼: minion('狼', '狼妖', { hpK: 0.6, speed: 48, bounty: 2, atk: 2, radius: 11 }),
+  熊: minion('熊', '熊怪', { hpK: 3, speed: 19, bounty: 5, atk: 7, radius: 15 }),
+  蛛: minion('蛛', '小蜘蛛', { hpK: 0.45, speed: 44, bounty: 1, atk: 2, radius: 9 }),
+  魔: { id: '魔', glyph: '魔', name: '魔将', hpK: 8, speed: 20, bounty: 12, atk: 8, radius: 17, boss: false, elite: true },
   // The thief from the 盗宝妖 encounter: quick, frail, robs the camp instead of biting it.
-  盗: { id: '盗', glyph: '盗', name: '盗宝妖', hpK: 1.2, speed: 56, bounty: 30, atk: 0, atkInterval: 1, radius: 11, boss: false, elite: false, trait: { t: 'steal', amount: 30 } },
+  盗: { id: '盗', glyph: '盗', name: '盗宝妖', hpK: 1.2, speed: 56, bounty: 30, atk: 0, radius: 11, boss: false, elite: false, trait: { t: 'steal', amount: 30 } },
   白骨精: boss('白骨精', '白骨', BOSS_STATS, { t: 'revive', times: 1, pct: 0.4 }),
   黄风怪: boss('黄风怪', '黄风', BOSS_STATS, { t: 'dash', every: 4, dur: 1, mul: 3 }),
   金角大王: boss('金角大王', '金角', BOSS_STATS, { t: 'summon', every: 5, count: 2, minion: '妖' }),

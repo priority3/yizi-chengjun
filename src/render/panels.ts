@@ -161,7 +161,7 @@ export function drawBattleBar(ctx: CanvasRenderingContext2D, g: GameState, ui: P
 
 export function drawBanner(ctx: CanvasRenderingContext2D, b: Banner): void {
   const fade = Math.min(1, b.t / 0.18, (b.life - b.t) / 0.35);
-  const y = L.worldY + (b.portrait ? 250 : 74);
+  const y = L.hud.h + (b.portrait ? 200 : 40);
   const h = b.portrait ? 92 : b.sub ? 58 : 40;
   ctx.save();
   ctx.globalAlpha = Math.max(0, fade);

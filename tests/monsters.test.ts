@@ -1,57 +1,77 @@
 import { describe, expect, it } from 'vitest';
+import { LEAK_MUL } from '../src/config/chapters.ts';
 import { ENEMIES } from '../src/config/enemies.ts';
+import { MAP_SPEED } from '../src/config/maps.ts';
 import { TICKS_PER_SEC } from '../src/core/clock.ts';
-import { spawnY, stopY } from '../src/core/grid.ts';
+import { stepCombat } from '../src/core/combat.ts';
 import { moveEnemies } from '../src/core/monsters.ts';
-import { battle, emptyGame, enemy } from './helpers.ts';
+import { battle, emptyGame, enemy, ROAD_X, roadY } from './helpers.ts';
 
 function runSeconds(g: ReturnType<typeof emptyGame>, s: number): void {
   for (let i = 0; i < s * TICKS_PER_SEC; i++) moveEnemies(g);
 }
 
 describe('enemies', () => {
-  it('walk from their gate and stop in front of the camp', () => {
+  it('walk the road at their speed and leave the field when they reach the camp', () => {
     const g = battle(emptyGame());
-    const top = enemy(g, '妖', 150, spawnY(0), 100, 0);
-    const bottom = enemy(g, '妖', 150, spawnY(1), 100, 1);
+    const imp = enemy(g, '妖', 0, 100);
     runSeconds(g, 1);
-    expect(top.y).toBeCloseTo(spawnY(0) + ENEMIES['妖'].speed, 0);
+    expect(imp.dist).toBeCloseTo(ENEMIES['妖'].speed * MAP_SPEED, 0);
+    expect(imp.x).toBe(ROAD_X);
+    expect(imp.y).toBeCloseTo(roadY(imp.dist), 0);
     runSeconds(g, 10);
-    expect(top.y).toBe(stopY(0, 12));
-    expect(bottom.y).toBe(stopY(1, 12));
+    expect(imp.gone).toBe(true);
+    expect(imp.dist).toBe(g.map.paths[0].length);
+    expect(g.campHp).toBe(g.campMax - ENEMIES['妖'].atk * LEAK_MUL);
+    expect(g.events.filter((e) => e.t === 'leak')).toHaveLength(1);
+    stepCombat(g);
+    expect(g.enemies).toHaveLength(0);
+    expect(g.kills).toBe(0);
   });
 
-  it('bite the camp on their attack interval, unless stunned', () => {
+  it('stand still while stunned and crawl while slowed', () => {
     const g = battle(emptyGame());
-    enemy(g, '妖', 150, stopY(0, 12));
-    // First bite lands half an interval (0.5 s) after arriving; allow a tick for float rounding.
-    runSeconds(g, 0.55);
-    expect(g.campHp).toBe(g.campMax - 3);
+    const stunned = enemy(g, '妖', 0);
+    stunned.stunT = 5;
+    const slowed = enemy(g, '妖', 0);
+    slowed.slowPct = 0.5;
+    slowed.slowT = 10;
     runSeconds(g, 1);
-    expect(g.campHp).toBe(g.campMax - 6);
-    const h = battle(emptyGame());
-    const e = enemy(h, '妖', 150, stopY(0, 12));
-    e.stunT = 5;
-    runSeconds(h, 2);
-    expect(h.campHp).toBe(h.campMax);
+    expect(stunned.dist).toBe(0);
+    expect(slowed.dist).toBeCloseTo(ENEMIES['妖'].speed * MAP_SPEED * 0.5, 0);
   });
 
-  it('黄风怪 dashes, 金角大王 summons, 灵感大王 regenerates', () => {
+  it('spread sideways across the road', () => {
     const g = battle(emptyGame());
-    const wind = enemy(g, '黄风怪', 150, -16, 100, 0);
+    const left = enemy(g, '妖', 10, 100, 1);
+    const right = enemy(g, '妖', 10, 100, -1);
+    expect(left.x).toBeLessThan(ROAD_X);
+    expect(right.x).toBeGreaterThan(ROAD_X);
+    runSeconds(g, 1);
+    expect(left.x).toBeLessThan(ROAD_X);
+  });
+
+  it('黄风怪 dashes, 金角大王 summons behind itself, 灵感大王 regenerates', () => {
+    const g = battle(emptyGame());
+    const wind = enemy(g, '黄风怪', 0, 100);
     runSeconds(g, 4);
-    const before = wind.y;
+    const before = wind.dist;
     runSeconds(g, 0.5);
     // Reason: during the dash it moves at 3x speed.
-    expect(wind.y - before).toBeGreaterThan(ENEMIES['黄风怪'].speed * 0.5 * 2);
+    expect(wind.dist - before).toBeGreaterThan(ENEMIES['黄风怪'].speed * MAP_SPEED * 0.5 * 2);
 
     const h = battle(emptyGame());
-    enemy(h, '金角大王', 150, -16, 100, 0);
+    const gold = enemy(h, '金角大王', 0, 100);
     runSeconds(h, 5.1);
-    expect(h.enemies.filter((e) => e.def === '妖')).toHaveLength(2);
+    const imps = h.enemies.filter((e) => e.def === '妖');
+    expect(imps).toHaveLength(2);
+    for (const imp of imps) {
+      expect(imp.path).toBe(0);
+      expect(imp.dist).toBeLessThan(gold.dist);
+    }
 
     const k = battle(emptyGame());
-    const river = enemy(k, '灵感大王', 150, -16, 100, 0);
+    const river = enemy(k, '灵感大王', 0, 100);
     river.hp = 50;
     runSeconds(k, 1);
     expect(river.hp).toBeCloseTo(52, 0);

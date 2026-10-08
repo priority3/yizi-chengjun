@@ -1,20 +1,22 @@
-// Composes one frame: painted background, camp cells, cards, monsters, projectiles, effects, HUD and panels.
+// Composes one frame: the map through the camera (roads, pads, cards, monsters, effects), then the HUD,
+// the shop or battle bar, the dragged card and any banner or modal in screen space.
 import { unlockCost } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
 import { UNITS } from '../config/units.ts';
-import { CELL, CELL_COUNT, CELL_POS, cellRow } from '../core/grid.ts';
+import type { Pt } from '../core/map.ts';
 import { tileRange } from '../core/stats.ts';
 import type { Enemy, GameState, Tile, UnitId } from '../core/types.ts';
 import type { Stage } from '../platform/web.ts';
-import { paintBackground } from './background.ts';
+import type { Camera } from './camera.ts';
 import { CARD, cardSprite } from './cards.ts';
-import { drawEncounterPanel } from './encounter-panel.ts';
 import { drawBar, drawCoin, drawStar, outlined, roundRect, text } from './draw.ts';
+import { drawEncounterPanel } from './encounter-panel.ts';
 import { brush, sans } from './fonts.ts';
-import { L, W, wy } from './layout.ts';
+import { L, viewRect, W } from './layout.ts';
+import { drawMap, PAD_R } from './map-art.ts';
 import { monsterSprite } from './monsters-art.ts';
 import { drawBanner, drawBattleBar, drawHud, drawShop, type PanelUi } from './panels.ts';
-import { blit, sprites } from './sprites.ts';
+import { blit } from './sprites.ts';
 import type { Vfx } from './vfx.ts';
 
 /** A small drawn snowflake (no emoji: they render differently on every phone). */
@@ -33,6 +35,7 @@ function snowflake(ctx: CanvasRenderingContext2D, x: number, y: number, r: numbe
   ctx.restore();
 }
 
+/** A card being dragged, in screen coordinates. */
 export interface DragUi {
   kind: 'shop' | 'cell';
   index: number;
@@ -45,45 +48,41 @@ export interface DragUi {
 
 export interface GameUi extends PanelUi {
   drag: DragUi | null;
-  /** Cell under the dragged card, or -1. */
+  /** Slot under the dragged card, or -1. */
   hoverCell: number;
   /** Whether dropping on hoverCell would do something. */
   hoverValid: boolean;
   /** Tapped tile whose range is shown, or -1. */
   selected: number;
-  /** What releasing on hoverCell does when it combines (merge / awaken / 神), shown next to the cell. */
+  /** What releasing on hoverCell does when it combines (merge / awaken / 神), shown next to the slot. */
   hoverHint: string | null;
 }
 
 export class GameRenderer {
   private readonly stage: Stage;
-  private bg: HTMLCanvasElement | null = null;
-  private bgKey = '';
 
   constructor(stage: Stage) {
     this.stage = stage;
   }
 
-  private background(): HTMLCanvasElement {
-    const key = `${this.stage.pixelRatio}:${L.H}`;
-    if (!this.bg || this.bgKey !== key) {
-      this.bg = sprites.get(`bg:${key}`, W, L.H, (ctx) => paintBackground(ctx, L.H));
-      this.bgKey = key;
-    }
-    return this.bg;
-  }
-
-  draw(ctx: CanvasRenderingContext2D, g: GameState, ui: GameUi, vfx: Vfx, time: number): void {
-    ctx.drawImage(this.background(), 0, 0, W, L.H);
+  draw(ctx: CanvasRenderingContext2D, g: GameState, ui: GameUi, vfx: Vfx, time: number, cam: Camera): void {
+    const view = viewRect(g.phase);
+    ctx.fillStyle = '#2b1e14';
+    ctx.fillRect(0, 0, W, L.H);
     ctx.save();
+    ctx.beginPath();
+    ctx.rect(view.x, view.y, view.w, view.h);
+    ctx.clip();
     if (vfx.shake > 0) ctx.translate((Math.random() - 0.5) * vfx.shake, (Math.random() - 0.5) * vfx.shake);
-    this.drawCells(ctx, g, ui, vfx, time);
+    cam.apply(ctx, view);
+    drawMap(ctx, g.map, cam.zoom, this.stage.pixelRatio);
+    this.drawSlots(ctx, g, ui, time, 1 / cam.zoom);
     this.drawTiles(ctx, g, ui, vfx, time);
     this.drawEnemies(ctx, g, vfx, time);
     vfx.trail(g.projectiles);
     vfx.drawProjectiles(ctx, g.projectiles);
     vfx.drawWorld(ctx);
-    vfx.drawFloaters(ctx);
+    vfx.drawFloaters(ctx, 1 / cam.zoom);
     ctx.restore();
     drawHud(ctx, g, ui, vfx);
     if (g.phase === 'build') drawShop(ctx, g, ui);
@@ -93,67 +92,49 @@ export class GameRenderer {
     if (g.encounter) drawEncounterPanel(ctx, g.encounter, ui.pressed);
   }
 
-  private drawCells(ctx: CanvasRenderingContext2D, g: GameState, ui: GameUi, vfx: Vfx, time: number): void {
+  /** Locked pads with their price, the range preview and the drop target. `k` = 1 / zoom keeps labels readable. */
+  private drawSlots(ctx: CanvasRenderingContext2D, g: GameState, ui: GameUi, time: number, k: number): void {
     const price = unlockCost(g.unlockCount);
-    for (let i = 0; i < CELL_COUNT; i++) {
-      const p = CELL_POS[i];
-      const x = p.x - CELL / 2 + 3;
-      const y = wy(p.y) - CELL / 2 + 3;
-      const s = CELL - 6;
-      roundRect(ctx, x, y, s, s, 8);
-      if (g.unlocked[i]) {
-        ctx.fillStyle = 'rgba(250,236,205,0.55)';
-        ctx.fill();
-        ctx.lineWidth = 1;
-        ctx.strokeStyle = 'rgba(110,75,35,0.35)';
-        ctx.stroke();
-      } else {
-        ctx.fillStyle = 'rgba(70,45,20,0.35)';
-        ctx.fill();
-        text(ctx, '+', p.x, wy(p.y) - 5, sans(22, 800), 'rgba(255,235,200,0.75)');
-        drawCoin(ctx, p.x - 9, wy(p.y) + 13, 4.5);
-        text(ctx, String(price), p.x - 3, wy(p.y) + 13.5, sans(10, 800), g.gongde >= price ? '#ffe9b0' : 'rgba(255,200,190,0.8)', 'left');
-      }
-    }
-    if (vfx.campFlash > 0) {
-      const p0 = CELL_POS[0];
-      roundRect(ctx, p0.x - CELL / 2 - 8, wy(p0.y) - CELL / 2 - 8, CELL * 4 + 16, CELL * 4 + 16, 12);
-      ctx.fillStyle = `rgba(230,50,30,${vfx.campFlash * 0.9})`;
+    g.map.slots.forEach((p, i) => {
+      if (g.unlocked[i]) return;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, PAD_R - 1, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(45,28,12,0.6)';
       ctx.fill();
-    }
-    // Range preview for the dragged card (over a cell) or a tapped tile.
-    const rangeOf = (unit: UnitId, level: number, divine: boolean) => {
-      const t: Tile = { uid: 0, id: unit, level, divine, cd: 0, invested: 0, rage: 0 };
-      return tileRange(t);
-    };
+      text(ctx, '+', p.x, p.y - 6 * k, sans(Math.round(18 * k), 800), 'rgba(255,235,200,0.85)');
+      drawCoin(ctx, p.x - 8 * k, p.y + 9 * k, 4 * k);
+      text(ctx, String(price), p.x - 3 * k, p.y + 9.5 * k, sans(Math.round(9 * k), 800), g.gongde >= price ? '#ffe9b0' : 'rgba(255,200,190,0.85)', 'left');
+    });
+    // Range preview for the dragged card (over a slot) or a tapped tile.
     let ringCell = -1;
     let ringRange = 0;
     if (ui.drag && ui.hoverCell >= 0) {
       ringCell = ui.hoverCell;
-      ringRange = rangeOf(ui.drag.unit, ui.drag.level, ui.drag.divine);
+      const t: Tile = { uid: 0, id: ui.drag.unit, level: ui.drag.level, divine: ui.drag.divine, cd: 0, invested: 0, rage: 0 };
+      ringRange = tileRange(t, g.mods);
     } else if (ui.selected >= 0 && g.slots[ui.selected]) {
-      const t = g.slots[ui.selected] as Tile;
       ringCell = ui.selected;
-      ringRange = tileRange(t);
+      ringRange = tileRange(g.slots[ui.selected] as Tile, g.mods);
     }
     if (ringCell >= 0 && ringRange > 0 && Number.isFinite(ringRange)) {
-      const p = CELL_POS[ringCell];
+      const p = g.map.slots[ringCell];
       ctx.beginPath();
-      ctx.arc(p.x, wy(p.y), ringRange, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, ringRange, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(255,245,210,0.12)';
       ctx.fill();
-      ctx.setLineDash([6, 5]);
-      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6 * k, 5 * k]);
+      ctx.lineWidth = 1.5 * k;
       ctx.strokeStyle = 'rgba(255,245,210,0.75)';
       ctx.stroke();
       ctx.setLineDash([]);
     }
     if (ui.drag && ui.hoverCell >= 0) {
-      const p = CELL_POS[ui.hoverCell];
-      if (ui.hoverHint) this.drawCombineHint(ctx, ui.hoverCell, ui.hoverHint, time);
+      const p = g.map.slots[ui.hoverCell];
+      if (ui.hoverHint) this.drawCombineHint(ctx, p, ui.hoverHint, time, k);
       else {
-        roundRect(ctx, p.x - CELL / 2 + 1, wy(p.y) - CELL / 2 + 1, CELL - 2, CELL - 2, 10);
-        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, PAD_R + 3, 0, Math.PI * 2);
+        ctx.lineWidth = 3 * k;
         ctx.strokeStyle = ui.hoverValid ? '#7dff9a' : '#ff6a5a';
         ctx.stroke();
       }
@@ -161,41 +142,37 @@ export class GameRenderer {
   }
 
   /** A spinning golden ring around the target card plus a label saying what releasing will do. */
-  private drawCombineHint(ctx: CanvasRenderingContext2D, cell: number, hint: string, time: number): void {
-    const p = CELL_POS[cell];
-    const x = p.x;
-    const y = wy(p.y);
+  private drawCombineHint(ctx: CanvasRenderingContext2D, p: Pt, hint: string, time: number, k: number): void {
     ctx.save();
     ctx.beginPath();
-    ctx.arc(x, y, CELL / 2 + 5, 0, Math.PI * 2);
-    ctx.setLineDash([9, 7]);
-    ctx.lineDashOffset = -time * 45;
-    ctx.lineWidth = 3.5;
+    ctx.arc(p.x, p.y, PAD_R + 6, 0, Math.PI * 2);
+    ctx.setLineDash([9 * k, 7 * k]);
+    ctx.lineDashOffset = -time * 45 * k;
+    ctx.lineWidth = 3.5 * k;
     ctx.strokeStyle = '#ffd166';
     ctx.shadowColor = 'rgba(255,200,60,0.9)';
-    ctx.shadowBlur = 10 + Math.sin(time * 8) * 4;
+    ctx.shadowBlur = (10 + Math.sin(time * 8) * 4) * k;
     ctx.stroke();
     ctx.restore();
-    // Reason: put the label on the side away from the camp's edge so it never leaves the screen.
-    const cy = cellRow(cell) < 2 ? y + CELL / 2 + 14 : y - CELL / 2 - 14;
-    ctx.font = sans(10, 800);
-    const w = ctx.measureText(hint).width + 18;
-    roundRect(ctx, x - w / 2, cy - 10, w, 20, 10);
+    const cy = p.y - PAD_R - 16 * k;
+    ctx.font = sans(Math.round(10 * k), 800);
+    const w = ctx.measureText(hint).width + 18 * k;
+    roundRect(ctx, p.x - w / 2, cy - 10 * k, w, 20 * k, 10 * k);
     ctx.fillStyle = 'rgba(28,14,6,0.9)';
     ctx.fill();
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.5 * k;
     ctx.strokeStyle = '#ffd166';
     ctx.stroke();
-    text(ctx, hint, x, cy + 0.5, sans(10, 800), '#ffe9a8');
+    text(ctx, hint, p.x, cy + 0.5 * k, sans(Math.round(10 * k), 800), '#ffe9a8');
   }
 
   private drawTiles(ctx: CanvasRenderingContext2D, g: GameState, ui: GameUi, vfx: Vfx, time: number): void {
-    for (let i = 0; i < CELL_COUNT; i++) {
-      const t = g.slots[i];
-      if (!t) continue;
-      const p = CELL_POS[i];
+    g.slots.forEach((t, i) => {
+      if (!t) return;
+      const p = g.map.slots[i];
       const x = p.x;
-      const y = wy(p.y);
+      // Reason: cards stand a little above the pad's centre so the pad shows underneath like a plinth.
+      const y = p.y - 6;
       const shake = vfx.shakes[i] > 0 ? Math.sin(vfx.shakes[i] * 80) * 3 : 0;
       const scale = 1 + vfx.pops[i] * 0.9 + vfx.recoil[i] * 0.7;
       const { img, size } = cardSprite(t.id, t.level, t.divine);
@@ -214,20 +191,17 @@ export class GameRenderer {
         ctx.shadowBlur = 0;
       }
       blit(ctx, img, x + shake, y, size, size, scale);
-      if (hero) {
-        const bw = 38;
-        drawBar(ctx, x - bw / 2, y + CARD / 2 - 5, bw, 4.5, t.rage, ready ? '#ffd166' : '#ff7a2a');
-      }
+      if (hero) drawBar(ctx, x - 19, y + CARD / 2 - 5, 38, 4.5, t.rage, ready ? '#ffd166' : '#ff7a2a');
       ctx.restore();
-    }
+    });
   }
 
   private drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy, vfx: Vfx, time: number): void {
     const def = ENEMIES[e.def];
     const { img, flash, box } = monsterSprite(e.def);
     const x = e.x;
-    const y = wy(e.y);
-    const walking = Math.abs(e.stopY - e.y) > 0.5 && e.stunT <= 0;
+    const y = e.y;
+    const walking = e.stunT <= 0;
     const bob = walking ? Math.abs(Math.sin(time * 9 + e.uid)) * -3 : Math.sin(time * 14 + e.uid) * 1.2;
     // Ground shadow.
     ctx.beginPath();
@@ -271,7 +245,7 @@ export class GameRenderer {
 
   private drawEnemies(ctx: CanvasRenderingContext2D, g: GameState, vfx: Vfx, time: number): void {
     // Reason: draw in y order so monsters further down overlap the ones behind them.
-    const list = [...g.enemies].sort((a, b) => a.y - b.y);
+    const list = g.enemies.filter((e) => !e.gone).sort((a, b) => a.y - b.y);
     for (const e of list) this.drawEnemy(ctx, e, vfx, time);
   }
 

@@ -1,20 +1,21 @@
 // Hero ultimates (大招) on screen: one big hand-drawn animation per cast, driven by the `ultimate` sim event.
-// Pure drawing; the Vfx class owns the list and the timers. Coordinates are screen px.
-import { GRID_H, GRID_Y } from '../core/grid.ts';
-import type { HeroId, Lane } from '../core/types.ts';
+// Pure drawing in world coordinates; the Vfx class owns the list and the timers.
+import type { HeroId } from '../core/types.ts';
 import { drawStar, hash01, roundRect } from './draw.ts';
 import { drawPortrait } from './heroes-art.ts';
-import { W, wy } from './layout.ts';
 
 export interface UltFx {
   hero: HeroId;
-  /** Caster cell centre. */
+  /** Caster slot centre. */
   x: number;
   y: number;
   /** Target point. */
   tx: number;
   ty: number;
-  lane: Lane;
+  /** Road direction at the target (radians). */
+  dir: number;
+  mapW: number;
+  mapH: number;
   /** Victims in hit order. */
   pts: Array<{ x: number; y: number }>;
   t: number;
@@ -61,18 +62,18 @@ function staff(ctx: CanvasRenderingContext2D, x: number, y: number, a: number, l
   }
 }
 
-/** 悟空: the staff grows to twice the field and sweeps the whole lane in one arc. */
+/** 悟空: the staff grows out of the hero's slot and sweeps a wide arc across the road around the target. */
 function drawSweep(ctx: CanvasRenderingContext2D, f: UltFx, k: number): void {
-  const up = f.lane === 0;
-  const a0 = up ? -Math.PI + 0.25 : Math.PI - 0.25;
-  const a1 = up ? -0.25 : 0.25;
+  const base = Math.atan2(f.ty - f.y, f.tx - f.x);
+  const a0 = base - 1.25;
+  const a1 = base + 1.25;
   const a = a0 + (a1 - a0) * easeOut(Math.min(1, k / 0.8));
-  const len = 250 * Math.min(1, 0.3 + k / 0.15);
+  const len = (Math.hypot(f.tx - f.x, f.ty - f.y) + 120) * Math.min(1, 0.3 + k / 0.15);
   // Golden trail behind the staff.
   ctx.globalAlpha = 0.5 * (1 - k);
   ctx.beginPath();
   ctx.moveTo(f.x, f.y);
-  ctx.arc(f.x, f.y, len, a0, a, !up);
+  ctx.arc(f.x, f.y, len, a0, a, false);
   ctx.closePath();
   const g = ctx.createRadialGradient(f.x, f.y, 10, f.x, f.y, len);
   g.addColorStop(0, 'rgba(255,235,140,0.05)');
@@ -242,8 +243,10 @@ function drawDragonRoar(ctx: CanvasRenderingContext2D, f: UltFx, k: number): voi
   }
   const p = easeOut(Math.min(1, k / 0.95));
   ctx.globalAlpha = k > 0.85 ? (1 - k) / 0.15 : 1;
-  dragon(ctx, -50, wy(GRID_Y - 72), W + 50, wy(GRID_Y - 72), p);
-  dragon(ctx, W + 50, wy(GRID_Y + GRID_H + 72), -50, wy(GRID_Y + GRID_H + 72), p);
+  const y1 = Math.max(60, f.y - 150);
+  const y2 = Math.min(f.mapH - 60, f.y + 150);
+  dragon(ctx, -50, y1, f.mapW + 50, y1, p);
+  dragon(ctx, f.mapW + 50, y2, -50, y2, p);
 }
 
 export function drawUltimate(ctx: CanvasRenderingContext2D, f: UltFx): void {

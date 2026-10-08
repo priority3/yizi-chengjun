@@ -5,8 +5,10 @@ import { resolveDrop } from '../src/core/board.ts';
 import type { UnitId } from '../src/core/types.ts';
 import { emptyGame, put } from './helpers.ts';
 
-describe('drag and drop on the camp', () => {
-  it('merges same unit + same level into the target cell', () => {
+// Test map (helpers.ts): slots 0..6 start open, 7 and 8 locked.
+
+describe('drag and drop between slots', () => {
+  it('merges same unit + same level into the target slot', () => {
     const g = emptyGame();
     put(g, 5, '棍');
     put(g, 6, '棍');
@@ -22,10 +24,10 @@ describe('drag and drop on the camp', () => {
     put(g, 6, '箭', 2);
     expect(resolveDrop(g, 5, 6)).toBe('swap');
     expect(g.slots[5]?.level).toBe(2);
-    put(g, 8, '雷', MAX_LEVEL);
-    put(g, 9, '雷', MAX_LEVEL);
-    expect(resolveDrop(g, 8, 9)).toBe('invalid');
-    expect(g.slots[8]).not.toBeNull();
+    put(g, 3, '雷', MAX_LEVEL);
+    put(g, 4, '雷', MAX_LEVEL);
+    expect(resolveDrop(g, 3, 4)).toBe('invalid');
+    expect(g.slots[3]).not.toBeNull();
   });
 
   it('keeps 神 through a merge from either tile', () => {
@@ -44,11 +46,11 @@ describe('drag and drop on the camp', () => {
       ] as const) {
         const g = emptyGame();
         put(g, 5, x);
-        put(g, 10, y);
-        expect(resolveDrop(g, 5, 10)).toBe('hero');
+        put(g, 2, y);
+        expect(resolveDrop(g, 5, 2)).toBe('hero');
         expect(g.slots[5]).toBeNull();
-        expect(g.slots[10]).toMatchObject({ id: r.hero, level: 1, invested: 20 });
-        expect(g.events.at(-1)).toMatchObject({ t: 'hero', cell: 10, from: 5 });
+        expect(g.slots[2]).toMatchObject({ id: r.hero, level: 1, invested: 20 });
+        expect(g.events.at(-1)).toMatchObject({ t: 'hero', cell: 2, from: 5 });
       }
     }
   });
@@ -80,16 +82,16 @@ describe('drag and drop on the camp', () => {
     expect(resolveDrop(g, 5, 6)).toBe('invalid');
   });
 
-  it('moves into empty cells, refuses locked ones, and sells for half', () => {
+  it('moves into empty slots, refuses locked ones, and sells for half', () => {
     const g = emptyGame();
     const t = put(g, 5, '冰');
     t.invested = 25;
-    expect(resolveDrop(g, 5, 0)).toBe('locked');
-    expect(resolveDrop(g, 5, 7)).toBe('move');
-    expect(g.slots[7]).toBe(t);
+    expect(resolveDrop(g, 5, 7)).toBe('locked');
+    expect(resolveDrop(g, 5, 2)).toBe('move');
+    expect(g.slots[2]).toBe(t);
     const before = g.gongde;
-    expect(resolveDrop(g, 7, 'sell')).toBe('sold');
+    expect(resolveDrop(g, 2, 'sell')).toBe('sold');
     expect(g.gongde).toBe(before + 12);
-    expect(g.slots[7]).toBeNull();
+    expect(g.slots[2]).toBeNull();
   });
 });

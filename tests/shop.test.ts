@@ -65,7 +65,7 @@ describe('buying', () => {
       { id: '雷', price: 16, sold: false },
       { id: '冰', price: 12, sold: false },
     ];
-    expect(buy(g, 0, 0)).toBe('locked');
+    expect(buy(g, 0, 7)).toBe('locked');
     put(g, 5, '火');
     expect(buy(g, 0, 5)).toBe('occupied');
     expect(g.slots[5]?.id).toBe('火');
@@ -88,10 +88,10 @@ describe('refresh and unlock', () => {
   it('unlocks locked cells for an escalating price', () => {
     const g = emptyGame();
     g.gongde = 1000;
-    expect(unlock(g, 0)).toBe('ok');
-    expect(unlock(g, 1)).toBe('ok');
+    expect(unlock(g, 7)).toBe('ok');
+    expect(unlock(g, 8)).toBe('ok');
     expect(g.gongde).toBe(1000 - unlockCost(0) - unlockCost(1));
-    expect(g.unlocked[0] && g.unlocked[1]).toBe(true);
+    expect(g.unlocked[7] && g.unlocked[8]).toBe(true);
     expect(unlock(g, 5)).toBe('none');
   });
 });

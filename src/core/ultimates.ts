@@ -1,7 +1,7 @@
 // Hero ultimates (大招). Rage builds with normal attacks; a full bar turns the next attack into the ultimate.
 import { RAGE_DIVINE_MUL, RAGE_PER_HIT, ULTIMATES } from '../config/ultimates.ts';
 import { applySlow, applyStun, damage, dist2, knock } from './effects.ts';
-import { CELL_POS } from './grid.ts';
+import { pathDir } from './map.ts';
 import { tileDamage, tileRange } from './stats.ts';
 import type { Enemy, GameState, HeroId, RunMods, Tile } from './types.ts';
 
@@ -18,7 +18,7 @@ export function isUltimateReady(t: Tile): boolean {
 export function castUltimate(g: GameState, t: Tile, cell: number, target: Enemy): void {
   const hero = t.id as HeroId;
   const u = ULTIMATES[hero];
-  const p = CELL_POS[cell];
+  const p = g.map.slots[cell];
   const dmg = tileDamage(t, g.mods) * u.dmgMul;
   const targets: Array<{ x: number; y: number }> = [];
   const hit = (e: Enemy, amount: number) => {
@@ -27,20 +27,20 @@ export function castUltimate(g: GameState, t: Tile, cell: number, target: Enemy)
   };
   switch (hero) {
     case '悟空':
-      // The staff sweeps the whole lane the target stands in.
+      // The staff sweeps a long stretch of the target's road, ahead and behind it.
       for (const e of g.enemies) {
-        if (e.hp <= 0 || e.lane !== target.lane) continue;
+        if (e.hp <= 0 || e.gone || e.path !== target.path || Math.abs(e.dist - target.dist) > u.reach) continue;
         hit(e, dmg);
-        knock(e, u.knockback);
+        knock(g, e, u.knockback);
       }
       break;
     case '八戒': {
       const r2 = u.radius * u.radius;
       for (const e of g.enemies) {
-        if (e.hp <= 0 || dist2(e, target.x, target.y) > r2) continue;
+        if (e.hp <= 0 || e.gone || dist2(e, target.x, target.y) > r2) continue;
         hit(e, dmg);
         applyStun(e, u.stun * g.mods.stunMul);
-        knock(e, u.knockback);
+        knock(g, e, u.knockback);
       }
       break;
     }
@@ -49,7 +49,7 @@ export function castUltimate(g: GameState, t: Tile, cell: number, target: Enemy)
       const r = tileRange(t, g.mods);
       const r2 = r * r;
       const weakest = g.enemies
-        .filter((e) => e.hp > 0 && dist2(e, p.x, p.y) <= r2)
+        .filter((e) => e.hp > 0 && !e.gone && dist2(e, p.x, p.y) <= r2)
         .sort((a, b) => a.hp - b.hp || a.uid - b.uid)
         .slice(0, u.count);
       const line = u.executePct + g.mods.executeBonus;
@@ -64,12 +64,13 @@ export function castUltimate(g: GameState, t: Tile, cell: number, target: Enemy)
     }
     case '白龙':
       for (const e of g.enemies) {
-        if (e.hp <= 0) continue;
+        if (e.hp <= 0 || e.gone) continue;
         hit(e, dmg);
-        knock(e, u.knockback);
+        knock(g, e, u.knockback);
         applySlow(e, u.slowPct, u.slowDur);
       }
       break;
   }
-  g.events.push({ t: 'ultimate', hero, cell, x: p.x, y: p.y, tx: target.x, ty: target.y, lane: target.lane, targets });
+  const dir = pathDir(g.map.paths[target.path], target.dist);
+  g.events.push({ t: 'ultimate', hero, cell, x: p.x, y: p.y, tx: target.x, ty: target.y, path: target.path, dir, targets });
 }

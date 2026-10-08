@@ -1,4 +1,5 @@
-// The chapter screen: runs the fixed-step simulation, handles the shop, camp drag-and-drop, encounters, pause and results.
+// The chapter screen: runs the fixed-step simulation, moves the camera (drag to pan, pinch or wheel to zoom),
+// handles the shop, drag-and-drop onto the map's slots, encounters, pause and results.
 import { CHAPTERS, unlockCost } from '../config/chapters.ts';
 import { heroFor } from '../config/combos.ts';
 import { ENEMIES } from '../config/enemies.ts';
@@ -7,14 +8,15 @@ import { UNITS } from '../config/units.ts';
 import { previewDrop } from '../core/board.ts';
 import { DT } from '../core/clock.ts';
 import { act, createGame, step } from '../core/game.ts';
-import { cellAt } from '../core/grid.ts';
+import { slotAt } from '../core/map.ts';
 import { currentRefreshCost, offerPrice } from '../core/shop.ts';
 import { tileDamage, tileRange } from '../core/stats.ts';
 import { buildMods, clearRewards, type ClearRewards } from '../core/treasures.ts';
 import type { Action, GameState, HeroId, RunMods, SimEvent, Tile } from '../core/types.ts';
 import type { Stage } from '../platform/web.ts';
+import { Camera } from '../render/camera.ts';
 import { encounterCardRects } from '../render/encounter-panel.ts';
-import { inRect, L, toWorld } from '../render/layout.ts';
+import { inRect, L, viewRect, type Rect } from '../render/layout.ts';
 import { NUMERALS } from '../render/panels.ts';
 import { GameRenderer, type DragUi, type GameUi } from '../render/renderer.ts';
 import { Vfx } from '../render/vfx.ts';
@@ -27,6 +29,8 @@ import type { Nav, Scene } from './scenes.ts';
 const RESULT_DELAY = 1;
 /** How far above a finger a dragged card is drawn. */
 const TOUCH_LIFT = 44;
+/** Zoom step per wheel notch. */
+const WHEEL_STEP = 1.12;
 
 /** Reason: a function call instead of an inline check, because step() changes the phase behind TS's narrowing. */
 function isOver(g: GameState): boolean {
@@ -54,7 +58,8 @@ export class GameScene implements Scene {
   private readonly chapter: number;
   private readonly g: GameState;
   private readonly renderer: GameRenderer;
-  private readonly vfx = new Vfx();
+  private readonly vfx: Vfx;
+  private readonly cam: Camera;
   private readonly toasts = new Toasts();
   private acc = 0;
   private speed = 1;
@@ -70,6 +75,9 @@ export class GameScene implements Scene {
   private hoverValid = false;
   private hoverTrash = false;
   private hoverHint: string | null = null;
+  /** Camera position when a pan started, and where the finger was. */
+  private pan: { x: number; y: number; sx: number; sy: number } | null = null;
+  private pinch: { dist: number; x: number; y: number } | null = null;
   private pressed: string | null = null;
   private selected = -1;
   private selectedT = 0;
@@ -83,11 +91,15 @@ export class GameScene implements Scene {
     // Reason: Math.random is fine here — only the seed is random; the run itself stays deterministic.
     this.g = createGame({ seed: (Math.random() * 0x7fffffff) | 0, chapter, mods: buildMods(vault) });
     this.renderer = new GameRenderer(stage);
+    this.vfx = new Vfx(this.g.map);
+    this.cam = new Camera(this.g.map);
+    this.cam.fit(this.view());
     this.tutorial = chapter === 1;
     const ch = CHAPTERS[chapter - 1];
     const gear = vault.equipped.length > 0 ? ` · 带了 ${vault.equipped.length} 件法宝` : '';
-    this.vfx.showBanner(`第${NUMERALS[chapter - 1]}章 · ${ch.name}`, `守住阵地，打败${ENEMIES[ch.boss].name}${gear}`, '#ffd166', null, 2.4);
-    this.tip('drag', '把商店里的卡拖到阵地的空格上');
+    this.vfx.showBanner(`第${NUMERALS[chapter - 1]}章 · ${ch.name}`, `别让妖怪走到唐僧的营地，打败${ENEMIES[ch.boss].name}${gear}`, '#ffd166', null, 2.6);
+    this.tip('drag', '把商店里的卡拖到路边的石台上');
+    this.tip('pan', '按住空地拖动地图，双指或滚轮缩放');
   }
 
   private tip(key: string, msg: string): void {
@@ -96,12 +108,26 @@ export class GameScene implements Scene {
     this.toasts.push(msg);
   }
 
+  private view(): Rect {
+    return viewRect(this.g.phase);
+  }
+
+  /** Slot under a screen point, or -1 (outside the viewport counts as nothing). */
+  private slotUnder(x: number, y: number): number {
+    const v = this.view();
+    if (!inRect(x, y, v)) return -1;
+    const w = this.cam.toWorld(x, y, v);
+    return slotAt(this.g.map, w.x, w.y);
+  }
+
   update(dt: number): void {
     this.clock += dt;
     this.vfx.update(dt);
     this.toasts.update(dt);
     this.selectedT = Math.max(0, this.selectedT - dt);
     if (this.selectedT === 0) this.selected = -1;
+    // Reason: the viewport changes height between the shop and the battle bar; keep the camera on the map.
+    this.cam.clamp(this.view());
     const g = this.g;
     if (isOver(g)) {
       if (this.endT < 0) this.onEnd();
@@ -123,7 +149,7 @@ export class GameScene implements Scene {
   }
 
   render(ctx: CanvasRenderingContext2D): void {
-    this.renderer.draw(ctx, this.g, this.ui(), this.vfx, this.clock);
+    this.renderer.draw(ctx, this.g, this.ui(), this.vfx, this.clock, this.cam);
     this.toasts.draw(ctx, this.g.phase === 'build' ? L.shop.y - 24 : L.bar.y - 18);
     if (isOver(this.g)) {
       if (this.endT >= RESULT_DELAY) drawResult(ctx, this.resultInfo(), this.resultButtons());
@@ -136,6 +162,8 @@ export class GameScene implements Scene {
     if (isOver(this.g)) return;
     this.paused = true;
     this.drag = null;
+    this.pan = null;
+    this.pinch = null;
   }
 
   private ui(): GameUi {
@@ -153,7 +181,7 @@ export class GameScene implements Scene {
     };
   }
 
-  /** Pause panel, result panel or a pending encounter: the camp and shop don't take input. */
+  /** Pause panel, result panel or a pending encounter: the map and shop don't take input. */
   private overlayOpen(): boolean {
     return this.paused || isOver(this.g) || this.g.encounter !== null;
   }
@@ -207,13 +235,12 @@ export class GameScene implements Scene {
     else if (g.phase === 'build' && L.shopCards.some((r) => inRect(p.x, p.y, r))) {
       const i = L.shopCards.findIndex((r) => inRect(p.x, p.y, r));
       const o = g.shop[i];
-      if (o && !o.sold) this.toasts.push(`${describe({ id: o.id, level: 1, divine: false }, g.mods)} · 拖到阵地上购买`);
+      if (o && !o.sold) this.toasts.push(`${describe({ id: o.id, level: 1, divine: false }, g.mods)} · 拖到石台上购买`);
     } else {
-      const w = toWorld(p.x, p.y);
-      const cell = cellAt(w.x, w.y);
+      const cell = this.slotUnder(p.x, p.y);
       if (cell < 0) return;
       if (!g.unlocked[cell]) {
-        this.doAct({ t: 'unlock', cell }, `功德不够：解锁这格要 ${unlockCost(g.unlockCount)}`);
+        this.doAct({ t: 'unlock', cell }, `功德不够：解锁这个石台要 ${unlockCost(g.unlockCount)}`);
       } else if (g.slots[cell]) {
         this.selected = cell;
         this.selectedT = 2.5;
@@ -236,22 +263,32 @@ export class GameScene implements Scene {
         return;
       }
     }
-    const w = toWorld(start.x, start.y);
-    const cell = cellAt(w.x, w.y);
+    const cell = this.slotUnder(start.x, start.y);
     const t = cell >= 0 ? g.slots[cell] : null;
-    if (!t) return;
-    this.drag = { kind: 'cell', index: cell, unit: t.id, level: t.level, divine: t.divine, x: p.x, y: p.y - this.lift };
-    this.updateHover();
+    if (t) {
+      this.drag = { kind: 'cell', index: cell, unit: t.id, level: t.level, divine: t.divine, x: p.x, y: p.y - this.lift };
+      this.updateHover();
+      return;
+    }
+    // Empty ground: drag the map around.
+    if (inRect(start.x, start.y, this.view())) this.pan = { x: this.cam.x, y: this.cam.y, sx: start.x, sy: start.y };
   }
 
   dragMove(p: Pointer): void {
-    if (!this.drag) return;
-    this.drag.x = p.x;
-    this.drag.y = p.y - this.lift;
-    this.updateHover();
+    if (this.drag) {
+      this.drag.x = p.x;
+      this.drag.y = p.y - this.lift;
+      this.updateHover();
+    } else if (this.pan) {
+      const v = this.view();
+      this.cam.x = this.pan.x - (p.x - this.pan.sx) / this.cam.zoom;
+      this.cam.y = this.pan.y - (p.y - this.pan.sy) / this.cam.zoom;
+      this.cam.clamp(v);
+    }
   }
 
   dragEnd(): void {
+    this.pan = null;
     const d = this.drag;
     this.drag = null;
     const cell = this.hoverCell;
@@ -264,16 +301,43 @@ export class GameScene implements Scene {
       if (cell < 0) return;
       const o = this.g.shop[d.index];
       const price = o ? offerPrice(this.g, o) : 0;
-      if (!this.g.unlocked[cell]) this.toasts.push('这格还没解锁：点「+」花功德解锁');
+      if (!this.g.unlocked[cell]) this.toasts.push('这个石台还没解锁：点它花功德解锁');
       else if (o && this.g.gongde < price) this.toasts.push(`功德不够：这张卡要 ${price}`);
       else this.doAct({ t: 'buy', offer: d.index, cell });
       return;
     }
     if (trash) this.doAct({ t: 'drop', from: d.index, to: 'sell' });
     else if (cell >= 0 && cell !== d.index) {
-      if (!this.g.unlocked[cell]) this.toasts.push('这格还没解锁');
+      if (!this.g.unlocked[cell]) this.toasts.push('这个石台还没解锁');
       else this.doAct({ t: 'drop', from: d.index, to: cell });
     }
+  }
+
+  pinchStart(c: Pointer, dist: number): void {
+    if (this.overlayOpen()) return;
+    // A second finger while holding a card drops it where it is, then the fingers zoom the map.
+    if (this.drag) this.dragEnd();
+    this.pan = null;
+    this.pinch = { dist: Math.max(1, dist), x: c.x, y: c.y };
+  }
+
+  pinchMove(c: Pointer, dist: number): void {
+    if (!this.pinch) return;
+    const v = this.view();
+    this.cam.zoomAt(this.pinch.x, this.pinch.y, Math.max(1, dist) / this.pinch.dist, v);
+    this.cam.x -= (c.x - this.pinch.x) / this.cam.zoom;
+    this.cam.y -= (c.y - this.pinch.y) / this.cam.zoom;
+    this.cam.clamp(v);
+    this.pinch = { dist: Math.max(1, dist), x: c.x, y: c.y };
+  }
+
+  pinchEnd(): void {
+    this.pinch = null;
+  }
+
+  wheel(p: Pointer, deltaY: number): void {
+    if (this.overlayOpen() || !inRect(p.x, p.y, this.view())) return;
+    this.cam.zoomAt(p.x, p.y, deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP, this.view());
   }
 
   // ---- helpers -----------------------------------------------------------
@@ -284,8 +348,7 @@ export class GameScene implements Scene {
     const g = this.g;
     const trashRect = g.phase === 'build' ? L.trash : L.barTrash;
     this.hoverTrash = d.kind === 'cell' && inRect(d.x, d.y, { x: trashRect.x - 10, y: trashRect.y - 10, w: trashRect.w + 20, h: trashRect.h + 20 });
-    const w = toWorld(d.x, d.y);
-    const cell = cellAt(w.x, w.y);
+    const cell = this.slotUnder(d.x, d.y);
     this.hoverCell = cell;
     this.hoverHint = null;
     if (cell < 0) {
@@ -320,7 +383,7 @@ export class GameScene implements Scene {
   private startWave(): void {
     const armed = this.g.slots.some((t) => t && (UNITS[t.id].kind === 'attack' || UNITS[t.id].kind === 'hero'));
     if (!armed) {
-      this.toasts.push('阵地上还没有能打的字：先从商店拖几张卡上去');
+      this.toasts.push('路边还没有能打的字：先从商店拖几张卡到石台上');
       return;
     }
     this.doAct({ t: 'start' });
@@ -335,6 +398,7 @@ export class GameScene implements Scene {
         if (UNITS[e.unit].kind === 'fragment') this.tip('frag', '名字碎片：凑齐「悟」「空」这样的另一半就能觉醒英雄');
       } else if (e.t === 'waveClear') this.tip('merge', '两张同名同级的卡叠在一起会升级');
       else if (e.t === 'waveStart' && e.wave === 2) this.tip('trash', '不要的字可以拖到垃圾桶卖掉');
+      else if (e.t === 'leak') this.tip('leak', '妖怪走到营地会伤到阵地：把火力摆在路的转弯处');
       else if (e.t === 'encounterOffer') this.tip('enc', '奇遇三选一：福缘立刻生效，劫难下一波生效但赏金更多');
       else if (e.t === 'hero') this.tip('rage', '英雄普攻十下攒满怒气，下一击就是大招');
     }
@@ -343,6 +407,7 @@ export class GameScene implements Scene {
   private onEnd(): void {
     this.endT = 0;
     this.drag = null;
+    this.pan = null;
     if (this.g.phase !== 'won') return;
     const p = this.nav.progress;
     const firstClear = (p.wins[this.chapter - 1] ?? 0) === 0;

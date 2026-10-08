@@ -1,15 +1,15 @@
 // Visual effects driven by simulation events. Owns every render-only timer (flashes, pops, shakes,
-// particles, banners, ultimates). Nothing here feeds back into the simulation, so it may use Math.random freely.
+// particles, banners, ultimates). Everything here lives in world coordinates and is drawn under the camera;
+// nothing feeds back into the simulation, so it may use Math.random freely.
 import { ENEMIES, traitText } from '../config/enemies.ts';
 import { ULTIMATES } from '../config/ultimates.ts';
 import { UNITS } from '../config/units.ts';
 import { ENCOUNTERS, KIND_LABEL } from '../core/encounters.ts';
-import { CELL_COUNT, CELL_POS, GRID_H, GRID_Y, WORLD_H, WORLD_W } from '../core/grid.ts';
+import type { MapData, Pt } from '../core/map.ts';
 import type { HeroId, Projectile, SimEvent } from '../core/types.ts';
 import { COLORS } from './draw.ts';
 import { drawFloater, drawFx, drawParticle, drawProjectile, type Floater, type Fx, type FxKind, type Particle, type ParticleShape } from './fx-draw.ts';
 import { drawUltimate, ultLife, type UltFx } from './fx-ultimate.ts';
-import { W, wy } from './layout.ts';
 
 export interface Banner {
   title: string;
@@ -26,6 +26,7 @@ const MAX_PARTICLES = 260;
 const KIND_COLOR = { boon: '#aef0b8', trade: '#ffd166', challenge: '#ff8a5c' } as const;
 
 export class Vfx {
+  private readonly map: MapData;
   private fx: Fx[] = [];
   private ults: UltFx[] = [];
   private particles: Particle[] = [];
@@ -33,14 +34,21 @@ export class Vfx {
   banner: Banner | null = null;
   /** Enemy uid -> remaining hit-flash time. */
   readonly flash = new Map<number, number>();
-  /** Per cell: pop (appear/upgrade), shake (invalid drop), recoil (just fired). */
-  readonly pops = new Float64Array(CELL_COUNT);
-  readonly shakes = new Float64Array(CELL_COUNT);
-  readonly recoil = new Float64Array(CELL_COUNT);
+  /** Per slot: pop (appear/upgrade), shake (invalid drop), recoil (just fired). */
+  readonly pops: Float64Array;
+  readonly shakes: Float64Array;
+  readonly recoil: Float64Array;
   campFlash = 0;
   /** Screen-shake magnitude in design px, decays quickly. */
   shake = 0;
   private seq = 0;
+
+  constructor(map: MapData) {
+    this.map = map;
+    this.pops = new Float64Array(map.slots.length);
+    this.shakes = new Float64Array(map.slots.length);
+    this.recoil = new Float64Array(map.slots.length);
+  }
 
   private add(kind: FxKind, x: number, y: number, x2: number, y2: number, color: string, size: number, life: number): void {
     this.fx.push({ kind, x, y, x2, y2, color, size, t: 0, life, seed: this.seq++ });
@@ -62,75 +70,66 @@ export class Vfx {
     this.banner = { title, sub, color, portrait, t: 0, life };
   }
 
-  /** Screen position of a cell; cell -1 means "the camp as a whole". */
-  private cell(cell: number): { x: number; y: number } {
-    if (cell < 0) return { x: WORLD_W / 2, y: wy(GRID_Y + GRID_H / 2) };
-    const p = CELL_POS[cell];
-    return { x: p.x, y: wy(p.y) };
+  /** World position of a slot; -1 means the camp. */
+  private cell(cell: number): Pt {
+    return cell < 0 ? this.map.camp : this.map.slots[cell];
   }
 
   private onShot(e: Extract<SimEvent, { t: 'shot' }>): void {
     this.recoil[e.cell] = 0.12;
-    const x0 = e.x;
-    const y0 = wy(e.y);
-    const x1 = e.tx;
-    const y1 = wy(e.ty);
     switch (e.kind) {
       case 'swing':
-        this.add('swing', x0, y0, x1, y1, '#fff1c8', 20, 0.18);
-        this.burst(x1, y1, 3, 'dot', '#fff1c8', 70, 2, 0.25);
+        this.add('swing', e.x, e.y, e.tx, e.ty, '#fff1c8', 20, 0.18);
+        this.burst(e.tx, e.ty, 3, 'dot', '#fff1c8', 70, 2, 0.25);
         break;
       case 'bolt':
-        this.add('bolt', x1, y1 - 170, x1, y1, '#b98cff', 0, 0.24);
-        this.burst(x1, y1, 8, 'dot', '#e0ccff', 140, 2.4, 0.35);
+        this.add('bolt', e.tx, e.ty - 170, e.tx, e.ty, '#b98cff', 0, 0.24);
+        this.burst(e.tx, e.ty, 8, 'dot', '#e0ccff', 140, 2.4, 0.35);
         this.shake = Math.max(this.shake, 1.6);
         break;
       case 'beam':
-        this.add('beam', x0, y0, x1, y1, '#f5c542', 0, 0.3);
+        this.add('beam', e.x, e.y, e.tx, e.ty, '#f5c542', 0, 0.3);
         for (let i = 0; i < 6; i++) {
           const t = Math.random();
-          this.burst(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, 1, 'star', '#ffe27a', 50, 3, 0.4);
+          this.burst(e.x + (e.tx - e.x) * t, e.y + (e.ty - e.y) * t, 1, 'star', '#ffe27a', 50, 3, 0.4);
         }
         break;
       case 'slam':
-        this.add('slam', x1, y1, 0, 0, '#c9a46a', 62, 0.42);
-        this.burst(x1, y1, 10, 'dot', 'rgba(160,120,70,0.8)', 110, 3.2, 0.45, 120);
+        this.add('slam', e.tx, e.ty, 0, 0, '#c9a46a', 62, 0.42);
+        this.burst(e.tx, e.ty, 10, 'dot', 'rgba(160,120,70,0.8)', 110, 3.2, 0.45, 120);
         this.shake = Math.max(this.shake, 3);
         break;
       case 'dragon':
-        this.add('dragon', -40, wy(WORLD_H * 0.5), W + 40, 0, '#ffffff', 0, 0.9);
+        this.add('dragon', -40, e.y, this.map.w + 40, 0, '#ffffff', 0, 0.9);
         break;
       default:
         // Projectile launch: a small puff at the card.
-        this.burst(x0, y0 - 6, 2, 'dot', 'rgba(255,250,235,0.9)', 40, 2, 0.2);
+        this.burst(e.x, e.y - 6, 2, 'dot', 'rgba(255,250,235,0.9)', 40, 2, 0.2);
     }
   }
 
   private onImpact(e: Extract<SimEvent, { t: 'impact' }>): void {
-    const x = e.x;
-    const y = wy(e.y);
     if (e.kind === 'fire') {
-      this.add('burst', x, y, 0, 0, '#ff9a2a', 46, 0.35);
-      this.burst(x, y, 9, 'ember', '#ffd27a', 120, 2.2, 0.5, 60);
+      this.add('burst', e.x, e.y, 0, 0, '#ff9a2a', 46, 0.35);
+      this.burst(e.x, e.y, 9, 'ember', '#ffd27a', 120, 2.2, 0.5, 60);
       this.shake = Math.max(this.shake, 1);
     } else if (e.kind === 'ice') {
-      this.add('ring', x, y, 0, 0, '#9fe4ff', 18, 0.3);
-      this.burst(x, y, 7, 'snow', '#e8f8ff', 90, 2.6, 0.45, 40);
+      this.add('ring', e.x, e.y, 0, 0, '#9fe4ff', 18, 0.3);
+      this.burst(e.x, e.y, 7, 'snow', '#e8f8ff', 90, 2.6, 0.45, 40);
     } else if (e.kind === 'crescent') {
-      this.add('slash', x, y, 0, 0, '#e8f2fa', 16, 0.25);
+      this.add('slash', e.x, e.y, 0, 0, '#e8f2fa', 16, 0.25);
     } else {
-      this.burst(x, y, 3, 'dot', '#fff1c8', 60, 1.8, 0.2);
+      this.burst(e.x, e.y, 3, 'dot', '#fff1c8', 60, 1.8, 0.2);
     }
   }
 
   private onUltimate(e: Extract<SimEvent, { t: 'ultimate' }>): void {
     const p = this.cell(e.cell);
-    const pts = e.targets.map((q) => ({ x: q.x, y: wy(q.y) }));
-    this.ults.push({ hero: e.hero, x: p.x, y: p.y, tx: e.tx, ty: wy(e.ty), lane: e.lane, pts, t: 0, life: ultLife(e.hero, pts.length) });
+    this.ults.push({ hero: e.hero, x: p.x, y: p.y, tx: e.tx, ty: e.ty, dir: e.dir, mapW: this.map.w, mapH: this.map.h, pts: e.targets, t: 0, life: ultLife(e.hero, e.targets.length) });
     this.recoil[e.cell] = 0.3;
     this.pops[e.cell] = 0.3;
     this.float(p.x, p.y - 36, ULTIMATES[e.hero].name, '#ffd166', 16, true, 1.2);
-    for (const q of pts) this.burst(q.x, q.y, 4, 'star', '#ffe27a', 120, 3.5, 0.5);
+    for (const q of e.targets) this.burst(q.x, q.y, 4, 'star', '#ffe27a', 120, 3.5, 0.5);
     this.shake = Math.max(this.shake, e.hero === '沙僧' ? 2 : 6);
   }
 
@@ -148,49 +147,45 @@ export class Vfx {
           break;
         case 'hit': {
           this.flash.set(e.uid, 0.12);
-          const color = UNITS[e.unit].color;
-          this.burst(e.x, wy(e.y), 2, 'dot', color, 80, 2, 0.22);
-          if (e.dmg >= 25) this.float(e.x + rnd(-6, 6), wy(e.y) - 16, String(Math.round(e.dmg)), '#ffffff', 12);
+          this.burst(e.x, e.y, 2, 'dot', UNITS[e.unit].color, 80, 2, 0.22);
+          if (e.dmg >= 25) this.float(e.x + rnd(-6, 6), e.y - 16, String(Math.round(e.dmg)), '#ffffff', 12);
           break;
         }
         case 'kill': {
-          const x = e.x;
-          const y = wy(e.y);
           const boss = ENEMIES[e.def].boss;
-          this.burst(x, y, boss ? 16 : 7, 'ink', 'rgba(30,18,12,0.75)', boss ? 140 : 80, boss ? 6 : 4, 0.6);
-          this.float(x, y - 10, `+${e.bounty}`, COLORS.gold, boss ? 18 : 12);
+          this.burst(e.x, e.y, boss ? 16 : 7, 'ink', 'rgba(30,18,12,0.75)', boss ? 140 : 80, boss ? 6 : 4, 0.6);
+          this.float(e.x, e.y - 10, `+${e.bounty}`, COLORS.gold, boss ? 18 : 12);
           if (boss) {
-            this.add('burst', x, y, 0, 0, '#ffd27a', 80, 0.6);
-            this.burst(x, y, 14, 'coin', '', 150, 4, 0.9, 160);
+            this.add('burst', e.x, e.y, 0, 0, '#ffd27a', 80, 0.6);
+            this.burst(e.x, e.y, 14, 'coin', '', 150, 4, 0.9, 160);
             this.shake = Math.max(this.shake, 6);
           }
           break;
         }
-        case 'campHit':
-          this.campFlash = 0.25;
-          this.burst(e.x, wy(e.y) + (e.y < 260 ? 10 : -10), 2, 'dot', '#ff6a5a', 60, 2, 0.3);
-          this.shake = Math.max(this.shake, 0.7);
+        case 'leak':
+          this.campFlash = 0.3;
+          this.add('ring', e.x, e.y, 0, 0, '#ff6a5a', 40, 0.5);
+          this.burst(e.x, e.y, 8, 'dot', '#ff6a5a', 90, 2.5, 0.4);
+          this.float(e.x, e.y - 24, `阵地 -${e.dmg}`, '#ff6a5a', 16, true, 1.1);
+          this.shake = Math.max(this.shake, 3);
           break;
-        case 'steal': {
-          const x = e.x;
-          const y = wy(e.y);
-          this.float(x, y - 12, `-${e.amount} 功德`, '#ff6a5a', 15, false, 1.1);
-          this.float(x, y - 34, '溜了', '#ffd166', 18, true, 1);
-          this.burst(x, y, 8, 'coin', '', 120, 3, 0.7, 150);
+        case 'steal':
+          this.float(e.x, e.y - 12, `-${e.amount} 功德`, '#ff6a5a', 15, false, 1.1);
+          this.float(e.x, e.y - 34, '溜了', '#ffd166', 18, true, 1);
+          this.burst(e.x, e.y, 8, 'coin', '', 120, 3, 0.7, 150);
           this.shake = Math.max(this.shake, 2);
           break;
-        }
         case 'revive':
-          this.add('ring', e.x, wy(e.y), 0, 0, '#ffffff', 34, 0.5);
-          this.float(e.x, wy(e.y) - 22, '复活！', '#ffffff', 16, true);
+          this.add('ring', e.x, e.y, 0, 0, '#ffffff', 34, 0.5);
+          this.float(e.x, e.y - 22, '复活！', '#ffffff', 16, true);
           break;
         case 'split':
         case 'summon':
-          this.burst(e.x, wy(e.y), 10, 'dot', 'rgba(140,90,170,0.7)', 90, 4, 0.5);
+          this.burst(e.x, e.y, 10, 'dot', 'rgba(140,90,170,0.7)', 90, 4, 0.5);
           break;
         case 'execute':
-          this.add('slash', e.x, wy(e.y), 0, 0, '#ffffff', 22, 0.35);
-          this.float(e.x, wy(e.y) - 18, '斩', '#e0302a', 30, true, 0.8);
+          this.add('slash', e.x, e.y, 0, 0, '#ffffff', 22, 0.35);
+          this.float(e.x, e.y - 18, '斩', '#e0302a', 30, true, 0.8);
           break;
         case 'buy':
         case 'unlock': {
@@ -207,7 +202,7 @@ export class Vfx {
             this.add('burst', p.x, p.y, 0, 0, '#ffd27a', 60, 0.5);
             this.float(p.x, p.y - 30, `宝箱 · ${e.unit}`, '#fff1c2', 15, true, 1.2);
           } else {
-            this.float(p.x, p.y, '宝箱 · +30 功德', COLORS.gold, 15, true, 1.2);
+            this.float(p.x, p.y - 40, '宝箱 · +30 功德', COLORS.gold, 15, true, 1.2);
           }
           break;
         }
@@ -264,7 +259,7 @@ export class Vfx {
         }
         case 'waveStart': {
           const boss = e.boss ? ENEMIES[e.boss] : null;
-          const sub = boss ? `Boss ${boss.name}：${traitText(boss)}` : e.elite ? '魔将压阵，小心！' : e.mods ? `劫难：${e.mods}` : '妖怪从上下两座城门杀来了';
+          const sub = boss ? `Boss ${boss.name}：${traitText(boss)}` : e.elite ? '魔将压阵，小心！' : e.mods ? `劫难：${e.mods}` : '妖怪从城门出发，别放它们走到营地';
           this.showBanner(`第 ${e.wave} 波`, sub, boss ? '#ff8a5c' : e.mods ? '#ffb07a' : '#fff1c2');
           break;
         }
@@ -282,9 +277,9 @@ export class Vfx {
     for (const p of projectiles) {
       if (this.particles.length >= MAX_PARTICLES) break;
       if (p.kind === 'fire' && Math.random() < 0.7) {
-        this.particles.push({ x: p.x + rnd(-2, 2), y: wy(p.y) + rnd(-2, 2), vx: 0, vy: -10, gravity: 0, size: rnd(1.5, 2.6), color: '#ffb44a', shape: 'ember', t: 0, life: 0.3 });
+        this.particles.push({ x: p.x + rnd(-2, 2), y: p.y + rnd(-2, 2), vx: 0, vy: -10, gravity: 0, size: rnd(1.5, 2.6), color: '#ffb44a', shape: 'ember', t: 0, life: 0.3 });
       } else if (p.kind === 'ice' && Math.random() < 0.4) {
-        this.particles.push({ x: p.x, y: wy(p.y), vx: rnd(-10, 10), vy: rnd(-10, 10), gravity: 0, size: 1.8, color: '#e8f8ff', shape: 'snow', t: 0, life: 0.3 });
+        this.particles.push({ x: p.x, y: p.y, vx: rnd(-10, 10), vy: rnd(-10, 10), gravity: 0, size: 1.8, color: '#e8f8ff', shape: 'snow', t: 0, life: 0.3 });
       }
     }
   }
@@ -320,7 +315,7 @@ export class Vfx {
   }
 
   drawProjectiles(ctx: CanvasRenderingContext2D, projectiles: readonly Projectile[]): void {
-    for (const p of projectiles) drawProjectile(ctx, p.kind, p.x, wy(p.y), p.tx - p.x, p.ty - p.y, p.divine);
+    for (const p of projectiles) drawProjectile(ctx, p.kind, p.x, p.y, p.tx - p.x, p.ty - p.y, p.divine);
   }
 
   drawWorld(ctx: CanvasRenderingContext2D): void {
@@ -329,7 +324,8 @@ export class Vfx {
     for (const p of this.particles) drawParticle(ctx, p);
   }
 
-  drawFloaters(ctx: CanvasRenderingContext2D): void {
-    for (const f of this.floaters) drawFloater(ctx, f);
+  /** `textScale` keeps floating text readable at any zoom (1 / zoom). */
+  drawFloaters(ctx: CanvasRenderingContext2D, textScale: number): void {
+    for (const f of this.floaters) drawFloater(ctx, f, textScale);
   }
 }

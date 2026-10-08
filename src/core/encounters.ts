@@ -4,7 +4,6 @@ import { CHAPTERS } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
 import { UNITS } from '../config/units.ts';
 import { makeTile } from './board.ts';
-import { CELL_COUNT } from './grid.ts';
 import { rand } from './rng.ts';
 import { rollOffer } from './shop.ts';
 import type { ActionResult, EncounterId, GameState, WaveMods } from './types.ts';
@@ -58,7 +57,7 @@ export function encounterDue(clearedWave: number, totalWaves: number): boolean {
 
 function emptyCells(g: GameState): number[] {
   const out: number[] = [];
-  for (let i = 0; i < CELL_COUNT; i++) if (g.unlocked[i] && !g.slots[i]) out.push(i);
+  for (let i = 0; i < g.slots.length; i++) if (g.unlocked[i] && !g.slots[i]) out.push(i);
   return out;
 }
 
