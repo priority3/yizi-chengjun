@@ -1,9 +1,12 @@
-// Drawing for individual effects, particles and projectiles. Pure functions of their inputs;
+// Drawing for individual effects, corpses, particles and projectiles. Pure functions of their inputs;
 // the Vfx class owns the state and timing.
+import { ENEMIES } from '../config/enemies.ts';
 import type { ShotKind } from '../core/types.ts';
 import { drawCoin, drawStar, hash01, outlined, roundRect, text } from './draw.ts';
 import { brush, sans } from './fonts.ts';
 import { drawPortrait } from './heroes-art.ts';
+import { corpsePose, FOOT, makeCorpsePose } from './monster-pose.ts';
+import { monsterSprite } from './monsters-art.ts';
 
 export type FxKind = 'swing' | 'bolt' | 'beam' | 'slam' | 'dragon' | 'ring' | 'burst' | 'seal' | 'slash';
 
@@ -44,6 +47,58 @@ export interface Floater {
   brushFont: boolean;
   t: number;
   life: number;
+}
+
+/** A monster that was just killed, toppling over where it fell (see corpsePose). Drawn under the living monsters. */
+export interface Corpse {
+  def: string;
+  x: number;
+  y: number;
+  t: number;
+  life: number;
+}
+
+/** Reason: one scratch pose shared by every corpse, so drawing them allocates nothing per frame. */
+const corpseScratch = makeCorpsePose();
+/** A falling body pivots on the edge it falls towards, this many radii right of its centre, so it ends up lying on the ground. */
+const TOPPLE_EDGE = 0.85;
+
+/** The monster's sprite toppling to the right, sinking and fading; a boss also sends a shockwave out as it lands. */
+export function drawCorpse(ctx: CanvasRenderingContext2D, c: Corpse): void {
+  const def = ENEMIES[c.def];
+  const r = def.radius;
+  const { img, box } = monsterSprite(c.def);
+  const p = corpsePose(corpseScratch, c.t / c.life);
+  const foot = r * FOOT;
+  const ground = c.y + foot;
+  // 0 upright .. 1 flat: the shadow slides out under the falling body (it stays on the surface, no sinking).
+  const lying = p.angle / (Math.PI / 2);
+  ctx.save();
+  ctx.globalAlpha = p.alpha;
+  ctx.beginPath();
+  ctx.ellipse(c.x + r * 1.6 * lying, ground, r * (0.9 + 0.2 * lying), r * 0.28, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(40,20,5,0.25)';
+  ctx.fill();
+  ctx.translate(c.x + r * TOPPLE_EDGE, ground + p.sink);
+  ctx.rotate(p.angle);
+  // Sprite corner relative to the pivot: upright, the sprite sits exactly where the living monster stood.
+  ctx.drawImage(img, -r * TOPPLE_EDGE - box / 2, -foot - box / 2, box, box);
+  ctx.restore();
+  if (def.boss && p.landed > 0) drawShockwave(ctx, c.x + r * 1.6, ground, r, p.landed);
+}
+
+/** A ring racing out along the ground from where a boss's body landed; `k` runs 0..1 from the landing. */
+function drawShockwave(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, k: number): void {
+  const rx = r * (1.2 + 2.6 * k);
+  ctx.save();
+  ctx.globalAlpha = (1 - k) * 0.9;
+  ctx.beginPath();
+  // Reason: flattened so it reads as lying on the ground in the top-down 3/4 view.
+  ctx.ellipse(x, y, rx, rx * 0.42, 0, 0, Math.PI * 2);
+  ctx.lineWidth = 6 * (1 - k) + 1.5;
+  ctx.strokeStyle = '#fff1c8';
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawBolt(ctx: CanvasRenderingContext2D, f: Fx, k: number): void {

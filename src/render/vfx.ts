@@ -1,5 +1,6 @@
 // Visual effects driven by simulation events. Owns every render-only timer (flashes, pops, shakes,
-// particles, banners, ultimates). Everything here lives in world coordinates and is drawn under the camera;
+// particles, banners, ultimates, corpses, the boss entrance). Everything here lives in world coordinates and is
+// drawn under the camera, except the boss vignette, which the renderer paints in screen space from `introDim()`;
 // nothing feeds back into the simulation, so it may use Math.random freely.
 import { ENEMIES, traitText } from '../config/enemies.ts';
 import { ULTIMATES } from '../config/ultimates.ts';
@@ -8,8 +9,21 @@ import { ENCOUNTERS, KIND_LABEL } from '../core/encounters.ts';
 import type { MapData, Pt } from '../core/map.ts';
 import type { HeroId, Projectile, SimEvent } from '../core/types.ts';
 import { COLORS } from './draw.ts';
-import { drawFloater, drawFx, drawParticle, drawProjectile, type Floater, type Fx, type FxKind, type Particle, type ParticleShape } from './fx-draw.ts';
+import {
+  drawCorpse,
+  drawFloater,
+  drawFx,
+  drawParticle,
+  drawProjectile,
+  type Corpse,
+  type Floater,
+  type Fx,
+  type FxKind,
+  type Particle,
+  type ParticleShape,
+} from './fx-draw.ts';
 import { drawUltimate, ultLife, type UltFx } from './fx-ultimate.ts';
+import { BOSS_CORPSE_LIFE, CORPSE_LIFE } from './monster-pose.ts';
 
 export interface Banner {
   title: string;
@@ -23,6 +37,12 @@ export interface Banner {
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 /** Reason: 白龙 and splash can hit dozens of enemies per tick; cap live particles to protect frame time. */
 const MAX_PARTICLES = 260;
+/** Reason: a 白龙 sweep can fell dozens at once; past this many falling minions the rest just vanish in their ink. */
+const MAX_CORPSES = 40;
+/** Boss entrance: seconds of rumble and darkened corners, the rumble's starting shake, and the vignette's peak opacity. */
+const BOSS_INTRO = 0.6;
+const BOSS_RUMBLE = 6;
+const BOSS_DIM = 0.45;
 const KIND_COLOR = { boon: '#aef0b8', trade: '#ffd166', challenge: '#ff8a5c' } as const;
 
 export class Vfx {
@@ -31,6 +51,8 @@ export class Vfx {
   private ults: UltFx[] = [];
   private particles: Particle[] = [];
   private floaters: Floater[] = [];
+  /** Bodies of the freshly killed, oldest first; the renderer draws them under the living monsters. */
+  readonly corpses: Corpse[] = [];
   banner: Banner | null = null;
   /** Enemy uid -> remaining hit-flash time. */
   readonly flash = new Map<number, number>();
@@ -41,6 +63,8 @@ export class Vfx {
   campFlash = 0;
   /** Screen-shake magnitude in design px, decays quickly. */
   shake = 0;
+  /** Seconds left of a boss wave's entrance (a held rumble plus darkened corners), 0 otherwise. */
+  bossIntro = 0;
   private seq = 0;
 
   constructor(map: MapData) {
@@ -68,6 +92,12 @@ export class Vfx {
 
   showBanner(title: string, sub: string, color: string, portrait: HeroId | null = null, life = 2): void {
     this.banner = { title, sub, color, portrait, t: 0, life };
+  }
+
+  /** A killed monster's body topples where it fell (a boss always gets one, however crowded the field). */
+  private addCorpse(def: string, x: number, y: number, boss: boolean): void {
+    if (!boss && this.corpses.length >= MAX_CORPSES) return;
+    this.corpses.push({ def, x, y, t: 0, life: boss ? BOSS_CORPSE_LIFE : CORPSE_LIFE });
   }
 
   /** World position of a slot; -1 means the camp. */
@@ -153,6 +183,7 @@ export class Vfx {
         }
         case 'kill': {
           const boss = ENEMIES[e.def].boss;
+          this.addCorpse(e.def, e.x, e.y, boss);
           this.burst(e.x, e.y, boss ? 16 : 7, 'ink', 'rgba(30,18,12,0.75)', boss ? 140 : 80, boss ? 6 : 4, 0.6);
           this.float(e.x, e.y - 10, `+${e.bounty}`, COLORS.gold, boss ? 18 : 12);
           if (boss) {
@@ -261,6 +292,11 @@ export class Vfx {
           const boss = e.boss ? ENEMIES[e.boss] : null;
           const sub = boss ? `Boss ${boss.name}：${traitText(boss)}` : e.elite ? '魔将压阵，小心！' : e.mods ? `劫难：${e.mods}` : '妖怪从城门出发，别放它们走到营地';
           this.showBanner(`第 ${e.wave} 波`, sub, boss ? '#ff8a5c' : e.mods ? '#ffb07a' : '#fff1c2');
+          if (boss) {
+            // Boss entrance: the ground rumbles and the corners darken once (update() holds the rumble up).
+            this.bossIntro = BOSS_INTRO;
+            this.shake = Math.max(this.shake, BOSS_RUMBLE);
+          }
           break;
         }
         case 'waveClear':
@@ -287,6 +323,14 @@ export class Vfx {
   update(dt: number): void {
     for (const f of this.fx) f.t += dt;
     this.fx = this.fx.filter((f) => f.t < f.life);
+    // Compacted in place: the renderer reads this array every frame.
+    let alive = 0;
+    for (let i = 0; i < this.corpses.length; i++) {
+      const c = this.corpses[i];
+      c.t += dt;
+      if (c.t < c.life) this.corpses[alive++] = c;
+    }
+    this.corpses.length = alive;
     for (const u of this.ults) u.t += dt;
     this.ults = this.ults.filter((u) => u.t < u.life);
     for (const p of this.particles) {
@@ -312,6 +356,24 @@ export class Vfx {
     }
     this.campFlash = Math.max(0, this.campFlash - dt);
     this.shake = Math.max(0, this.shake - dt * 18);
+    if (this.bossIntro > 0) {
+      this.bossIntro = Math.max(0, this.bossIntro - dt);
+      // Reason: a normal shake dies out in a fraction of a second; the boss rumble is held up for the whole
+      // intro instead, tapering linearly to nothing.
+      this.shake = Math.max(this.shake, BOSS_RUMBLE * (this.bossIntro / BOSS_INTRO));
+    }
+  }
+
+  /** Opacity of the boss-entrance vignette at the viewport corners: swells to BOSS_DIM in ~0.1 s, then fades out. */
+  introDim(): number {
+    if (this.bossIntro <= 0) return 0;
+    const k = 1 - this.bossIntro / BOSS_INTRO;
+    return BOSS_DIM * Math.min(1, k / 0.15, (1 - k) / 0.85);
+  }
+
+  /** Fresh corpses; drawn before the living monsters so anyone walking past steps over them. */
+  drawCorpses(ctx: CanvasRenderingContext2D): void {
+    for (const c of this.corpses) drawCorpse(ctx, c);
   }
 
   drawProjectiles(ctx: CanvasRenderingContext2D, projectiles: readonly Projectile[]): void {

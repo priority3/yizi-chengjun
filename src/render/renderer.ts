@@ -3,17 +3,18 @@
 import { unlockCost } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
 import { UNITS } from '../config/units.ts';
-import type { Pt } from '../core/map.ts';
+import { pathDir, type Pt } from '../core/map.ts';
 import { tileRange } from '../core/stats.ts';
-import type { Enemy, GameState, Tile, UnitId } from '../core/types.ts';
+import type { Enemy, EnemyDef, GameState, Tile, UnitId } from '../core/types.ts';
 import type { Stage } from '../platform/web.ts';
 import type { Camera } from './camera.ts';
 import { CARD, cardSprite } from './cards.ts';
 import { drawBar, drawCoin, drawStar, outlined, roundRect, text } from './draw.ts';
 import { drawEncounterPanel } from './encounter-panel.ts';
 import { brush, sans } from './fonts.ts';
-import { L, viewRect, W } from './layout.ts';
+import { L, viewRect, W, type Rect } from './layout.ts';
 import { drawMap, PAD_R } from './map-art.ts';
+import { FOOT, makePose, monsterPose, type Gait, type MonsterPose } from './monster-pose.ts';
 import { monsterSprite } from './monsters-art.ts';
 import { drawBanner, drawBattleBar, drawHud, drawShop, type PanelUi } from './panels.ts';
 import { blit } from './sprites.ts';
@@ -33,6 +34,23 @@ function snowflake(ctx: CanvasRenderingContext2D, x: number, y: number, r: numbe
     ctx.stroke();
   }
   ctx.restore();
+}
+
+/** Darkens the corners of the world viewport (the boss entrance); `alpha` is the opacity reached at the corners. */
+function drawVignette(ctx: CanvasRenderingContext2D, view: Rect, alpha: number): void {
+  const cx = view.x + view.w / 2;
+  const cy = view.y + view.h / 2;
+  const g = ctx.createRadialGradient(cx, cy, Math.min(view.w, view.h) * 0.3, cx, cy, Math.hypot(view.w, view.h) / 2);
+  g.addColorStop(0, 'rgba(24,6,2,0)');
+  g.addColorStop(1, `rgba(24,6,2,${alpha.toFixed(3)})`);
+  ctx.fillStyle = g;
+  ctx.fillRect(view.x, view.y, view.w, view.h);
+}
+
+/** Which way a monster faced last frame (for the flip hysteresis) and the frame it was last drawn (for pruning). */
+interface Facing {
+  left: boolean;
+  seen: number;
 }
 
 /** A card being dragged, in screen coordinates. */
@@ -60,6 +78,12 @@ export interface GameUi extends PanelUi {
 
 export class GameRenderer {
   private readonly stage: Stage;
+  /** Enemy uid -> its remembered facing; one entry per monster on the field, pruned once it is gone. */
+  private readonly facing = new Map<number, Facing>();
+  /** Counts drawn frames, to tell which facings are still in use. */
+  private frame = 0;
+  /** Reason: one scratch pose refilled for every monster, so posing them allocates nothing per frame. */
+  private readonly pose: MonsterPose = makePose();
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -84,6 +108,9 @@ export class GameRenderer {
     vfx.drawWorld(ctx);
     vfx.drawFloaters(ctx, 1 / cam.zoom);
     ctx.restore();
+    // Boss entrance: painted after the clip and shake are gone, so the darkened corners stay put on screen.
+    const dim = vfx.introDim();
+    if (dim > 0) drawVignette(ctx, view, dim);
     drawHud(ctx, g, ui, vfx);
     if (g.phase === 'build') drawShop(ctx, g, ui);
     else drawBattleBar(ctx, g, ui);
@@ -196,32 +223,75 @@ export class GameRenderer {
     });
   }
 
-  private drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy, vfx: Vfx, time: number): void {
+  /**
+   * One monster, back to front: its patch of ground, the posed body, status marks, then the HP bar and name.
+   * Only the body faces, leans and squashes; everything else stays upright where the monster stands.
+   */
+  private drawEnemy(ctx: CanvasRenderingContext2D, g: GameState, e: Enemy, vfx: Vfx, time: number): void {
     const def = ENEMIES[e.def];
-    const { img, flash, box } = monsterSprite(e.def);
-    const x = e.x;
-    const y = e.y;
-    const walking = e.stunT <= 0;
-    const bob = walking ? Math.abs(Math.sin(time * 9 + e.uid)) * -3 : Math.sin(time * 14 + e.uid) * 1.2;
-    // Ground shadow.
+    const pose = this.poseOf(g, e, time);
+    this.drawGround(ctx, e, def, time);
+    this.drawBody(ctx, e, def, pose, vfx);
+    this.drawStatus(ctx, e, def, time);
+    this.drawTags(ctx, e, def);
+  }
+
+  /** This frame's pose of `e` (the shared scratch object), carrying its facing over from the previous frame. */
+  private poseOf(g: GameState, e: Enemy, time: number): MonsterPose {
+    const dir = pathDir(g.map.paths[e.path], e.dist);
+    let face = this.facing.get(e.uid);
+    if (!face) {
+      // A newcomer simply faces the way its road heads.
+      face = { left: Math.cos(dir) < 0, seen: 0 };
+      this.facing.set(e.uid, face);
+    }
+    face.seen = this.frame;
+    // Reason: nobody walks once the battle is over (a lost run freezes the field), and a stun stops a dash too.
+    const gait: Gait = g.phase !== 'battle' ? 'idle' : e.stunT > 0 ? 'stun' : e.dashT > 0 ? 'dash' : 'walk';
+    monsterPose(this.pose, dir, face.left, gait, time, e.uid);
+    face.left = this.pose.flip;
+    return this.pose;
+  }
+
+  /** Ground shadow and the boss's pulsing aura. */
+  private drawGround(ctx: CanvasRenderingContext2D, e: Enemy, def: EnemyDef, time: number): void {
     ctx.beginPath();
-    ctx.ellipse(x, y + def.radius * 0.95, def.radius * 0.9, def.radius * 0.28, 0, 0, Math.PI * 2);
+    ctx.ellipse(e.x, e.y + def.radius * FOOT, def.radius * 0.9, def.radius * 0.28, 0, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(40,20,5,0.25)';
     ctx.fill();
     if (def.boss) {
       ctx.beginPath();
-      ctx.arc(x, y, def.radius * (1.25 + Math.sin(time * 4) * 0.05), 0, Math.PI * 2);
+      ctx.arc(e.x, e.y, def.radius * (1.25 + Math.sin(time * 4) * 0.05), 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(255,90,40,0.16)';
       ctx.fill();
     }
-    blit(ctx, img, x, y + bob, box, box);
+  }
+
+  /** The sprite and its hit flash, mirrored, leaned and squashed about the feet so a squash never lifts it off the ground. */
+  private drawBody(ctx: CanvasRenderingContext2D, e: Enemy, def: EnemyDef, pose: MonsterPose, vfx: Vfx): void {
+    const { img, flash, box } = monsterSprite(e.def);
+    const foot = def.radius * FOOT;
+    // Sprite corner relative to the feet: unposed, the sprite is centred on the enemy's position.
+    const left = -box / 2;
+    const top = -foot - box / 2;
+    ctx.save();
+    ctx.translate(e.x, e.y + foot);
+    // Reason: the rotation sits outside the mirror, so `lean` is in world terms — a monster walking left tips left.
+    ctx.rotate(pose.lean);
+    ctx.scale(pose.flip ? -pose.sx : pose.sx, pose.sy);
+    ctx.drawImage(img, left, top, box, box);
     const f = vfx.flash.get(e.uid);
     if (f !== undefined) {
-      ctx.save();
       ctx.globalAlpha = Math.min(1, f / 0.12) * 0.85;
-      blit(ctx, flash, x, y + bob, box, box);
-      ctx.restore();
+      ctx.drawImage(flash, left, top, box, box);
     }
+    ctx.restore();
+  }
+
+  /** Status marks around the feet and over the head: the slow ring with its snowflake, the stun stars. */
+  private drawStatus(ctx: CanvasRenderingContext2D, e: Enemy, def: EnemyDef, time: number): void {
+    const x = e.x;
+    const y = e.y;
     if (e.slowT > 0) {
       ctx.beginPath();
       ctx.ellipse(x, y + def.radius * 0.9, def.radius * 1.05, def.radius * 0.36, 0, 0, Math.PI * 2);
@@ -236,18 +306,32 @@ export class GameRenderer {
         drawStar(ctx, x + Math.cos(a) * def.radius * 0.8, y - def.radius * 1.2 + Math.sin(a) * 3, 3.5, '#ffe45a');
       }
     }
+  }
+
+  /** HP bar above the monster, plus the name under bosses and elites. */
+  private drawTags(ctx: CanvasRenderingContext2D, e: Enemy, def: EnemyDef): void {
     const barW = Math.max(22, def.radius * 2);
-    drawBar(ctx, x - barW / 2, y - def.radius - 9, barW, 4, e.hp / e.maxHp, def.boss ? '#ff5a3a' : '#6fdc5a');
+    drawBar(ctx, e.x - barW / 2, e.y - def.radius - 9, barW, 4, e.hp / e.maxHp, def.boss ? '#ff5a3a' : '#6fdc5a');
     if (def.boss || def.elite) {
-      outlined(ctx, def.name, x, y + def.radius + 12, brush(def.boss ? 14 : 12), def.boss ? '#ffd166' : '#ffb0a0', 'rgba(20,10,4,0.9)', 3);
+      outlined(ctx, def.name, e.x, e.y + def.radius + 12, brush(def.boss ? 14 : 12), def.boss ? '#ffd166' : '#ffb0a0', 'rgba(20,10,4,0.9)', 3);
     }
   }
 
   private drawEnemies(ctx: CanvasRenderingContext2D, g: GameState, vfx: Vfx, time: number): void {
     // Reason: draw in y order so monsters further down overlap the ones behind them.
     const list = g.enemies.filter((e) => !e.gone).sort((a, b) => a.y - b.y);
-    for (const e of list) this.drawEnemy(ctx, e, vfx, time);
+    // Fresh corpses lie on the ground, under everyone still walking.
+    vfx.drawCorpses(ctx);
+    this.frame++;
+    for (const e of list) this.drawEnemy(ctx, g, e, vfx, time);
+    // Every monster drawn has a facing, so any surplus belongs to the dead or to those that reached the camp.
+    if (this.facing.size > list.length) this.facing.forEach(this.forgetStale);
   }
+
+  /** forEach callback, bound once so pruning allocates nothing: drops facings not refreshed this frame. */
+  private readonly forgetStale = (face: Facing, uid: number): void => {
+    if (face.seen !== this.frame) this.facing.delete(uid);
+  };
 
   private drawDragged(ctx: CanvasRenderingContext2D, d: DragUi): void {
     const { img, size } = cardSprite(d.unit, d.level, d.divine);
