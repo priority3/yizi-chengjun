@@ -72,6 +72,8 @@ export interface Progress {
   /** Clears per chapter. */
   wins: number[];
   vault: Vault;
+  /** The chapter-1 animated guide has been completed. */
+  tutorialDone: boolean;
 }
 
 const STORAGE_KEY = 'zdxy:v3';
@@ -100,7 +102,7 @@ function parseProgress(raw: string | null, chapters: number): Progress | null {
   const p = JSON.parse(raw) as Partial<Progress>;
   if (typeof p.unlocked !== 'number' || !Array.isArray(p.wins)) return null;
   const wins = Array.from({ length: chapters }, (_, i) => Number(p.wins?.[i]) || 0);
-  return { unlocked: Math.min(chapters, Math.max(1, p.unlocked)), wins, vault: parseVault(p.vault) };
+  return { unlocked: Math.min(chapters, Math.max(1, p.unlocked)), wins, vault: parseVault(p.vault), tutorialDone: p.tutorialDone === true };
 }
 
 export function loadProgress(chapters: number): Progress {
@@ -112,7 +114,7 @@ export function loadProgress(chapters: number): Progress {
   } catch {
     // Storage blocked (private mode / some in-app browsers): fall back to the in-memory copy below.
   }
-  return memoryCopy ?? { unlocked: 1, wins: new Array<number>(chapters).fill(0), vault: emptyVault() };
+  return memoryCopy ?? { unlocked: 1, wins: new Array<number>(chapters).fill(0), vault: emptyVault(), tutorialDone: false };
 }
 
 export function saveProgress(p: Progress): void {
@@ -120,6 +122,7 @@ export function saveProgress(p: Progress): void {
     unlocked: p.unlocked,
     wins: [...p.wins],
     vault: { stones: p.vault.stones, treasures: p.vault.treasures.map((s) => ({ ...s })), equipped: [...p.vault.equipped] },
+    tutorialDone: p.tutorialDone,
   };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryCopy));

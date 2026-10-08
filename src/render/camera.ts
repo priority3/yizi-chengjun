@@ -29,6 +29,14 @@ export class Camera {
     this.clamp(view);
   }
 
+  /** Centres the view on a world point at the given zoom. */
+  lookAt(wx: number, wy: number, zoom: number, view: Rect): void {
+    this.zoom = zoom;
+    this.x = wx - view.w / (2 * zoom);
+    this.y = wy - view.h / (2 * zoom);
+    this.clamp(view);
+  }
+
   /** Keeps the zoom in range and the view on the map (centred when the map is smaller than the view). */
   clamp(view: Rect): void {
     this.zoom = Math.max(this.minZoom(view), Math.min(MAX_ZOOM, this.zoom));

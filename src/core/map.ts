@@ -50,7 +50,7 @@ export const SUPPORT_RANGE = 100;
 /** Painted road width. */
 export const ROAD_W = 36;
 /** Monsters wander up to this far from the road's centre line, so a crowd doesn't walk in single file. */
-export const LANE_SPREAD = 10;
+export const LANE_SPREAD = 12;
 /** Road length (px) at which hpScale is 1. */
 export const REF_ROAD = 1400;
 

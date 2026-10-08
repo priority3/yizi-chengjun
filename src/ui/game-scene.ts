@@ -24,6 +24,7 @@ import { drawPause, drawResult, pausePanel, resultPanel, tapButtons, type Overla
 import { Toasts } from './hud.ts';
 import type { Pointer } from './input.ts';
 import type { Nav, Scene } from './scenes.ts';
+import { Tutorial } from './tutorial.ts';
 
 /** Seconds after the run ends before the result panel appears (let the last effects play). */
 const RESULT_DELAY = 1;
@@ -31,6 +32,8 @@ const RESULT_DELAY = 1;
 const TOUCH_LIFT = 44;
 /** Zoom step per wheel notch. */
 const WHEEL_STEP = 1.12;
+/** Starting zoom: map cards come out about the size of the shop cards. */
+const START_ZOOM = 1;
 
 /** Reason: a function call instead of an inline check, because step() changes the phase behind TS's narrowing. */
 function isOver(g: GameState): boolean {
@@ -81,7 +84,8 @@ export class GameScene implements Scene {
   private pressed: string | null = null;
   private selected = -1;
   private selectedT = 0;
-  private readonly tutorial: boolean;
+  private readonly tutorial: Tutorial;
+  private readonly tips: boolean;
   private told = new Set<string>();
 
   constructor(stage: Stage, chapter: number, nav: Nav) {
@@ -93,17 +97,19 @@ export class GameScene implements Scene {
     this.renderer = new GameRenderer(stage);
     this.vfx = new Vfx(this.g.map);
     this.cam = new Camera(this.g.map);
-    this.cam.fit(this.view());
-    this.tutorial = chapter === 1;
+    // Reason: open on the starter card at 1:1 so cards on the map look the size they do in the shop.
+    const starter = this.g.slots.findIndex((t) => t !== null);
+    const focus = starter >= 0 ? this.g.map.slots[starter] : { x: this.g.map.w / 2, y: this.g.map.h / 2 };
+    this.cam.lookAt(focus.x, focus.y, START_ZOOM, this.view());
+    this.tips = chapter === 1;
+    this.tutorial = new Tutorial(chapter === 1 && !nav.progress.tutorialDone);
     const ch = CHAPTERS[chapter - 1];
     const gear = vault.equipped.length > 0 ? ` · 带了 ${vault.equipped.length} 件法宝` : '';
     this.vfx.showBanner(`第${NUMERALS[chapter - 1]}章 · ${ch.name}`, `别让妖怪走到唐僧的营地，打败${ENEMIES[ch.boss].name}${gear}`, '#ffd166', null, 2.6);
-    this.tip('drag', '把商店里的卡拖到路边的石台上');
-    this.tip('pan', '按住空地拖动地图，双指或滚轮缩放');
   }
 
   private tip(key: string, msg: string): void {
-    if (!this.tutorial || this.told.has(key)) return;
+    if (!this.tips || this.told.has(key)) return;
     this.told.add(key);
     this.toasts.push(msg);
   }
@@ -124,6 +130,7 @@ export class GameScene implements Scene {
     this.clock += dt;
     this.vfx.update(dt);
     this.toasts.update(dt);
+    this.tutorial.update(dt);
     this.selectedT = Math.max(0, this.selectedT - dt);
     if (this.selectedT === 0) this.selected = -1;
     // Reason: the viewport changes height between the shop and the battle bar; keep the camera on the map.
@@ -150,6 +157,7 @@ export class GameScene implements Scene {
 
   render(ctx: CanvasRenderingContext2D): void {
     this.renderer.draw(ctx, this.g, this.ui(), this.vfx, this.clock, this.cam);
+    if (!this.paused && !this.drag) this.tutorial.draw(ctx, this.g, this.cam);
     this.toasts.draw(ctx, this.g.phase === 'build' ? L.shop.y - 24 : L.bar.y - 18);
     if (isOver(this.g)) {
       if (this.endT >= RESULT_DELAY) drawResult(ctx, this.resultInfo(), this.resultButtons());
@@ -394,10 +402,14 @@ export class GameScene implements Scene {
     for (const e of events) {
       if (e.t === 'invalid') this.toasts.push(e.msg);
       else if (e.t === 'buy') {
-        this.tip('start', '准备好了就点「出战」');
+        this.tutorial.notify('buy');
         if (UNITS[e.unit].kind === 'fragment') this.tip('frag', '名字碎片：凑齐「悟」「空」这样的另一半就能觉醒英雄');
-      } else if (e.t === 'waveClear') this.tip('merge', '两张同名同级的卡叠在一起会升级');
-      else if (e.t === 'waveStart' && e.wave === 2) this.tip('trash', '不要的字可以拖到垃圾桶卖掉');
+      } else if (e.t === 'merge') this.tutorial.notify('merge');
+      else if (e.t === 'waveClear') this.tutorial.notify('build');
+      else if (e.t === 'waveStart') {
+        this.tutorial.notify('waveStart');
+        if (e.wave === 2) this.tip('trash', '不要的字可以拖到垃圾桶卖掉');
+      }
       else if (e.t === 'leak') this.tip('leak', '妖怪走到营地会伤到阵地：把火力摆在路的转弯处');
       else if (e.t === 'encounterOffer') this.tip('enc', '奇遇三选一：福缘立刻生效，劫难下一波生效但赏金更多');
       else if (e.t === 'hero') this.tip('rage', '英雄普攻十下攒满怒气，下一击就是大招');
@@ -410,6 +422,7 @@ export class GameScene implements Scene {
     this.pan = null;
     if (this.g.phase !== 'won') return;
     const p = this.nav.progress;
+    p.tutorialDone = true;
     const firstClear = (p.wins[this.chapter - 1] ?? 0) === 0;
     p.unlocked = Math.max(p.unlocked, Math.min(CHAPTERS.length, this.chapter + 1));
     p.wins[this.chapter - 1] = (p.wins[this.chapter - 1] ?? 0) + 1;
