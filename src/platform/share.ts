@@ -1,10 +1,11 @@
 // Hands a painted picture to the player: the system share sheet with the PNG attached where the browser can share
 // files (most phones), else a full-screen copy of the picture to long-press (phones) or right-click (desktop) and
 // save. That overlay is the game's only DOM UI besides the canvas.
+import { GAME_NAME } from '../config/brand.ts';
 import { SANS_STACK } from '../render/fonts.ts';
 
 /** Title of the shared picture and of the save-image overlay. */
-export const SHARE_TITLE = '一字成军战报';
+export const SHARE_TITLE = `${GAME_NAME}战报`;
 /** The overlay's instructions. */
 export const SAVE_HINT = '长按图片保存，或右键另存为';
 /** File name the share sheet shows for the picture. */

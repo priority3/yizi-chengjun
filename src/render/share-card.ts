@@ -2,6 +2,7 @@
 // 分享战报 is tapped (never per frame). Top to bottom: the brush title with a red seal, the chapter (or another
 // mode's title) over its map, the outcome with its stars, the run's numbers, the 法宝 it was played with, and the
 // address, date and version of the game. The paper, frame and seal art live in share-art.ts.
+import { GAME_NAME, TAGLINE } from '../config/brand.ts';
 import { CHAPTERS } from '../config/chapters.ts';
 import { MAPS, type MapDef } from '../config/maps.ts';
 import { TREASURES, type TreasureId } from '../config/treasures.ts';
@@ -180,9 +181,9 @@ export function renderShareCard(info: ShareInfo): HTMLCanvasElement {
   return canvas;
 }
 
-/** 一字成军 in big brush strokes with the red 战报 seal beside it, the tagline, and an ink rule. */
+/** The game's name in big brush strokes with the red 战报 seal beside it, the tagline, and an ink rule. */
 function drawHeader(ctx: CanvasRenderingContext2D): void {
-  const title = '一字成军';
+  const title = GAME_NAME;
   ctx.font = brush(TITLE_PX);
   const { titleX, sealX } = headerLayout(ctx.measureText(title).width);
   ctx.save();
@@ -192,7 +193,7 @@ function drawHeader(ctx: CanvasRenderingContext2D): void {
   text(ctx, title, titleX, CARD_LAYOUT.titleY, brush(TITLE_PX), INK);
   ctx.restore();
   drawSeal(ctx, sealX, CARD_LAYOUT.titleY - 4, SEAL_W, SEAL_H, ['战', '报'], -0.07);
-  text(ctx, '汉字合成塔防', CARD_W / 2, CARD_LAYOUT.taglineY, brush(44), '#8a6a44');
+  text(ctx, TAGLINE, CARD_W / 2, CARD_LAYOUT.taglineY, brush(44), '#8a6a44');
   inkRule(ctx, CARD_W / 2, CARD_LAYOUT.ruleY, 330);
 }
 

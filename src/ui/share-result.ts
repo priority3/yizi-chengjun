@@ -1,6 +1,7 @@
 // 分享战报: what the result card shows for a run (pure, built from the run's state: chapterShareInfo, modeShareInfo
 // for endless and daily runs), and the tap that paints the card once and hands it to the share sheet or the
 // save-image overlay. The card and the share flow work from ShareInfo alone.
+import { GAME_NAME, LOG_TAG } from '../config/brand.ts';
 import { CHAPTERS } from '../config/chapters.ts';
 import { ENDLESS_CHAPTER } from '../config/endless.ts';
 import { ENEMIES } from '../config/enemies.ts';
@@ -117,7 +118,7 @@ export function shareText(info: ShareInfo, url: string): string {
   if (info.mode !== 'chapter') result = `撑过第 ${info.waves} 波`;
   else if (info.won) result = `${info.stars ? `${STAR_WORDS[info.stars]}星` : ''}通关`;
   else result = `守住 ${info.waves}/${info.totalWaves ?? info.waves} 波`;
-  return `《一字成军》${info.title}：${result}，击杀 ${info.kills} 只妖怪！${url ? ` ${url}` : ''}`;
+  return `《${GAME_NAME}》${info.title}：${result}，击杀 ${info.kills} 只妖怪！${url ? ` ${url}` : ''}`;
 }
 
 /** The game's address for the share text: this page without query or hash; '' off the web (a file opened from disk). */
@@ -145,7 +146,7 @@ export async function shareResult(info: ShareInfo): Promise<ShareOutcome | null>
     await brushReady();
     return await shareImage(renderShareCard(info), shareText(info, siteUrl()));
   } catch (err) {
-    console.warn('[一字成军] 战报分享失败', err);
+    console.warn(`${LOG_TAG} 战报分享失败`, err);
     return null;
   } finally {
     busy = false;

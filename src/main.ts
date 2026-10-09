@@ -1,4 +1,5 @@
 // Entry point: sets up the stage, waits for the brush font, then runs the scene loop.
+import { LOG_TAG } from './config/brand.ts';
 import { audio } from './platform/audio.ts';
 import { wantsEditor } from './platform/editor-io.ts';
 import { registerServiceWorker } from './platform/pwa.ts';
@@ -28,7 +29,7 @@ stage.ctx.setTransform(stage.pixelRatio, 0, 0, stage.pixelRatio, 0, 0);
 stage.ctx.fillStyle = '#1d1714';
 stage.ctx.fillRect(0, 0, W, L.H);
 
-if (!(await loadFonts())) console.warn('[一字成军] brush font not loaded; falling back to the system font');
+if (!(await loadFonts())) console.warn(`${LOG_TAG} brush font not loaded; falling back to the system font`);
 // Reason: anything painted before the font arrived used the fallback font.
 sprites.clear();
 
