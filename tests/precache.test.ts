@@ -22,24 +22,25 @@ function edited(name: string, source: string | Uint8Array): BuildFile[] {
 }
 
 describe('precache list', () => {
-  it('lists index.html, the bundle, the fonts, the manifest and the icons, sorted', () => {
+  it('lists index.html, the bundle, the fonts and the manifest, sorted', () => {
     expect(buildPrecache(BUILD, '0.6.0').urls).toEqual([
       'assets/index-abc.js',
       'fonts/OFL.txt',
       'fonts/zdxy-brush.woff2',
-      'icons/icon-192.png',
       'index.html',
       'manifest.webmanifest',
     ]);
   });
 
-  it('leaves out source maps, dotfiles and the worker itself', () => {
+  it('leaves out source maps, dotfiles, the app icons and the worker itself', () => {
     expect(isPrecached('assets/index-abc.js.map')).toBe(false);
     expect(isPrecached('sw.js')).toBe(false);
     expect(isPrecached('.DS_Store')).toBe(false);
     expect(isPrecached('.vite/manifest.json')).toBe(false);
+    expect(isPrecached('icons/icon-192.png')).toBe(false);
+    expect(isPrecached('icons/maskable-512.png')).toBe(false);
     expect(isPrecached('fonts/zdxy-brush.woff2')).toBe(true);
-    expect(isPrecached('icons/sw.js.png')).toBe(true);
+    expect(isPrecached('assets/sw.js.png')).toBe(true);
   });
 
   it('keeps the first copy of a name (the bundle wins over public/)', () => {
@@ -64,7 +65,7 @@ describe('cache name', () => {
   });
 
   it('changes when a file is added, removed or renamed, and with the version', () => {
-    const added = buildPrecache([...BUILD, { name: 'icons/icon-512.png', source: 'png' }], '0.6.0');
+    const added = buildPrecache([...BUILD, { name: 'assets/extra-def.js', source: 'more' }], '0.6.0');
     const removed = buildPrecache(BUILD.filter((f) => f.name !== 'fonts/OFL.txt'), '0.6.0');
     const renamed = buildPrecache(BUILD.map((f) => (f.name === 'assets/index-abc.js' ? { ...f, name: 'assets/index-xyz.js' } : f)), '0.6.0');
     const names = new Set([base, added, removed, renamed, buildPrecache(BUILD, '0.7.0')].map((p) => p.cacheName));
@@ -74,6 +75,8 @@ describe('cache name', () => {
   it('ignores files that are not precached', () => {
     expect(buildPrecache(edited('assets/index-abc.js.map', '{"version":3,"x":1}'), '0.6.0')).toEqual(base);
     expect(buildPrecache(edited('sw.js', '// other worker'), '0.6.0')).toEqual(base);
+    // A redrawn icon doesn't make every player download the game again.
+    expect(buildPrecache(edited('icons/icon-192.png', new Uint8Array([1])), '0.6.0')).toEqual(base);
   });
 });
 

@@ -24,9 +24,18 @@ export interface Precache {
   urls: string[];
 }
 
-/** Whether a built file belongs in the precache: everything except source maps, dotfiles and the worker itself. */
+/** Folder of the app icons (public/icons), which the worker leaves to the browser. */
+export const ICONS_DIR = 'icons/';
+
+/**
+ * Whether a built file belongs in the precache: everything except source maps, dotfiles, the app icons and the
+ * worker itself.
+ */
 export function isPrecached(name: string): boolean {
   if (name === SW_FILE || name.endsWith('.map')) return false;
+  // Reason: the icons are only fetched when the game is installed or added to the home screen, and the system keeps
+  // its own copy; precached, their ~0.8 MB would be downloaded again with every release although they never change.
+  if (name.startsWith(ICONS_DIR)) return false;
   // Reason: dotfiles (.DS_Store, Vite's .vite/manifest.json) are never requested by the game.
   return !name.split('/').some((part) => part.startsWith('.'));
 }
