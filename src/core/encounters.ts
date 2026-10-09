@@ -3,10 +3,10 @@
 import { CHAPTERS } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
 import { UNITS } from '../config/units.ts';
-import { makeTile } from './board.ts';
+import { canPlace, makeTile } from './board.ts';
 import { rand } from './rng.ts';
 import { rollOffer } from './shop.ts';
-import type { ActionResult, EncounterId, GameState, WaveMods } from './types.ts';
+import type { ActionResult, EncounterId, GameState, UnitId, WaveMods } from './types.ts';
 
 export type EncounterKind = 'boon' | 'trade' | 'challenge';
 
@@ -61,6 +61,11 @@ function emptyCells(g: GameState): number[] {
   return out;
 }
 
+/** The empty cells a tile of `id` may stand on (a fighter skips every 泥沼). */
+function emptyCellsFor(g: GameState, id: UnitId): number[] {
+  return emptyCells(g).filter((c) => canPlace(g, c, id));
+}
+
 /** A boss from an earlier chapter (chapter 1 previews its own boss), picked with the run RNG. */
 function miniBossFor(g: GameState): string {
   const pool = CHAPTERS.filter((c) => c.id < g.chapter).map((c) => c.boss);
@@ -92,7 +97,7 @@ export function applyEncounter(g: GameState, id: EncounterId): void {
       g.gongde += 50;
       break;
     case '天降神字': {
-      const empty = emptyCells(g);
+      const empty = emptyCellsFor(g, '神');
       if (empty.length === 0) {
         g.gongde += 40;
         break;
@@ -142,16 +147,21 @@ export function chooseEncounter(g: GameState, option: number): ActionResult {
   return 'ok';
 }
 
-/** The 宝箱 pays out after the wave: a random card onto an empty cell, or 功德 when the camp is full. */
+/**
+ * The 宝箱 pays out after the wave: a random card onto an empty cell, or 功德 when the camp is full — or when the
+ * card is a fighter and only 泥沼 pads are free.
+ */
 export function openChest(g: GameState): void {
   g.chest = false;
-  const empty = emptyCells(g);
-  if (empty.length === 0) {
+  const pay = () => {
     g.gongde += 30;
     g.events.push({ t: 'chest', cell: -1, unit: null });
-    return;
-  }
+  };
+  if (emptyCells(g).length === 0) return pay();
   const id = rollOffer(g);
+  // Reason: filtered after the roll, so on a map without 泥沼 the random draws are exactly what they always were.
+  const empty = emptyCellsFor(g, id);
+  if (empty.length === 0) return pay();
   const cell = empty[Math.floor(rand(g) * empty.length)];
   g.slots[cell] = makeTile(g, id, UNITS[id].price);
   g.events.push({ t: 'chest', cell, unit: id });

@@ -52,6 +52,9 @@ export interface UnitDef {
   color: string;
 }
 
+/** Which enemy in range a fighter shoots: furthest along its road, the most HP left, or the least. */
+export type TargetMode = 'first' | 'strong' | 'weak';
+
 export interface Tile {
   uid: number;
   id: UnitId;
@@ -63,6 +66,8 @@ export interface Tile {
   invested: number;
   /** Hero rage 0..1; at 1 the next attack is the ultimate (always 0 for non-heroes). */
   rage: number;
+  /** Target priority of a fighter (瞄准); absent means 'first'. */
+  target?: TargetMode;
 }
 
 export type BossTrait =
@@ -169,7 +174,9 @@ export type Action =
   | { t: 'unlock'; cell: number }
   | { t: 'start' }
   /** Pick one of the pending encounter cards. */
-  | { t: 'choose'; option: number };
+  | { t: 'choose'; option: number }
+  /** Cycle the target priority of the fighter on `cell` (first -> strong -> weak); build and battle alike. */
+  | { t: 'mode'; cell: number };
 
 export type EncounterId =
   | '观音赐福'
@@ -250,6 +257,8 @@ export type SimEvent =
   | { t: 'income'; cell: number; amount: number }
   | { t: 'heal'; cell: number; amount: number }
   | { t: 'unlock'; cell: number }
+  /** The fighter on `cell` switched its target priority. */
+  | { t: 'mode'; cell: number; mode: TargetMode }
   | { t: 'refresh' }
   /** `dir` is the road direction (radians) at the target, for the sweep animation. */
   | { t: 'ultimate'; hero: HeroId; cell: number; x: number; y: number; tx: number; ty: number; path: number; dir: number; targets: Array<{ x: number; y: number }> }

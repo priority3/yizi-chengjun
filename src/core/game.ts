@@ -2,7 +2,7 @@
 // until the boss falls or the camp does.
 import { CAMP_HP, CHAPTERS, FIRST_SHOP_ATTACKERS, startGongde, waveBonus } from '../config/chapters.ts';
 import { MAPS, type MapDef } from '../config/maps.ts';
-import { makeTile, resolveDrop } from './board.ts';
+import { cycleTarget, makeTile, resolveDrop, TARGET_MODES } from './board.ts';
 import { DT } from './clock.ts';
 import { stepCombat } from './combat.ts';
 import { chooseEncounter, defaultWaveMods, encounterDue, modsLabel, offerEncounter, openChest } from './encounters.ts';
@@ -82,8 +82,9 @@ function startWave(g: GameState): ActionResult {
 /** Applies a player (or bot) action immediately. Events it produces are appended to `g.events`. */
 export function act(g: GameState, a: Action): ActionResult {
   if (g.phase === 'won' || g.phase === 'lost') return 'phase';
-  // Reason: a pending encounter must be answered before the shop reopens or the next wave starts.
-  if (g.encounter && a.t !== 'choose' && a.t !== 'drop') return 'phase';
+  // Reason: a pending encounter must be answered before the shop reopens or the next wave starts; rearranging the
+  // board (drops, 瞄准) is fine meanwhile.
+  if (g.encounter && a.t !== 'choose' && a.t !== 'drop' && a.t !== 'mode') return 'phase';
   switch (a.t) {
     case 'buy':
       return g.phase === 'build' ? buy(g, a.offer, a.cell) : 'phase';
@@ -97,6 +98,8 @@ export function act(g: GameState, a: Action): ActionResult {
       return unlock(g, a.cell);
     case 'drop':
       return resolveDrop(g, a.from, a.to);
+    case 'mode':
+      return cycleTarget(g, a.cell);
   }
 }
 
@@ -178,6 +181,7 @@ export function hashState(g: GameState): number {
     mix(t.level);
     mix(t.divine ? 1 : 0);
     mix(Math.round(t.rage * 100));
+    mix(TARGET_MODES.indexOf(t.target ?? 'first'));
   }
   for (const e of g.enemies) {
     mix(e.uid);

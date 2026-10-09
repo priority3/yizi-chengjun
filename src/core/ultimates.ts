@@ -2,7 +2,7 @@
 import { RAGE_DIVINE_MUL, RAGE_PER_HIT, ULTIMATES } from '../config/ultimates.ts';
 import { applySlow, applyStun, damage, dist2, knock } from './effects.ts';
 import { pathDir } from './map.ts';
-import { tileDamage, tileRange } from './stats.ts';
+import { slotDamage, slotRange } from './slots.ts';
 import type { Enemy, GameState, HeroId, RunMods, Tile } from './types.ts';
 
 /** Rage a hero gains per normal attack. */
@@ -19,7 +19,7 @@ export function castUltimate(g: GameState, t: Tile, cell: number, target: Enemy)
   const hero = t.id as HeroId;
   const u = ULTIMATES[hero];
   const p = g.map.slots[cell];
-  const dmg = tileDamage(t, g.mods) * u.dmgMul;
+  const dmg = slotDamage(g, t, cell) * u.dmgMul;
   const targets: Array<{ x: number; y: number }> = [];
   const hit = (e: Enemy, amount: number) => {
     targets.push({ x: e.x, y: e.y });
@@ -46,7 +46,7 @@ export function castUltimate(g: GameState, t: Tile, cell: number, target: Enemy)
     }
     case '沙僧': {
       // Chain-slash the weakest enemies in range; finish those below the execute line.
-      const r = tileRange(t, g.mods);
+      const r = slotRange(g, t, cell);
       const r2 = r * r;
       const weakest = g.enemies
         .filter((e) => e.hp > 0 && !e.gone && dist2(e, p.x, p.y) <= r2)

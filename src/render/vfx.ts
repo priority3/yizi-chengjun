@@ -272,6 +272,10 @@ export class Vfx {
         case 'invalid':
           this.shakes[e.cell] = 0.3;
           break;
+        case 'mode':
+          // The card bobs as it turns to its new 瞄准.
+          this.pops[e.cell] = 0.18;
+          break;
         case 'income': {
           const p = this.cell(e.cell);
           this.float(p.x, p.y - 20, `+${e.amount}`, COLORS.gold, 12);

@@ -1,13 +1,15 @@
 // A rule-based player for the balance simulation and tests (the game itself has no AI opponent).
-// It only uses the same actions a human can take.
+// It only uses the same actions a human can take, never puts a fighter in a 泥沼 and never switches 瞄准.
 import { unlockCost } from '../config/chapters.ts';
 import { heroFor } from '../config/combos.ts';
+import { SLOT_BONUS } from '../config/maps.ts';
 import { MAX_LEVEL, UNITS } from '../config/units.ts';
-import { canBeDivine, isStackable } from './board.ts';
+import { canBeDivine, canPlace, isStackable } from './board.ts';
 import { coverage } from './map.ts';
 import { rand, type RngHolder } from './rng.ts';
 import { currentRefreshCost, offerPrice } from './shop.ts';
-import { tileDps, tileRange } from './stats.ts';
+import { padRange, slotKindOf } from './slots.ts';
+import { tileDps } from './stats.ts';
 import type { Action, EncounterId, GameState, Tile, UnitId } from './types.ts';
 
 export interface BotKnobs {
@@ -29,10 +31,16 @@ export function tileValue(t: Tile): number {
   return 4;
 }
 
-/** How well a cell suits a tile: lane coverage for fighters, out-of-the-way cells for the rest. */
+/**
+ * How well a cell suits a tile: lane coverage for fighters (a 高台 reaches further, a 法阵 hits harder),
+ * out-of-the-way cells for the rest. Callers check canPlace first.
+ */
 function cellScore(g: GameState, cell: number, t: Tile): number {
   const kind = UNITS[t.id].kind;
-  if (kind === 'attack' || kind === 'hero') return coverage(g.map, cell, tileRange(t, g.mods));
+  if (kind === 'attack' || kind === 'hero') {
+    const pad = slotKindOf(g, cell);
+    return coverage(g.map, cell, padRange(t, pad, g.mods)) * SLOT_BONUS[pad].dmgMul;
+  }
   if (t.id === '速') {
     // 速 wants fighters within its reach.
     let n = 0;
@@ -53,10 +61,15 @@ function emptyCells(g: GameState): number[] {
   return out;
 }
 
+/** The empty cells a tile of `id` may stand on. */
+function emptyCellsFor(g: GameState, id: UnitId): number[] {
+  return emptyCells(g).filter((c) => canPlace(g, c, id));
+}
+
 function bestEmptyCell(g: GameState, t: Tile): number {
   let best = -1;
   let score = -Infinity;
-  for (const c of emptyCells(g)) {
+  for (const c of emptyCellsFor(g, t.id)) {
     const s = cellScore(g, c, t);
     if (s > score) {
       score = s;
@@ -79,7 +92,13 @@ function boardCombo(g: GameState): Action | null {
       const merge = a.id === b.id && a.level === b.level && isStackable(a.id) && a.level < MAX_LEVEL;
       if (hero || merge) {
         const result = hero ? asTile(hero) : { ...a, level: a.level + 1 };
-        return cellScore(g, i, result) >= cellScore(g, j, result) ? { t: 'drop', from: j, to: i } : { t: 'drop', from: i, to: j };
+        // The result lands on the cell dropped onto, which must hold it (a hero can't be born in a 泥沼).
+        const si = canPlace(g, i, result.id) ? cellScore(g, i, result) : -Infinity;
+        const sj = canPlace(g, j, result.id) ? cellScore(g, j, result) : -Infinity;
+        if (si > -Infinity || sj > -Infinity) return si >= sj ? { t: 'drop', from: j, to: i } : { t: 'drop', from: i, to: j };
+        // Both halves wait in a 泥沼: walk one out to a pad where the hero can stand, then awaken next time.
+        const out = bestEmptyCell(g, result);
+        if (out >= 0) return { t: 'drop', from: i, to: out };
       }
     }
   }
@@ -117,12 +136,16 @@ function bestPurchase(g: GameState): Action | null {
     for (let c = 0; c < g.slots.length; c++) {
       const t = g.slots[c];
       if (!t) continue;
+      const hero = heroFor(o.id, t.id);
       if (t.id === o.id && t.level === 1 && isStackable(o.id)) {
         cell = c;
         score = 100 + tileValue(card);
-      } else if (heroFor(o.id, t.id)) {
-        cell = c;
-        score = 130;
+      } else if (hero) {
+        // Bought onto its other half, the hero awakens right there: never in a 泥沼.
+        if (canPlace(g, c, hero)) {
+          cell = c;
+          score = 130;
+        }
       } else if (o.id === '神' && canBeDivine(t) && tileValue(t) > 20) {
         cell = c;
         score = 110;
@@ -144,13 +167,17 @@ function bestPurchase(g: GameState): Action | null {
   return p ? { t: 'buy', offer: p.offer, cell: p.cell } : null;
 }
 
-/** The locked slot that sees the most road, or -1 when everything is open. */
+/**
+ * The locked slot that sees the most road, or -1 when everything is open. A special pad is rated for a fighter
+ * on it (a 法阵 hits harder, a 高台 reaches further); a 泥沼, which can't hold one, comes after all the others.
+ */
 function bestLockedSlot(g: GameState): number {
   let best = -1;
-  let bestCov = -1;
+  let bestCov = -Infinity;
   g.unlocked.forEach((open, i) => {
     if (open) return;
-    const c = coverage(g.map, i, 180);
+    const pad = SLOT_BONUS[slotKindOf(g, i)];
+    const c = pad.fighters ? coverage(g.map, i, 180 + pad.range) * pad.dmgMul : coverage(g.map, i, 180) - 1;
     if (c > bestCov) {
       bestCov = c;
       best = i;
@@ -186,15 +213,20 @@ export function botBuildAction(g: GameState, knobs: BotKnobs, luck: RngHolder): 
   if (combo) return combo;
   const purchase = bestPurchase(g);
   if (purchase?.t === 'buy') {
-    const empties = emptyCells(g);
+    // Reason: only cells the card may stand on; on a map without 泥沼 that is every empty cell, as it always was.
+    const empties = emptyCellsFor(g, g.shop[purchase.offer].id);
     // A blunder = a careless placement, never skipping the shop entirely.
     if (!g.slots[purchase.cell] && empties.length > 1 && rand(luck) < knobs.mistake) {
       return { ...purchase, cell: empties[Math.floor(rand(luck) * empties.length)] };
     }
     return purchase;
   }
+  // Reason: an empty 泥沼 is no room for the fighters the bot mostly buys; a locked 泥沼 waits for a full camp.
+  // Without 泥沼 on the map this is the old rule: unlock once every cell is taken.
+  const empty = emptyCells(g);
   const locked = bestLockedSlot(g);
-  if (emptyCells(g).length === 0 && locked >= 0 && g.gongde >= unlockCost(g.unlockCount)) {
+  const wanted = locked >= 0 && (SLOT_BONUS[slotKindOf(g, locked)].fighters ? emptyCellsFor(g, '箭').length === 0 : empty.length === 0);
+  if (wanted && g.gongde >= unlockCost(g.unlockCount)) {
     return { t: 'unlock', cell: locked };
   }
   const reserve = boardDps(g) < dpsNeeded(g) ? 0 : 10;

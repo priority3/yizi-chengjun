@@ -3,12 +3,51 @@
 //   1-4  monster entrance (start of a road; one road per digit)
 //   #    road                        E   the camp (end of every road, exactly one)
 //   O    build slot, open at start   o   build slot, bought with 功德
+//   A/a  法阵 altar: a fighter on it deals more damage        (upper case open, lower case bought)
+//   H/h  高台 high ground: a fighter on it reaches further    (upper case open, lower case bought)
+//   M/m  泥沼 mire: fighters can't stand on it; supports, fragments and 神 can
 //   ~    water (lava on fire maps)   ^   rock      T   tree      .   plain ground
 //
 // Each character is one TILE x TILE square of world space. Roads must be simple corridors from each
 // entrance to E (no 2x2 road blocks, no crossings); corners get rounded automatically.
+// Special pads (A/H/M) go where they matter — corners, junctions — and stay at most a third of a map's pads.
 
 export type MapTheme = 'ridge' | 'wind' | 'plateau' | 'fire' | 'forest' | 'river' | 'web' | 'flame' | 'lion' | 'temple';
+
+/** What a build pad does to the card standing on it. */
+export type SlotKind = 'plain' | 'altar' | 'high' | 'mire';
+
+export interface SlotBonus {
+  /** Damage multiplier for a fighter (attack or hero card) standing on the pad. */
+  dmgMul: number;
+  /** Extra attack range in world px for a fighter standing on the pad. */
+  range: number;
+  /** Whether fighters may stand on the pad at all. */
+  fighters: boolean;
+}
+
+/** Bonuses of the special pads (B1). Balance lives here — tweak, then re-run `pnpm sim`. */
+export const SLOT_BONUS: Readonly<Record<SlotKind, SlotBonus>> = {
+  plain: { dmgMul: 1, range: 0, fighters: true },
+  altar: { dmgMul: 1.2, range: 0, fighters: true },
+  high: { dmgMul: 1, range: 30, fighters: true },
+  mire: { dmgMul: 1, range: 0, fighters: false },
+};
+
+/** Display name of each pad kind. */
+export const SLOT_NAME: Readonly<Record<SlotKind, string>> = { plain: '石台', altar: '法阵', high: '高台', mire: '泥沼' };
+
+/** The ASCII letters that make a build pad: its kind, and whether it is open from the start (upper case). */
+export const PAD_LETTERS: Readonly<Record<string, { kind: SlotKind; open: boolean }>> = {
+  O: { kind: 'plain', open: true },
+  o: { kind: 'plain', open: false },
+  A: { kind: 'altar', open: true },
+  a: { kind: 'altar', open: false },
+  H: { kind: 'high', open: true },
+  h: { kind: 'high', open: false },
+  M: { kind: 'mire', open: true },
+  m: { kind: 'mire', open: false },
+};
 
 export interface MapDef {
   theme: MapTheme;
@@ -38,9 +77,9 @@ export const MAPS: readonly MapDef[] = [
       '..o..O...#.o',
       '.T.......#T.',
       '..########..',
-      '..#.O....o..',
+      '..#.A....o..',
       '..#..^....T.',
-      '..#..o...O..',
+      '..#..h...O..',
       '..#####.TT..',
       '.O....#..o..',
       '..^...#.....',
@@ -54,11 +93,11 @@ export const MAPS: readonly MapDef[] = [
       '............',
       '.T...^.o.T..',
       '1#########..',
-      '.O...o...#.O',
+      '.O...a...#.O',
       '.........#..',
       '..########..',
       '..#.O...o...',
-      '..#......O..',
+      '..#......H..',
       '..########..',
       '.O.....o.#..',
       '.........#.T',
@@ -79,13 +118,13 @@ export const MAPS: readonly MapDef[] = [
       '#.o..^..o..#',
       '#..^.....^.#',
       '############',
-      '.O...#...O..',
+      '.A...#...O..',
       '..^..#..^...',
       '..####..o...',
       '..#.O.......',
       '..#..^..O...',
       '..########..',
-      '.o..^..o.#..',
+      '.o..^..h.#..',
       '.....#####..',
       '..O..#..O...',
       '.....E......',
@@ -104,10 +143,10 @@ export const MAPS: readonly MapDef[] = [
       '..#..~..#.#.',
       '..#.E##.#.#.',
       '..#...#.#.#.',
-      '..#.O.#.#.#.',
+      '..#.A.#.#.#.',
       '..#.~.#.#.#.',
       '..#...###.#.',
-      '..#.o...o.#.',
+      '..#.o...h.#.',
       '..#..o..~.#.',
       '..#########.',
       '.O...o..O~~.',
@@ -124,14 +163,14 @@ export const MAPS: readonly MapDef[] = [
       '.T..#....#..T.',
       '.O..#.^^.#..O.',
       '.T..#....#.T..',
-      '.o..######..o.',
+      '.m..######..m.',
       '......#..T....',
       '..O...#...O...',
       '..T...#.T.....',
       '..#####.......',
-      '..#..o...O.T..',
+      '..#..o...A.T..',
       '..#########...',
-      '.T..o....o#...',
+      '.T..h....o#...',
       '......#####...',
       '..O...#..O.T..',
       '......E.......',
@@ -143,7 +182,7 @@ export const MAPS: readonly MapDef[] = [
     rows: [
       '1#####..#####2',
       '.....#..#..T..',
-      '.O.o.#..#.o.O.',
+      '.O.a.#..#.o.O.',
       '.#####..#####.',
       '.#..T.....T.#.',
       '.#.O......O.#.',
@@ -152,11 +191,11 @@ export const MAPS: readonly MapDef[] = [
       '~~~~#~~~~#~~~~',
       '~~~~#~~~~#~~~~',
       '....######....',
-      '.O....#...O...',
+      '.M....#...H...',
       '..T...#....T..',
       '..o...####.o..',
       '.........#....',
-      '..O..#####.O..',
+      '..M..#####.O..',
       '.T...#..^.....',
       '.....E........',
     ],
@@ -168,7 +207,7 @@ export const MAPS: readonly MapDef[] = [
       '1.........2.',
       '#....T....#.',
       '###.O..O.###',
-      '..#.o..o.#..',
+      '..#.m..m.#..',
       '..#......#..',
       '###.O..O.###',
       '#..........#',
@@ -177,9 +216,9 @@ export const MAPS: readonly MapDef[] = [
       '..#.O..O.#..',
       '..#......#..',
       '..########..',
-      '.o...#....o.',
+      '.h...#....o.',
       '.....#......',
-      '..O..#..O...',
+      '..O..#..A...',
       '.....E......',
     ],
   },
@@ -188,15 +227,15 @@ export const MAPS: readonly MapDef[] = [
     hp: 1.6,
     rows: [
       '1############.',
-      '.T.O......~~#.',
+      '.T.M......~~#.',
       '......~.....#.',
-      '.o...O..o...#.',
+      '.m...O..o...#.',
       '.############.',
       '.#..~~......~~',
       '.#.O..O..o..~~',
       '.############.',
       '......~.....#.',
-      '..~~..o...O.#.',
+      '..~~..a...H.#.',
       '.############2',
       '.#..O..^..o...',
       '.#.......~~...',
@@ -220,14 +259,14 @@ export const MAPS: readonly MapDef[] = [
       '.O..#....#..O.',
       '....######....',
       '3####..#......',
-      '.o...O.#..o...',
+      '.m...O.#..o...',
       '.......#......',
-      '...o...#..O...',
+      '...o...#..H...',
       '....####......',
-      '..O.#....o....',
+      '..O.#....a....',
       '....#......O..',
       '....#####.....',
-      '........#..o..',
+      '........#..m..',
       '........E.....',
     ],
   },
@@ -240,18 +279,18 @@ export const MAPS: readonly MapDef[] = [
       '.#.O..^^..O.#.',
       '.############.',
       '......#.......',
-      '.o.O..#..O.o..',
+      '.o.M..#..O.o..',
       '..#####.......',
-      '..#...o..O....',
+      '..#...h..O....',
       '..#.O.........',
       '..##########..',
-      '....o....o.#..',
+      '....a....o.#..',
       '..O......O.#..',
       '....########..',
       '..o.#..O......',
       '....#.....o...',
       '....######....',
-      '..O......#.O..',
+      '..M......#.O..',
       '.........E....',
     ],
   },

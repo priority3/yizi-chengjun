@@ -8,6 +8,7 @@ import { act, createGame, step } from '../core/game.ts';
 import { slotAt } from '../core/map.ts';
 import { awardStars, starRating, type StarAward } from '../core/rating.ts';
 import { currentRefreshCost } from '../core/shop.ts';
+import { isFighter, slotKindOf } from '../core/slots.ts';
 import { buildMods, clearRewards, type ClearRewards } from '../core/treasures.ts';
 import type { Action, ActionResult, GameState, SimEvent, Tile } from '../core/types.ts';
 import { audio } from '../platform/audio.ts';
@@ -21,7 +22,7 @@ import { NUMERALS } from '../render/panels.ts';
 import { GameRenderer, type GameUi } from '../render/renderer.ts';
 import { Sfx } from '../render/sfx.ts';
 import { Vfx } from '../render/vfx.ts';
-import { describe } from './describe.ts';
+import { AIM_LABEL, describe } from './describe.ts';
 import { drawPause, drawResult, pausePanel, resultPanel, tapButtons, type OverlayButton, type ResultInfo } from './game-overlays.ts';
 import { Toasts } from './hud.ts';
 import type { Pointer } from './input.ts';
@@ -178,6 +179,7 @@ export class GameScene implements Scene {
       hoverValid: this.cards.hoverValid,
       selected: this.selected,
       hoverHint: this.cards.hoverHint,
+      hoverPad: this.cards.hoverPad,
       muted: this.nav.progress.sound.muted,
     };
   }
@@ -250,9 +252,21 @@ export class GameScene implements Scene {
       if (!g.unlocked[cell]) {
         this.doAct({ t: 'unlock', cell }, `功德不够：解锁这个石台要 ${unlockCost(g.unlockCount)}`);
       } else if (g.slots[cell]) {
+        const t = g.slots[cell] as Tile;
+        // Tapping the fighter that is still selected switches its 瞄准 (the 'mode' event toasts the new one).
+        if (cell === this.selected && isFighter(t.id)) {
+          this.selectedT = 2.5;
+          this.doAct({ t: 'mode', cell });
+          return;
+        }
         this.selected = cell;
         this.selectedT = 2.5;
-        this.toasts.push(describe(g.slots[cell] as Tile, g.mods));
+        this.toasts.push(describe(t, g.mods, slotKindOf(g, cell)));
+        // Once per run, say how to switch it.
+        if (isFighter(t.id) && !this.told.has('aim')) {
+          this.told.add('aim');
+          this.toasts.push('再点一下这张字，可以切换瞄准');
+        }
       }
     }
   }
@@ -337,6 +351,7 @@ export class GameScene implements Scene {
       else if (e.t === 'leak') this.tip('leak', '妖怪走到营地会伤到阵地：把火力摆在路的转弯处');
       else if (e.t === 'encounterOffer') this.tip('enc', '奇遇三选一：福缘立刻生效，劫难下一波生效但赏金更多');
       else if (e.t === 'hero') this.tip('rage', '英雄普攻十下攒满怒气，下一击就是大招');
+      else if (e.t === 'mode') this.toasts.push(`瞄准：${AIM_LABEL[e.mode]}`);
     }
   }
 

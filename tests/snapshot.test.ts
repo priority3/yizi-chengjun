@@ -5,6 +5,7 @@ import { MAPS, type MapDef } from '../src/config/maps.ts';
 import { botBuildAction, DEFAULT_BOT } from '../src/core/bot.ts';
 import { act, createGame, hashState, step } from '../src/core/game.ts';
 import { mixSeed, type RngHolder } from '../src/core/rng.ts';
+import { isFighter } from '../src/core/slots.ts';
 import { mapKey, restore, snapshot, SNAPSHOT_VERSION, type RunSnapshot, type SnapshotState } from '../src/core/snapshot.ts';
 import { defaultMods } from '../src/core/treasures.ts';
 import type { ActionResult, GameState, UnitId } from '../src/core/types.ts';
@@ -119,6 +120,18 @@ describe('snapshot round trip', () => {
     expect(s.state.unlocked[7]).toBe(false);
     expect(r.slots[1]?.level).toBe(2);
     expect(r.mods.unitDmgMul.火).toBe(1.5);
+  });
+
+  it('keeps each fighter\'s target priority (瞄准)', () => {
+    const g = createGame({ seed: 7, chapter: 2 });
+    const starter = g.slots.findIndex((t) => t !== null);
+    act(g, { t: 'mode', cell: starter });
+    act(g, { t: 'mode', cell: starter });
+    expect(g.slots[starter]?.target).toBe('weak');
+    const r = restore(viaJson(snapshot(g)));
+    expect(r?.slots[starter]?.target).toBe('weak');
+    expect(r && stateText(r)).toBe(stateText(g));
+    expect(r && hashState(r)).toBe(hashState(g));
   });
 });
 
@@ -258,5 +271,25 @@ describe('resumed runs play on identically', () => {
       expect(hopped.tick, `chapter ${chapter}`).toBe(plain.tick);
       expect(hashState(hopped), `chapter ${chapter}`).toBe(hashState(plain));
     }
+  });
+
+  it('plays on identically with switched target priorities on a map with special pads', () => {
+    const seed = 2024;
+    // Every build phase the first fighter on the board switches its 瞄准 once, before the bot shops.
+    const aim = (x: GameState): GameState => {
+      const cell = x.slots.findIndex((t) => t !== null && isFighter(t.id));
+      if (cell >= 0 && !x.encounter) act(x, { t: 'mode', cell });
+      return x;
+    };
+    const plain = play(createGame({ seed, chapter: 5 }), { rng: mixSeed(seed, 99) }, aim);
+    let resumes = 0;
+    const hopped = play(createGame({ seed, chapter: 5 }), { rng: mixSeed(seed, 99) }, (x) => {
+      resumes++;
+      return restore(viaJson(snapshot(aim(x))));
+    });
+    expect(resumes).toBeGreaterThan(1);
+    expect(plain.slots.some((t) => t?.target !== undefined)).toBe(true);
+    expect(hopped.tick).toBe(plain.tick);
+    expect(hashState(hopped)).toBe(hashState(plain));
   });
 });

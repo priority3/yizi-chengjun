@@ -6,8 +6,9 @@ import { DT } from './clock.ts';
 import { applySlow, applyStun, damage, dist2, knock } from './effects.ts';
 import type { Pt } from './map.ts';
 import { spawnMinions } from './monsters.ts';
-import { fxScale, tileDamage, tileInterval, tileRange } from './stats.ts';
-import type { Enemy, GameState, Projectile, Tile } from './types.ts';
+import { slotDamage, slotRange } from './slots.ts';
+import { fxScale, tileInterval } from './stats.ts';
+import type { Enemy, GameState, Projectile, TargetMode, Tile } from './types.ts';
 import { castUltimate, isUltimateReady, rageGain } from './ultimates.ts';
 
 // Reason: reused every step to avoid per-frame allocation; resized when a map has a different slot count.
@@ -30,19 +31,32 @@ export function computeHaste(g: GameState): Float64Array {
   return haste;
 }
 
-/** Living enemy in range that is furthest along its road, i.e. closest to the camp (ties -> lower uid). */
+/**
+ * How strongly a fighter aiming in `mode` wants `e`; the lowest rank is shot. 'first' = the one furthest along its
+ * road, i.e. closest to the camp; 'strong' = the most HP left; 'weak' = the least.
+ */
+function targetRank(g: GameState, e: Enemy, mode: TargetMode): number {
+  if (mode === 'strong') return -e.hp;
+  if (mode === 'weak') return e.hp;
+  return g.map.paths[e.path].length - e.dist;
+}
+
+/** The living enemy in range a fighter shoots, chosen by its target priority (瞄准; ties -> lower uid). */
 export function findTarget(g: GameState, t: Tile, cell: number): Enemy | null {
   const p = g.map.slots[cell];
-  const r = tileRange(t, g.mods);
+  const r = slotRange(g, t, cell);
   const r2 = r * r;
+  const mode = t.target ?? 'first';
   let best: Enemy | null = null;
-  let bestRem = Infinity;
+  let bestRank = Infinity;
   for (const e of g.enemies) {
+    // Candidates: alive, still on the field and within reach.
     if (e.hp <= 0 || e.gone || dist2(e, p.x, p.y) > r2) continue;
-    const rem = g.map.paths[e.path].length - e.dist;
-    if (rem < bestRem || (rem === bestRem && best !== null && e.uid < best.uid)) {
+    // Ranking: the target priority picks among the candidates.
+    const rank = targetRank(g, e, mode);
+    if (rank < bestRank || (rank === bestRank && best !== null && e.uid < best.uid)) {
       best = e;
-      bestRem = rem;
+      bestRank = rank;
     }
   }
   return best;
@@ -56,7 +70,7 @@ function fireBeam(g: GameState, t: Tile, cell: number, p: Pt, target: Enemy, dmg
   const len = Math.hypot(target.x - p.x, target.y - p.y) || 1;
   const ux = (target.x - p.x) / len;
   const uy = (target.y - p.y) / len;
-  const reach = tileRange(t, g.mods) + 30;
+  const reach = slotRange(g, t, cell) + 30;
   const hits: Array<{ e: Enemy; along: number }> = [];
   for (const e of g.enemies) {
     if (e.hp <= 0 || e.gone) continue;
@@ -78,7 +92,7 @@ function fireBeam(g: GameState, t: Tile, cell: number, p: Pt, target: Enemy, dmg
 /** Fires one attack if a target exists. Returns false when there was nothing to shoot at. */
 function fire(g: GameState, t: Tile, cell: number): boolean {
   const def = UNITS[t.id];
-  const dmg = tileDamage(t, g.mods);
+  const dmg = slotDamage(g, t, cell);
   const p = g.map.slots[cell];
   if (def.kind === 'hero' && isUltimateReady(t)) {
     const target = findTarget(g, t, cell);
