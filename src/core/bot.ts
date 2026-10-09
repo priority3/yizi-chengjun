@@ -1,11 +1,13 @@
 // A rule-based player for the balance simulation and tests (the game itself has no AI opponent).
 // It only uses the same actions a human can take, never puts a fighter in a 泥沼 and never switches 瞄准.
+// In endless and daily runs it also plays a long game (see longGame); chapter runs never see that.
 import { unlockCost } from '../config/chapters.ts';
 import { heroFor } from '../config/combos.ts';
 import { SLOT_BONUS } from '../config/maps.ts';
 import { MAX_LEVEL, UNITS } from '../config/units.ts';
 import { canBeDivine, canPlace, isStackable } from './board.ts';
 import { coverage } from './map.ts';
+import { isOpenEnded } from './modes.ts';
 import { rand, type RngHolder } from './rng.ts';
 import { currentRefreshCost, offerPrice } from './shop.ts';
 import { padRange, slotKindOf } from './slots.ts';
@@ -202,6 +204,42 @@ const ENCOUNTER_PRIORITY: EncounterId[] = [
   '天降神字', '财神到', '观音赐福', '土地公摆摊', '宝箱', '妖风大作', '盗宝妖', '狼群来袭', '月圆之夜', '妖王亲临',
 ];
 
+/**
+ * The long game of endless and daily runs: from this much 功德 on, a bot whose board is full keeps one cell for
+ * building merges — it sells its weakest tile to free one, then refreshes (up to `refreshes` times per build phase)
+ * for copies of the level-1 card it bought there.
+ * Reason: otherwise a full board never changes again and 功德 piles up unspent (2000+ by wave 10), so the bot
+ * stalled a couple of waves after its board filled, whatever the endless numbers were — a measure of the bot's
+ * shopping rules rather than of the mode.
+ */
+const LONG_GAME = { gongde: 100, refreshes: 10 } as const;
+
+/** Whether the bot plays the long game: an endless or daily run, with 功德 to spare. */
+function longGame(g: GameState): boolean {
+  return isOpenEnded(g.mode) && g.gongde >= LONG_GAME.gongde;
+}
+
+/**
+ * Long game only, once no cell is left for a fighter and no level-1 fighter is waiting for a copy to merge with:
+ * the cell of the weakest tile, to sell for room (-1 when there is nothing to do). Heroes and 神 tiles are never sold.
+ */
+function cellToFree(g: GameState): number {
+  if (!longGame(g) || emptyCellsFor(g, '箭').length > 0) return -1;
+  if (g.slots.some((t) => t !== null && t.level === 1 && UNITS[t.id].kind === 'attack')) return -1;
+  let cell = -1;
+  let low = Infinity;
+  g.slots.forEach((t, i) => {
+    // A 泥沼 could not take the fighter that comes next anyway.
+    if (!t || t.divine || t.id === '神' || UNITS[t.id].kind === 'hero' || !canPlace(g, i, '箭')) return;
+    const v = tileValue(t, g.chapter);
+    if (v < low) {
+      low = v;
+      cell = i;
+    }
+  });
+  return cell;
+}
+
 /** Index of the pending encounter card the bot picks. */
 export function botChoice(g: GameState): number {
   let best = 0;
@@ -240,8 +278,13 @@ export function botBuildAction(g: GameState, knobs: BotKnobs, luck: RngHolder): 
   if (wanted && g.gongde >= unlockCost(g.unlockCount)) {
     return { t: 'unlock', cell: locked };
   }
+  const free = cellToFree(g);
+  if (free >= 0) return { t: 'drop', from: free, to: 'sell' };
   const reserve = boardDps(g) < dpsNeeded(g) ? 0 : 10;
-  if (!purchase && g.refreshes < knobs.maxRefreshes && g.gongde >= currentRefreshCost(g) + reserve && emptyCells(g).length > 0) {
+  // Reason: in a chapter run (never the long game) these are exactly the old limits: knobs.maxRefreshes, and an empty cell.
+  const long = longGame(g);
+  const maxRefreshes = long ? LONG_GAME.refreshes : knobs.maxRefreshes;
+  if (!purchase && g.refreshes < maxRefreshes && g.gongde >= currentRefreshCost(g) + reserve && (long || emptyCells(g).length > 0)) {
     return { t: 'refresh' };
   }
   return { t: 'start' };

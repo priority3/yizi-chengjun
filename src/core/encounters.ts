@@ -4,6 +4,7 @@ import { CHAPTERS } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
 import { UNITS } from '../config/units.ts';
 import { canPlace, makeTile } from './board.ts';
+import { UNLIMITED } from './modes.ts';
 import { rand } from './rng.ts';
 import { rollOffer } from './shop.ts';
 import type { ActionResult, EncounterId, GameState, UnitId, WaveMods } from './types.ts';
@@ -50,9 +51,9 @@ export function modsLabel(m: WaveMods): string {
   return parts.join(' · ');
 }
 
-/** Encounters open after every second cleared wave, never right before the boss wave is over. */
+/** Encounters open after every second cleared wave, never once a chapter's last wave is cleared (endless runs have none). */
 export function encounterDue(clearedWave: number, totalWaves: number): boolean {
-  return clearedWave % 2 === 0 && clearedWave < totalWaves;
+  return clearedWave % 2 === 0 && (totalWaves === UNLIMITED || clearedWave < totalWaves);
 }
 
 function emptyCells(g: GameState): number[] {

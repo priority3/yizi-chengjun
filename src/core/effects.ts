@@ -2,6 +2,7 @@
 import { ENEMIES } from '../config/enemies.ts';
 import { SLOW_CAP, UNITS } from '../config/units.ts';
 import { pathPoint } from './map.ts';
+import { enraged } from './modes.ts';
 import { routeOf } from './monsters.ts';
 import type { Enemy, GameState, UnitId } from './types.ts';
 
@@ -17,9 +18,12 @@ export function damage(g: GameState, e: Enemy, amount: number, unit: UnitId): vo
   g.events.push({ t: 'hit', uid: e.uid, x: e.x, y: e.y, unit, dmg: dealt });
 }
 
-/** Pushes an enemy back along its road. Bosses are too heavy to move; elites move half as far; flyers can't be pushed. */
+/**
+ * Pushes an enemy back along its road. Bosses are too heavy to move; elites move half as far; flyers can't be pushed;
+ * nor can a berserk endless wave (enraged).
+ */
 export function knock(g: GameState, e: Enemy, px: number): void {
-  if (px <= 0 || ENEMIES[e.def].boss || e.air) return;
+  if (px <= 0 || ENEMIES[e.def].boss || e.air || enraged(g)) return;
   const push = ENEMIES[e.def].elite ? px / 2 : px;
   e.dist = Math.max(0, e.dist - push);
   const p = pathPoint(routeOf(g, e), e.dist, e.side);

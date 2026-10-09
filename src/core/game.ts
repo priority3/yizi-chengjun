@@ -1,43 +1,53 @@
-// A chapter run: build phase (shop open, maybe an encounter to pick) <-> battle phase (a wave attacks)
-// until the boss falls or the camp does.
+// A run: build phase (shop open, maybe an encounter to pick) <-> battle phase (a wave attacks) until a chapter's boss
+// falls or the camp does. Endless and daily runs have no last wave: only the camp falling ends them.
 import { CAMP_HP, CHAPTERS, FIRST_SHOP_ATTACKERS, startGongde, waveBonus } from '../config/chapters.ts';
-import { MAPS, type MapDef } from '../config/maps.ts';
+import { ENDLESS_CHAPTER } from '../config/endless.ts';
+import type { MapDef } from '../config/maps.ts';
 import { cycleTarget, makeTile, resolveDrop, TARGET_MODES } from './board.ts';
 import { DT } from './clock.ts';
 import { stepCombat } from './combat.ts';
 import { chooseEncounter, defaultWaveMods, encounterDue, modsLabel, offerEncounter, openChest } from './encounters.ts';
 import { bestOpenSlot, buildMap } from './map.ts';
+import { enraged, enragedNow, isOpenEnded, modeMap, UNLIMITED } from './modes.ts';
 import { makeEnemy, moveEnemies } from './monsters.ts';
 import { mixSeed } from './rng.ts';
 import { buy, refresh, restock, unlock } from './shop.ts';
 import { defaultMods } from './treasures.ts';
 import { buildWave } from './waves.ts';
-import type { Action, ActionResult, GameState, RunMods } from './types.ts';
+import type { Action, ActionResult, GameMode, GameState, RunMods } from './types.ts';
 
 export interface GameOptions {
   seed: number;
+  /** The chapter to play; endless and daily runs always play by chapter 10's rules, whatever is passed here. */
   chapter: number;
-  /** 法宝 effects; defaults to none. */
+  /** 法宝 effects; defaults to none. The daily challenge never takes any, so everyone plays it on equal terms. */
   mods?: RunMods;
-  /** Map override (tests); defaults to the chapter's map. */
+  /** Map override (tests); defaults to the mode's map (see modeMap). */
   map?: MapDef;
+  /** 'chapter' (the default), 'endless', or 'daily' (then `seed` is the day, YYYYMMDD, which also picks the map). */
+  mode?: GameMode;
 }
 
 export function createGame(opts: GameOptions): GameState {
-  const ch = CHAPTERS[opts.chapter - 1];
-  const mods = opts.mods ?? defaultMods();
+  const mode = opts.mode ?? 'chapter';
+  const open = isOpenEnded(mode);
+  // Reason: the open-ended runs read chapter 10 wherever a chapter is read (economy, air raids, 鹏雏, encounters).
+  const chapter = open ? ENDLESS_CHAPTER : opts.chapter;
+  const ch = CHAPTERS[chapter - 1];
+  const mods = mode === 'daily' ? defaultMods() : (opts.mods ?? defaultMods());
   const campMax = CAMP_HP + mods.campHpBonus;
-  const map = buildMap(opts.map ?? MAPS[opts.chapter - 1]);
+  const map = buildMap(opts.map ?? modeMap(mode, chapter, opts.seed));
   const g: GameState = {
     seed: opts.seed,
-    chapter: opts.chapter,
+    chapter,
+    mode,
     map,
     tick: 0,
     phase: 'build',
     wave: 0,
-    totalWaves: ch.waves,
+    totalWaves: open ? UNLIMITED : ch.waves,
     waveTime: 0,
-    gongde: startGongde(opts.chapter) + mods.startGongde,
+    gongde: startGongde(chapter) + mods.startGongde,
     campHp: campMax,
     campMax,
     unlocked: [...map.open],
@@ -105,7 +115,7 @@ export function act(g: GameState, a: Action): ActionResult {
 
 function endWave(g: GameState): void {
   g.projectiles.length = 0;
-  if (g.wave >= g.totalWaves) {
+  if (g.totalWaves !== UNLIMITED && g.wave >= g.totalWaves) {
     g.phase = 'won';
     g.events.push({ t: 'won' });
     return;
@@ -137,6 +147,15 @@ export function step(g: GameState): void {
   }
   moveEnemies(g);
   stepCombat(g);
+  // A berserk endless wave (enraged): whatever this tick's attacks stunned or slowed walks on next tick.
+  if (enraged(g)) {
+    if (enragedNow(g)) g.events.push({ t: 'enrage' });
+    for (const e of g.enemies) {
+      e.stunT = 0;
+      e.slowT = 0;
+      e.slowPct = 0;
+    }
+  }
   if (g.campHp <= 0) {
     g.phase = 'lost';
     g.events.push({ t: 'lost' });
@@ -155,6 +174,8 @@ export function hashState(g: GameState): number {
   const mixText = (s: string) => {
     for (const ch of s) mix(ch.charCodeAt(0));
   };
+  // Reason: only the open-ended modes are mixed in, so every chapter run keeps the hash it always had.
+  if (g.mode !== 'chapter') mixText(g.mode);
   mix(g.tick);
   mix(g.wave);
   mix(g.gongde);

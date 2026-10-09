@@ -330,6 +330,10 @@ export class Vfx {
         case 'waveClear':
           this.showBanner(`击退第 ${e.wave} 波`, `+${e.bonus} 功德 · 商店补货了`, '#aef0b8', null, 1.6);
           break;
+        case 'enrage':
+          this.showBanner('妖怪狂暴了！', '这一波拖得太久：眩晕、减速、击退都不管用了', '#ff8a5c', null, 2.4);
+          this.shake = Math.max(this.shake, BOSS_RUMBLE);
+          break;
         default:
           break;
       }

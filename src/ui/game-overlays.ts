@@ -2,6 +2,7 @@
 import { CHAPTERS } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
 import { MAX_STARS, THREE_STAR_PCT, type StarAward } from '../core/rating.ts';
+import type { EndlessAward } from '../core/records.ts';
 import { effectText, type ClearRewards } from '../core/treasures.ts';
 import type { GameState } from '../core/types.ts';
 import { roundRect, text } from '../render/draw.ts';
@@ -11,6 +12,7 @@ import { drawRatingStar } from '../render/rating-art.ts';
 import { drawSeal } from '../render/share-art.ts';
 import { drawStone, drawTreasureToken } from '../render/treasure-art.ts';
 import { drawButton, drawPanel } from '../render/widgets.ts';
+import { drawEndlessResult, ENDLESS_TOP } from './endless-result.ts';
 import type { Pointer } from './input.ts';
 import { isSharing } from './share-result.ts';
 
@@ -67,6 +69,10 @@ export interface ResultInfo {
   rewards: ClearRewards | null;
   /** The stars this clear earned and its three-star bonus (null after a loss). */
   award: StarAward | null;
+  /** What an ended endless or daily run earned; such a run gets its own panel (endless-result.ts). */
+  endless?: EndlessAward | null;
+  /** Buttons stacked on the panel; the endless panel grows with them (2 when not given). */
+  buttons?: number;
   /** Seconds since the panel appeared: the stars pop in one after another. */
   t: number;
 }
@@ -77,6 +83,7 @@ const LOST_H = 330;
 const BONUS_LINE = 22;
 
 export function resultPanel(info: ResultInfo): Rect {
+  if (info.endless) return panelRect(ENDLESS_TOP + (info.buttons ?? 2) * (BUTTON_H + BUTTON_GAP));
   if (info.g.phase !== 'won') return panelRect(LOST_H);
   return panelRect(WON_H + ((info.award?.bonus ?? 0) > 0 ? BONUS_LINE : 0));
 }
@@ -155,6 +162,15 @@ function drawRewards(ctx: CanvasRenderingContext2D, r: Rect, rw: ClearRewards, a
 }
 
 export function drawResult(ctx: CanvasRenderingContext2D, info: ResultInfo, buttons: readonly OverlayButton[]): void {
+  if (info.endless) {
+    const panel = resultPanel(info);
+    drawPanel(ctx, panel);
+    drawEndlessResult(ctx, panel, info.g, info.endless, info.t);
+    // Reason: tapResult answers the seal's corner on every result panel, so it must be visible on this one too.
+    drawShareSeal(ctx, panel, info.t);
+    drawButtons(ctx, panel, buttons);
+    return;
+  }
   const { g, chapter, rewards } = info;
   const r = resultPanel(info);
   const ch = CHAPTERS[chapter - 1];

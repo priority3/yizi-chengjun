@@ -30,7 +30,7 @@ import {
   type ShareInfo,
 } from '../src/render/share-card.ts';
 import { resultPanel, shareButtonRect, tapResult, type ResultInfo } from '../src/ui/game-overlays.ts';
-import { chapterShareInfo, loadoutOf, sampleShareInfo, shareDateText, shareText } from '../src/ui/share-result.ts';
+import { chapterShareInfo, loadoutOf, modeShareInfo, runShareInfo, sampleShareInfo, shareDateText, shareText } from '../src/ui/share-result.ts';
 
 /** The evening of 8 October 2026, local time. */
 const DAY = new Date(2026, 9, 8, 21, 30);
@@ -171,6 +171,43 @@ function movedBy(id: TreasureId, tier: number): string[] {
     .filter((kv) => !before.has(kv))
     .map((kv) => kv.split('=')[0]);
 }
+
+describe('share card data from an endless or daily run', () => {
+  /** An open-ended run whose camp fell during wave 13 (12 waves survived). */
+  function fell(mode: 'endless' | 'daily', seed: number, mods?: RunMods) {
+    const g = createGame({ seed, chapter: 1, mode, mods });
+    g.phase = 'lost';
+    g.wave = 13;
+    g.kills = 240;
+    g.campHp = -3;
+    return g;
+  }
+
+  it('counts the waves survived, with no last wave and no stars', () => {
+    const info = modeShareInfo(fell('endless', 7, buildMods(vaultWith([['金刚琢', 2]]))), DAY);
+    expect(info).toMatchObject({ mode: 'endless', title: '无尽模式', subtitle: '小雷音寺地图', map: 10, won: false, waves: 12, campHp: 0, kills: 240 });
+    expect(info.totalWaves).toBeUndefined();
+    expect(info.stars).toBeUndefined();
+    expect(info.chapter).toBeUndefined();
+    expect(info.treasures).toEqual([{ id: '金刚琢', tier: 2 }]);
+    expect(shareHeadline(info)).toBe('撑过第 12 波');
+    expect(shareText(info, '')).toBe('《字斗西游》无尽模式：撑过第 12 波，击杀 240 只妖怪！');
+  });
+
+  it('names the day and its map for a daily run, which plays without 法宝', () => {
+    // 20261009 ends in 9: the tenth map (小雷音寺); 20261003 ends in 3: the fourth (火云洞).
+    const info = modeShareInfo(fell('daily', 20261009, buildMods(vaultWith([['金刚琢', 2]]))), DAY);
+    expect(info).toMatchObject({ mode: 'daily', title: '每日挑战 · 10月9日', subtitle: '小雷音寺地图', map: 10, waves: 12 });
+    expect(info.treasures).toEqual([]);
+    expect(modeShareInfo(fell('daily', 20261003), DAY)).toMatchObject({ map: 4, subtitle: '火云洞地图', title: '每日挑战 · 10月3日' });
+  });
+
+  it('is what runShareInfo picks for those runs, and chapter runs keep their own card', () => {
+    const daily = fell('daily', 20261009);
+    expect(runShareInfo(daily, DAY)).toEqual(modeShareInfo(daily, DAY));
+    expect(runShareInfo(wonRun(), DAY)).toEqual(chapterShareInfo(wonRun(), DAY));
+  });
+});
 
 describe('the 法宝 a run was played with', () => {
   it('reads every loadout of up to three 法宝, at any tiers, back from the run modifiers', () => {

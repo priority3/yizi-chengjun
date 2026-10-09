@@ -1,8 +1,9 @@
-// 局中存档: keeps the unfinished chapter (a build-phase snapshot plus where the camera was) in localStorage, so a
-// refresh or a killed tab resumes it. Separate from the progress save in web.ts. Nothing here ever throws:
-// a missing, blocked, corrupt or outdated save simply means "no save".
+// 局中存档: keeps the unfinished run (a build-phase snapshot plus where the camera was) in localStorage, so a
+// refresh or a killed tab resumes it — a chapter, an endless run, or today's daily challenge. Separate from the
+// progress save in web.ts. Nothing here ever throws: a missing, blocked, corrupt or outdated save simply means "no save".
 import { restore, snapshot, type RunSnapshot } from '../core/snapshot.ts';
-import type { GameState } from '../core/types.ts';
+import type { GameMode, GameState } from '../core/types.ts';
+import { todayKey } from './today.ts';
 
 export const RUN_KEY = 'zdxy:run';
 
@@ -30,6 +31,9 @@ export interface SavedRun {
 export interface RunInfo {
   chapter: number;
   wave: number;
+  mode: GameMode;
+  /** The daily challenge's day (YYYYMMDD); 0 for other runs. */
+  day: number;
 }
 
 /** The JSON stored under RUN_KEY. */
@@ -65,8 +69,11 @@ export function saveRun(g: GameState, camera: CameraPos, store: RunStorage | nul
   }
 }
 
-/** The saved run, rebuilt and checked against this build (see core/snapshot.ts restore), or null. */
-export function loadRun(store: RunStorage | null = browserStorage()): SavedRun | null {
+/**
+ * The saved run, rebuilt and checked against this build (see core/snapshot.ts restore), or null. A daily challenge
+ * saved on another day than `today` (YYYYMMDD) is out of date: it is deleted, and there is no save.
+ */
+export function loadRun(store: RunStorage | null = browserStorage(), today = todayKey()): SavedRun | null {
   try {
     const raw = store?.getItem(RUN_KEY);
     if (!raw) return null;
@@ -74,6 +81,10 @@ export function loadRun(store: RunStorage | null = browserStorage()): SavedRun |
     const cam = data?.camera;
     if (!data?.snapshot || !cam || !finite(cam.x) || !finite(cam.y) || !finite(cam.zoom) || cam.zoom <= 0) return null;
     const g = restore(data.snapshot);
+    if (g?.mode === 'daily' && g.seed !== today) {
+      clearRun(store);
+      return null;
+    }
     return g ? { g, camera: { x: cam.x, y: cam.y, zoom: cam.zoom } } : null;
   } catch {
     return null;
@@ -81,13 +92,15 @@ export function loadRun(store: RunStorage | null = browserStorage()): SavedRun |
 }
 
 /**
- * Chapter and next wave of the saved run, for menu buttons, or null.
+ * Chapter (or mode) and next wave of the saved run, for menu buttons, or null.
  * Reason: validated exactly like loadRun (one parse and map rebuild), so a menu never offers a run that then
  * fails to load; screens read it once when they open, not every frame.
  */
-export function peekRun(store: RunStorage | null = browserStorage()): RunInfo | null {
-  const run = loadRun(store);
-  return run ? { chapter: run.g.chapter, wave: run.g.wave + 1 } : null;
+export function peekRun(store: RunStorage | null = browserStorage(), today = todayKey()): RunInfo | null {
+  const run = loadRun(store, today);
+  if (!run) return null;
+  const { chapter, wave, mode, seed } = run.g;
+  return { chapter, wave: wave + 1, mode, day: mode === 'daily' ? seed : 0 };
 }
 
 /** Forgets the saved run (it ended, or the player started over). */

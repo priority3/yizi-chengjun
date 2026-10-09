@@ -1,12 +1,16 @@
 // Headless chapter runs played by the bot; shared by the balance tests and `pnpm sim`.
 // One loop (playChapter) serves both plain runs (runChapter) and per-wave traces (sim-trace.ts) through an optional observer.
+// Endless runs (runEndless) use the same loop, stopped by the camp falling or a cap on the waves survived.
+import { ENDLESS_CHAPTER, MAX_SIM_WAVES } from '../config/endless.ts';
 import { botBuildAction, DEFAULT_BOT, type BotKnobs } from './bot.ts';
 import { act, createGame, hashState, step } from './game.ts';
 import { mixSeed } from './rng.ts';
-import type { Action, ActionResult, GameState, RunMods, SimEvent } from './types.ts';
+import type { Action, ActionResult, GameMode, GameState, RunMods, SimEvent } from './types.ts';
 
 /** 20 simulated minutes; every chapter must end well before this. */
 export const MAX_SIM_TICKS = 20 * 60 * 60;
+/** Ten times that for an endless run, a safety net against a run that can neither win nor lose (never reached so far). */
+export const MAX_ENDLESS_TICKS = 10 * MAX_SIM_TICKS;
 /** Safety cap on bot actions per build phase. */
 const MAX_BUILD_ACTIONS = 60;
 
@@ -23,6 +27,10 @@ export interface SimOptions {
   /** 法宝 effects to play with (none by default). */
   mods?: RunMods;
   maxTicks?: number;
+  /** 'chapter' by default; endless and daily runs play chapter 10's rules whatever the chapter (see createGame). */
+  mode?: GameMode;
+  /** Stop in the build phase once this many waves are cleared (endless runs have no last wave); no cap by default. */
+  maxWaves?: number;
 }
 
 /**
@@ -52,15 +60,16 @@ function observedAct(g: GameState, a: Action, observer: RunObserver | undefined)
 export function playChapter(seed: number, chapter: number, opts: SimOptions = {}, observer?: RunObserver): GameState {
   const knobs = opts.knobs ?? DEFAULT_BOT;
   const maxTicks = opts.maxTicks ?? MAX_SIM_TICKS;
-  const g = createGame({ seed, chapter, mods: opts.mods });
+  const maxWaves = opts.maxWaves ?? Infinity;
+  const g = createGame({ seed, chapter, mods: opts.mods, mode: opts.mode });
   const luck = { rng: mixSeed(seed, 99) };
-  while (g.phase !== 'won' && g.phase !== 'lost' && g.tick < maxTicks) {
+  while (g.phase !== 'won' && g.phase !== 'lost' && g.tick < maxTicks && !(g.phase === 'build' && g.wave >= maxWaves)) {
     if (g.phase === 'build') {
       for (let k = 0; k < MAX_BUILD_ACTIONS && g.phase === 'build'; k++) {
         const a = botBuildAction(g, knobs, luck);
         const r = observedAct(g, a, observer);
-        // Reason: a rejected action would be chosen again forever; start the wave instead.
-        if (a.t !== 'start' && r !== 'ok' && r !== 'merge' && r !== 'hero' && r !== 'divine' && r !== 'move' && r !== 'swap') break;
+        // Reason: a rejected action would be chosen again forever; start the wave instead. (Only the endless long game sells.)
+        if (a.t !== 'start' && r !== 'ok' && r !== 'merge' && r !== 'hero' && r !== 'divine' && r !== 'move' && r !== 'swap' && r !== 'sold') break;
       }
       // An unanswered encounter would block 'start'; the bot always answers it first, so this only
       // fires when the action cap was hit mid-shopping.
@@ -75,12 +84,23 @@ export function playChapter(seed: number, chapter: number, opts: SimOptions = {}
   return g;
 }
 
-/** The result of a finished (or time-capped) run. */
+/** The result of a finished (or capped) run. */
 export function summarize(g: GameState): RunResult {
-  const cleared = g.phase === 'won' ? g.wave : g.wave - 1;
+  // Reason: in the build phase `wave` already counts cleared waves (a run stopped by maxWaves stops there).
+  const cleared = g.phase === 'won' || g.phase === 'build' ? g.wave : g.wave - 1;
   return { won: g.phase === 'won', wavesCleared: Math.max(0, cleared), campHp: g.campHp, ticks: g.tick, hash: hashState(g) };
 }
 
 export function runChapter(seed: number, chapter: number, opts: SimOptions = {}): RunResult {
   return summarize(playChapter(seed, chapter, opts));
+}
+
+/** Options of an endless bot run: capped at MAX_SIM_WAVES waves survived and MAX_ENDLESS_TICKS unless `opts` says otherwise. */
+export function endlessOptions(opts: SimOptions = {}): SimOptions {
+  return { maxTicks: MAX_ENDLESS_TICKS, maxWaves: MAX_SIM_WAVES, ...opts, mode: 'endless' };
+}
+
+/** An endless run played by the bot until the camp falls (or the caps stop it); `wavesCleared` is the waves it survived. */
+export function runEndless(seed: number, opts: SimOptions = {}): RunResult {
+  return summarize(playChapter(seed, ENDLESS_CHAPTER, endlessOptions(opts)));
 }

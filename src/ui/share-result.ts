@@ -1,11 +1,14 @@
-// 分享战报: what the result card shows for a chapter run (pure, built from the run's state), and the tap that paints
-// the card once and hands it to the share sheet or the save-image overlay. Endless and daily runs build their own
-// ShareInfo next to chapterShareInfo; the card and the share flow work from ShareInfo alone.
+// 分享战报: what the result card shows for a run (pure, built from the run's state: chapterShareInfo, modeShareInfo
+// for endless and daily runs), and the tap that paints the card once and hands it to the share sheet or the
+// save-image overlay. The card and the share flow work from ShareInfo alone.
 import { CHAPTERS } from '../config/chapters.ts';
+import { ENDLESS_CHAPTER } from '../config/endless.ts';
 import { ENEMIES } from '../config/enemies.ts';
 import { MAX_TIER, TREASURE_IDS, TREASURES } from '../config/treasures.ts';
 import { createGame } from '../core/game.ts';
+import { dailyMapIndex, dayLabel } from '../core/modes.ts';
 import { starRating } from '../core/rating.ts';
+import { wavesSurvived } from '../core/records.ts';
 import { buildMods, defaultMods, effectValue, type Vault } from '../core/treasures.ts';
 import type { GameState, RunMods } from '../core/types.ts';
 import { shareImage, showShareOverlay, type ShareOutcome } from '../platform/share.ts';
@@ -41,6 +44,34 @@ export function chapterShareInfo(g: GameState, now: Date): ShareInfo {
   };
   if (won) info.stars = starRating(g.campHp, g.campMax);
   return info;
+}
+
+/**
+ * The card of an endless or daily run: no last wave and no stars; it counts the waves survived. Pure: `now` only
+ * dates the card. Reason: a daily run's seed is its day (YYYYMMDD), which also picks the day's map; endless plays
+ * chapter 10's map.
+ */
+export function modeShareInfo(g: GameState, now: Date): ShareInfo {
+  const daily = g.mode === 'daily';
+  const map = daily ? dailyMapIndex(g.seed) + 1 : ENDLESS_CHAPTER;
+  return {
+    mode: daily ? 'daily' : 'endless',
+    title: daily ? `每日挑战 · ${dayLabel(g.seed)}` : '无尽模式',
+    subtitle: `${CHAPTERS[map - 1].name}地图`,
+    map,
+    won: false,
+    waves: wavesSurvived(g),
+    campHp: Math.max(0, Math.ceil(g.campHp)),
+    campMax: g.campMax,
+    kills: g.kills,
+    treasures: loadoutOf(g.mods),
+    dateText: shareDateText(now),
+  };
+}
+
+/** The card of any run: a chapter's, or an endless or daily run's. */
+export function runShareInfo(g: GameState, now: Date): ShareInfo {
+  return g.mode === 'chapter' ? chapterShareInfo(g, now) : modeShareInfo(g, now);
 }
 
 /**

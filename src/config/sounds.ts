@@ -328,6 +328,9 @@ export function soundFor(e: SimEvent): SoundId | null {
       return 'steal';
     case 'waveStart':
       return e.boss ? 'bossWave' : 'waveStart';
+    // A berserk endless wave sounds the alarm of a boss entrance.
+    case 'enrage':
+      return 'bossWave';
     case 'waveClear':
       return 'waveClear';
     case 'won':

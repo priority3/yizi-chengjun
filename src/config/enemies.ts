@@ -4,6 +4,8 @@ import type { BossTrait, EnemyDef } from '../core/types.ts';
 export const BASE_HP = 24;
 /** Per-wave speed growth (HP growth is per chapter, see chapters.ts). */
 export const SPEED_GROWTH = 0.015;
+/** Most speed the waves gain in total (+60 %, from wave 41): only endless and daily runs ever get that far. */
+export const SPEED_GROWTH_CAP = 0.6;
 
 interface Stats {
   hpK: number;

@@ -6,6 +6,10 @@ import type { Action, EncounterId, GameState, SimEvent, UnitId } from './types.t
 export interface WaveTrace {
   /** 1-based wave number. */
   wave: number;
+  /** The boss ending the wave (a chapter's last wave, every 5th wave of an endless run), else null. */
+  boss: string | null;
+  /** The elite 魔将 ends the wave. */
+  elite: boolean;
   /** Monsters that entered the field during the wave, summons and split-offs included. */
   spawned: number;
   killed: number;
@@ -55,8 +59,9 @@ function waveRecorder(): { observer: RunObserver; waves: WaveTrace[] } {
   /** "买 火 " when the action was a purchase (it cost 功德), '' for a drag on the board. */
   const via = (g: GameState, a: Action): string => (a.t === 'buy' ? `买 ${g.shop[a.offer]?.id} ` : '');
 
-  const startWave = (g: GameState, wave: number) => {
-    cur = { wave, spawned: 0, killed: 0, leaked: 0, stolen: 0, campHpAfter: g.campHp, gongdeBefore: g.gongde, gongdeAfter: g.gongde, bought, encounter };
+  const startWave = (g: GameState, e: EventOf<'waveStart'>) => {
+    const { wave, boss, elite } = e;
+    cur = { wave, boss, elite, spawned: 0, killed: 0, leaked: 0, stolen: 0, campHpAfter: g.campHp, gongdeBefore: g.gongde, gongdeAfter: g.gongde, bought, encounter };
     waves.push(cur);
     bought = [];
     encounter = undefined;
@@ -85,7 +90,7 @@ function waveRecorder(): { observer: RunObserver; waves: WaveTrace[] } {
         else if (e.t === 'unlock') bought.push(`解锁 ${slotName(e.cell)}`);
         else if (e.t === 'refresh') bought.push('刷新');
         // 功德 is read here, after the whole build phase: 'start' is always the bot's last action before a wave.
-        else if (e.t === 'waveStart') startWave(g, e.wave);
+        else if (e.t === 'waveStart') startWave(g, e);
       }
     },
     tick(g) {
@@ -116,7 +121,7 @@ function waveRecorder(): { observer: RunObserver; waves: WaveTrace[] } {
   return { observer, waves };
 }
 
-/** Plays the same run as runChapter(seed, chapter, opts) and reports it wave by wave. */
+/** Plays the same run as runChapter(seed, chapter, opts) (an endless one with endlessOptions) and reports it wave by wave. */
 export function traceChapter(seed: number, chapter: number, opts: SimOptions = {}): ChapterTrace {
   const rec = waveRecorder();
   const g = playChapter(seed, chapter, opts, rec.observer);

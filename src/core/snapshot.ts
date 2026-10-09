@@ -1,15 +1,18 @@
 // Run snapshots (局中存档): a build-phase GameState minus its map (rebuilt from config) and the per-step
-// events, as plain JSON-safe data, so an unfinished chapter can be resumed exactly where it stood.
+// events, as plain JSON-safe data, so an unfinished run (a chapter, endless or the daily challenge) can be resumed
+// exactly where it stood.
 // Pure and DOM-free; platform/save.ts decides where the JSON is kept.
 import { CHAPTERS } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
-import { MAPS, type MapDef } from '../config/maps.ts';
+import { ENDLESS_CHAPTER } from '../config/endless.ts';
+import type { MapDef } from '../config/maps.ts';
 import { MAX_LEVEL, UNITS } from '../config/units.ts';
 import { TARGET_MODES } from './board.ts';
 import { ENCOUNTERS } from './encounters.ts';
 import { buildMap } from './map.ts';
+import { isOpenEnded, modeMap, MODES, UNLIMITED } from './modes.ts';
 import { padAllows } from './slots.ts';
-import type { GameState, RunMods, ShopOffer, Tile, WaveMods } from './types.ts';
+import type { GameMode, GameState, RunMods, ShopOffer, Tile, WaveMods } from './types.ts';
 
 /**
  * Format of RunSnapshot. Bump it when a saved field changes meaning, so older saves are dropped instead of
@@ -100,6 +103,8 @@ const runMods = shape<RunMods>({
 const STATE: Checks<SnapshotState> = {
   seed: num,
   chapter: intIn(1, CHAPTERS.length),
+  // Saves from before the modes existed have none: they were all chapter runs (see restore).
+  mode: (x) => x === undefined || MODES.some((m) => m === x),
   tick: count,
   phase: (x) => x === 'build',
   wave: count,
@@ -145,29 +150,39 @@ function copyState(src: object): SnapshotState {
 
 /**
  * The run as JSON-safe data, or null outside the build phase: battles are never saved, so a resumed run always
- * restarts the current wave's build phase. `def` is the layout the run was created with (the chapter's map by default).
+ * restarts the current wave's build phase. `def` is the layout the run was created with (the mode's map by default).
  */
-export function snapshot(g: GameState, def: MapDef = MAPS[g.chapter - 1]): RunSnapshot | null {
+export function snapshot(g: GameState, def: MapDef = modeMap(g.mode, g.chapter, g.seed)): RunSnapshot | null {
   if (g.phase !== 'build') return null;
   return { v: SNAPSHOT_VERSION, mapKey: mapKey(def), state: copyState(g) };
 }
 
 /**
- * Rebuilds a run from a snapshot (usually parsed back from storage); `def` overrides the chapter's map (tests).
+ * Whether the wave counters fit the mode. Reason: in the build phase `wave` counts cleared waves, so a chapter run is
+ * always short of its total (clearing the last one wins); an endless or daily run has no total and plays chapter 10.
+ */
+function wavesFit(mode: GameMode, s: SnapshotState): boolean {
+  if (isOpenEnded(mode)) return s.totalWaves === UNLIMITED && s.chapter === ENDLESS_CHAPTER;
+  return s.wave < s.totalWaves;
+}
+
+/**
+ * Rebuilds a run from a snapshot (usually parsed back from storage); `def` overrides the mode's map (tests).
  * Returns null when the snapshot doesn't fit this build: another version, another map layout, a bad field.
  */
 export function restore(s: RunSnapshot, def?: MapDef): GameState | null {
   const raw: unknown = s;
   if (!isObj(raw) || raw.v !== SNAPSHOT_VERSION || !isObj(raw.state)) return null;
   const st = raw.state;
-  if (!STATE.chapter(st.chapter)) return null;
-  const layout = def ?? MAPS[(st.chapter as number) - 1];
+  // The map depends on these three (the daily challenge's seed is its day), so they are checked first.
+  if (!STATE.chapter(st.chapter) || !STATE.mode(st.mode) || !STATE.seed(st.seed)) return null;
+  const mode = (st.mode ?? 'chapter') as GameMode;
+  const layout = def ?? modeMap(mode, st.chapter as number, st.seed as number);
   if (raw.mapKey !== mapKey(layout) || !STATE_KEYS.every((k) => STATE[k](st[k]))) return null;
-  const state = copyState(st);
+  const state: SnapshotState = { ...copyState(st), mode };
   const map = buildMap(layout);
   const cells = map.slots.length;
-  // Reason: in the build phase `wave` counts cleared waves, so it is always below the total (clearing the last one wins).
-  if (state.slots.length !== cells || state.unlocked.length !== cells || state.wave >= state.totalWaves) return null;
+  if (state.slots.length !== cells || state.unlocked.length !== cells || !wavesFit(mode, state)) return null;
   // No fighter can have been standing in a 泥沼.
   if (state.slots.some((t, i) => t !== null && !padAllows(map.slotKind[i], t.id))) return null;
   return { ...state, map, events: [] };

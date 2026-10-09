@@ -1,8 +1,13 @@
 // Scene manager plus the title screen and the chapter select screen.
 import { CHAPTERS } from '../config/chapters.ts';
+import { ENDLESS, ENDLESS_CHAPTER } from '../config/endless.ts';
+import { dailyMapIndex, dayLabel } from '../core/modes.ts';
 import { STAR_BONUS, THREE_STAR_PCT, TWO_STAR_PCT } from '../core/rating.ts';
+import { dailyBest } from '../core/records.ts';
+import type { GameMode } from '../core/types.ts';
 import { applyPwaUpdate, pwaUpdateReady, pwaUpdating } from '../platform/pwa.ts';
 import { clearRun, loadRun, peekRun, type RunInfo } from '../platform/save.ts';
+import { todayKey } from '../platform/today.ts';
 import { loadProgress, saveProgress, type Progress, type Stage } from '../platform/web.ts';
 import { ChapterCards, thumbRect, type ChapterCard } from '../render/chapter-card.ts';
 import { fitPx, outlined, text } from '../render/draw.ts';
@@ -10,9 +15,11 @@ import { brush, sans } from '../render/fonts.ts';
 import { drawPortrait, type PortraitId } from '../render/heroes-art.ts';
 import { inRect, L, W, type Rect } from '../render/layout.ts';
 import { peekThumb, warmThumbs } from '../render/map-thumb.ts';
+import { drawModeCard, type ModeCard } from '../render/mode-card.ts';
 import { NUMERALS } from '../render/panels.ts';
 import { drawUpdateBanner, updateBannerHit } from '../render/update-banner.ts';
 import { BACK, backdrop, drawButton, drawPanel } from '../render/widgets.ts';
+import { chapterRect, entryRect } from './chapter-layout.ts';
 import { GameScene } from './game-scene.ts';
 import type { GestureHandlers, Pointer } from './input.ts';
 import { TreasureScene } from './treasure-scene.ts';
@@ -30,6 +37,10 @@ export interface Nav {
   chapters(): void;
   /** Starts a fresh run of `chapter`, discarding any saved unfinished run. */
   play(chapter: number): void;
+  /** Starts a fresh endless run (chapter 10's map and rules, no last wave), discarding any saved unfinished run. */
+  endless(): void;
+  /** Starts today's daily challenge (today's map and seed, no 法宝), discarding any saved unfinished run. */
+  daily(): void;
   /** Continues the saved unfinished run; false (and nothing changes) when there is no usable save. */
   resume(): boolean;
   /** The 法宝 (treasure) screen. */
@@ -62,6 +73,20 @@ export class SceneManager implements Nav {
     this.current = new GameScene(this.stage, chapter, this);
   }
 
+  endless(): void {
+    this.openRun('endless');
+  }
+
+  daily(): void {
+    this.openRun('daily');
+  }
+
+  /** A fresh endless or daily run (both play chapter 10's rules), replacing any unfinished one like play() does. */
+  private openRun(mode: GameMode): void {
+    clearRun();
+    this.current = new GameScene(this.stage, ENDLESS_CHAPTER, this, undefined, mode);
+  }
+
   resume(): boolean {
     const run = loadRun();
     if (!run) return false;
@@ -80,9 +105,10 @@ export class SceneManager implements Nav {
 
 const HEROES: PortraitId[] = ['悟空', '八戒', '沙僧', '白龙'];
 
-/** Where a saved run stands, e.g. 第三章 · 第 4 波. */
+/** Where a saved run stands, e.g. 第三章 · 第 4 波, 无尽 · 第 12 波, 每日挑战 · 第 7 波. */
 function runLabel(run: RunInfo): string {
-  return `第${NUMERALS[run.chapter - 1]}章 · 第 ${run.wave} 波`;
+  const where = run.mode === 'endless' ? '无尽' : run.mode === 'daily' ? '每日挑战' : `第${NUMERALS[run.chapter - 1]}章`;
+  return `${where} · 第 ${run.wave} 波`;
 }
 
 class TitleScene implements Scene {
@@ -169,20 +195,6 @@ const CHAPTER_IDS = CHAPTERS.map((c) => c.id);
 /** Seconds a freshly painted thumbnail takes to fade in over its placeholder. */
 const THUMB_FADE = 0.25;
 
-/**
- * Card `i` of the 2 x 5 grid.
- * Reason: 92 high at the shortest design height (the grid keeps its old size there) and up to 112 on tall phones,
- * so the map thumbnails get the room; the grid always ends above the two hint lines at the bottom.
- */
-function chapterRect(i: number): Rect {
-  const col = i % 2;
-  const row = Math.floor(i / 2);
-  const extra = Math.max(0, L.H - 640);
-  const h = Math.round(92 + extra * 0.125);
-  const top = Math.round(72 + extra * 0.2);
-  return { x: 14 + col * 172, y: top + row * (h + 10), w: 160, h };
-}
-
 /** The 有一局没打完 prompt, shown when a chapter is tapped while an unfinished run is saved. */
 function promptPanel(): Rect {
   return { x: 36, y: L.H / 2 - 139, w: W - 72, h: 278 };
@@ -197,10 +209,10 @@ function promptButtons(): Rect[] {
 class ChapterScene implements Scene {
   private readonly nav: Nav;
   private readonly stage: Stage;
-  /** The unfinished run a new chapter would overwrite, read once when the screen opens. */
+  /** The unfinished run a new one would overwrite, read once when the screen opens. */
   private run: RunInfo | null;
-  /** Chapter tapped while a run is saved: the prompt is open for it (0 = closed). */
-  private asking = 0;
+  /** The run tapped while one is saved, started if the prompt's 开新局 is chosen; null while the prompt is closed. */
+  private asking: (() => void) | null = null;
   /** Animation clock (seconds): thumbnail fade-in, placeholder sheen, the next chapter's glow. */
   private t = 0;
   /** When each thumbnail painted during this visit became ready (chapter -> t), for its fade-in. */
@@ -214,10 +226,16 @@ class ChapterScene implements Scene {
     this.run = peekRun();
   }
 
+  /** The row with the 每日挑战 and 无尽 entries shows once the daily challenge is open: from chapter 1's first clear. */
+  private entries(): boolean {
+    const { wins } = this.nav.progress;
+    return wins[0] > 0 || wins[ENDLESS_CHAPTER - 1] > 0;
+  }
+
   update(dt: number): void {
     this.t += dt;
     // Thumbnails still missing at the current size get painted a couple per frame; placeholders show meanwhile.
-    const tr = thumbRect(chapterRect(0));
+    const tr = thumbRect(chapterRect(0, this.entries()));
     for (const ch of warmThumbs(CHAPTER_IDS, tr.w, tr.h, this.stage.pixelRatio)) this.paintedAt.set(ch, this.t);
   }
 
@@ -227,10 +245,11 @@ class ChapterScene implements Scene {
     outlined(ctx, '选择章节', W / 2, 33, brush(26), '#ffd66b', 'rgba(40,14,4,0.9)', 4);
     const { unlocked, wins, stars, vault } = this.nav.progress;
     drawButton(ctx, TREASURES, '法宝', 'jade', `${vault.stones} 灵石`);
+    const entries = this.entries();
     // The first open chapter without a clear is the one to play next.
     const next = CHAPTER_IDS.find((id) => id <= unlocked && !(wins[id - 1] > 0)) ?? 0;
     const cards = CHAPTERS.map((ch, i) => {
-      const r = chapterRect(i);
+      const r = chapterRect(i, entries);
       const tr = thumbRect(r);
       const at = this.paintedAt.get(ch.id);
       const c: ChapterCard = {
@@ -246,9 +265,50 @@ class ChapterScene implements Scene {
       return { r, c };
     });
     this.cards.draw(ctx, cards);
+    if (entries) this.drawEntries(ctx);
     text(ctx, `通关时阵地血量剩 ${THREE_STAR_PCT}% 以上得三星，${TWO_STAR_PCT}% 以上得两星`, W / 2, L.H - 38, sans(10, 500), '#b9a585');
     text(ctx, `每章第一次拿到三星，额外奖励 ${STAR_BONUS} 灵石`, W / 2, L.H - 22, sans(10, 500), '#b9a585');
-    if (this.asking > 0 && this.run) this.drawPrompt(ctx, this.run);
+    if (this.asking && this.run) this.drawPrompt(ctx, this.run);
+  }
+
+  /**
+   * The 每日挑战 entry (today's date, map and best) and the 无尽 entry (locked until chapter 10 is cleared) under the grid.
+   * Reason: their thumbnails are the chapter cards' ones, scaled into the smaller box, since map-thumb.ts keeps one size
+   * per chapter: painting another size for the entries would repaint both every frame.
+   */
+  private drawEntries(ctx: CanvasRenderingContext2D): void {
+    const p = this.nav.progress;
+    const tr = thumbRect(chapterRect(0, true));
+    const thumb = (chapter: number) => peekThumb(chapter, tr.w, tr.h, this.stage.pixelRatio);
+    // Read every frame, so the entry turns to the new day's challenge at midnight.
+    const day = todayKey();
+    const map = dailyMapIndex(day) + 1;
+    const dailyOpen = p.wins[0] > 0;
+    const daily: ModeCard = {
+      title: '每日挑战',
+      color: '#1b7a5a',
+      info: dailyOpen ? `${dayLabel(day)} · ${CHAPTERS[map - 1].name}` : '通关第一章开启',
+      record: !dailyOpen ? '' : p.daily.key === day ? `今日最佳 撑过 ${dailyBest(p, day)} 波` : '今天还没挑战',
+      hot: p.daily.key !== day,
+      open: dailyOpen,
+      chapter: map,
+      thumb: thumb(map),
+      t: this.t,
+    };
+    const endlessOpen = p.wins[ENDLESS_CHAPTER - 1] > 0;
+    const endless: ModeCard = {
+      title: '无尽',
+      color: '#8a3a22',
+      info: endlessOpen ? `每 ${ENDLESS.bossEvery} 波来一个 Boss` : `通关第${NUMERALS[ENDLESS_CHAPTER - 1]}章开启`,
+      record: !endlessOpen ? '' : p.endlessBest > 0 ? `最佳 撑过 ${p.endlessBest} 波` : '还没打过',
+      hot: p.endlessBest === 0,
+      open: endlessOpen,
+      chapter: ENDLESS_CHAPTER,
+      thumb: thumb(ENDLESS_CHAPTER),
+      t: this.t,
+    };
+    drawModeCard(ctx, entryRect(0), daily);
+    drawModeCard(ctx, entryRect(1), endless);
   }
 
   private drawPrompt(ctx: CanvasRenderingContext2D, run: RunInfo): void {
@@ -263,31 +323,31 @@ class ChapterScene implements Scene {
     drawButton(ctx, cancel, '取消', 'ghost');
   }
 
-  /** Starts a chapter, or first asks what to do with the unfinished run a new one would overwrite. */
-  private open(chapter: number): void {
-    if (this.run) this.asking = chapter;
-    else this.nav.play(chapter);
+  /** Starts a run (`start`), or first asks what to do with the unfinished run a new one would overwrite. */
+  private open(start: () => void): void {
+    if (this.run) this.asking = start;
+    else start();
   }
 
   private tapPrompt(p: Pointer): void {
     const [fresh, resume, cancel] = promptButtons();
     if (inRect(p.x, p.y, fresh)) {
-      // nav.play() clears the saved run before starting the new one.
-      this.nav.play(this.asking);
+      // nav.play(), endless() and daily() clear the saved run before starting the new one.
+      this.asking?.();
     } else if (inRect(p.x, p.y, resume)) {
       // Reason: resume() only fails if the save went bad since the screen opened; then forget it and close.
       if (!this.nav.resume()) {
         this.run = null;
-        this.asking = 0;
+        this.asking = null;
       }
     } else if (inRect(p.x, p.y, cancel)) {
-      this.asking = 0;
+      this.asking = null;
     }
   }
 
   tap(p: Pointer): void {
     // While the prompt is open, only its buttons respond.
-    if (this.asking > 0) {
+    if (this.asking) {
       this.tapPrompt(p);
       return;
     }
@@ -299,8 +359,13 @@ class ChapterScene implements Scene {
       this.nav.treasures();
       return;
     }
+    const { unlocked, wins } = this.nav.progress;
+    const entries = this.entries();
     CHAPTERS.forEach((ch, i) => {
-      if (inRect(p.x, p.y, chapterRect(i)) && ch.id <= this.nav.progress.unlocked) this.open(ch.id);
+      if (inRect(p.x, p.y, chapterRect(i, entries)) && ch.id <= unlocked) this.open(() => this.nav.play(ch.id));
     });
+    if (!entries) return;
+    if (inRect(p.x, p.y, entryRect(0)) && wins[0] > 0) this.open(() => this.nav.daily());
+    if (inRect(p.x, p.y, entryRect(1)) && wins[ENDLESS_CHAPTER - 1] > 0) this.open(() => this.nav.endless());
   }
 }
