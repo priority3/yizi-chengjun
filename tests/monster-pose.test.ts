@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { buildMap } from '../src/core/map.ts';
 import {
+  corpseHeight,
   corpsePose,
   facesLeft,
+  FLAP_HZ,
+  flapScale,
+  FLY_LIFT,
   makeCorpsePose,
   makePose,
   monsterPose,
@@ -20,7 +24,7 @@ const DOWN = Math.PI / 2;
 const UP = -Math.PI / 2;
 /** A road heading whose horizontal component (its cosine) is exactly `c`. */
 const heading = (c: number): number => Math.acos(c);
-const GAITS: readonly Gait[] = ['idle', 'walk', 'dash', 'stun'];
+const GAITS: readonly Gait[] = ['idle', 'walk', 'dash', 'stun', 'fly'];
 
 /** How many times the body changes between squashed and stretched during the first second. */
 function switchesPerSecond(gait: Gait, uid: number): number {
@@ -130,6 +134,48 @@ describe('walk cycle', () => {
   });
 });
 
+describe('flying', () => {
+  it('beats the wings: scaleX swings between 0.85 and 1, 8 times a second, with no squash or lean', () => {
+    const pose = makePose();
+    let min = Infinity;
+    let max = -Infinity;
+    let narrowest = 0;
+    let prev = flapScale(0, 7);
+    let falling = false;
+    for (let i = 1; i <= 2400; i++) {
+      const t = i / 2400;
+      monsterPose(pose, RIGHT, false, 'fly', t, 7);
+      expect([pose.sy, pose.lean, pose.flip]).toEqual([1, 0, false]);
+      min = Math.min(min, pose.sx);
+      max = Math.max(max, pose.sx);
+      // Count the turning points where the body stops narrowing and widens again.
+      if (falling && pose.sx > prev) narrowest++;
+      falling = pose.sx < prev;
+      prev = pose.sx;
+    }
+    expect(min).toBeCloseTo(0.85, 3);
+    expect(max).toBeCloseTo(1, 3);
+    expect(narrowest).toBe(FLAP_HZ);
+  });
+
+  it('keeps the facing flip, and phases the beat by uid so a flock flaps out of step', () => {
+    const pose = makePose();
+    expect(monsterPose(pose, LEFT, false, 'fly', 0.3, 2).flip).toBe(true);
+    expect(monsterPose(pose, DOWN, true, 'fly', 0.3, 2).flip).toBe(true);
+    expect(new Set([1, 2, 3, 4, 5].map((uid) => flapScale(0.2, uid).toFixed(3))).size).toBe(5);
+  });
+
+  it('drops a dead flyer from its height while it topples, landing as the fall ends', () => {
+    expect(corpseHeight(FLY_LIFT, 0)).toBe(FLY_LIFT);
+    // Accelerating like a falling body: at half the fall time it has dropped only a quarter of the way.
+    expect(corpseHeight(FLY_LIFT, 0.25)).toBeCloseTo(FLY_LIFT * 0.75);
+    expect(corpseHeight(FLY_LIFT, 0.5)).toBe(0);
+    expect(corpseHeight(FLY_LIFT, 1)).toBe(0);
+    expect(corpseHeight(0, 0.2)).toBe(0);
+    for (let i = 1; i <= 50; i++) expect(corpseHeight(FLY_LIFT, i / 50)).toBeLessThanOrEqual(corpseHeight(FLY_LIFT, (i - 1) / 50));
+  });
+});
+
 describe('corpse', () => {
   it('topples a quarter turn to the right, then sinks 6 px and fades out', () => {
     const p = makeCorpsePose();
@@ -171,6 +217,18 @@ describe('death and boss entrance effects', () => {
     expect(vfx.corpses.map((c) => c.def)).toEqual(['白骨精']);
     vfx.update(0.4);
     expect(vfx.corpses).toHaveLength(0);
+  });
+
+  it("starts a flyer's corpse at its lifted height, a walker's on the ground", () => {
+    const vfx = new Vfx(buildMap(TEST_MAP));
+    vfx.consume([
+      { t: 'kill', def: '蝠', x: 100, y: 120, bounty: 2 },
+      { t: 'kill', def: '妖', x: 140, y: 120, bounty: 2 },
+    ]);
+    expect(vfx.corpses.map((c) => [c.def, c.x, c.y, c.lift])).toEqual([
+      ['蝠', 100, 120, FLY_LIFT],
+      ['妖', 140, 120, 0],
+    ]);
   });
 
   it('holds a rumble and darkens the corners for 0.6 s when a boss wave starts', () => {

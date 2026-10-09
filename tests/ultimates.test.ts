@@ -92,6 +92,57 @@ describe('ultimates', () => {
     expect(a.slowT).toBeCloseTo(ULTIMATES['白龙'].slowDur);
   });
 
+  it('悟空 sweeps the road only: flyers overhead are neither its target nor swept', () => {
+    const g = battle(emptyGame(6));
+    const hero = put(g, 1, '悟空');
+    hero.rage = 1;
+    // The bat is furthest along, so a normal attack would pick it first.
+    const bat = enemy(g, '蝠', 160);
+    const target = enemy(g, '妖', 150);
+    const behind = enemy(g, '妖', 48);
+    stepCombat(g);
+    expect(g.events.find((e) => e.t === 'ultimate')).toMatchObject({ hero: '悟空', tx: target.x, ty: target.y });
+    for (const e of [target, behind]) expect(e.maxHp - e.hp).toBeCloseTo(55 * ULTIMATES['悟空'].dmgMul);
+    expect(bat.hp).toBe(bat.maxHp);
+    expect(bat.dist).toBe(160);
+    expect(hero.rage).toBe(0);
+  });
+
+  it('a charged 悟空 keeps its sweep for the ground when only flyers are in range', () => {
+    const g = battle(emptyGame(6));
+    const hero = put(g, 1, '悟空');
+    hero.rage = 1;
+    const bat = enemy(g, '蝠', 100);
+    stepCombat(g);
+    expect(g.events.some((e) => e.t === 'ultimate')).toBe(false);
+    expect(hero.rage).toBe(1);
+    expect(bat.hp).toBe(bat.maxHp);
+  });
+
+  it("白龙's roar and 八戒's rake hit flyers too, without pushing them back", () => {
+    const g = battle(emptyGame(6));
+    const dragon = put(g, 2, '白龙');
+    dragon.rage = 1;
+    const bat = enemy(g, '蝠', 100);
+    const imp = enemy(g, '妖', 300);
+    stepCombat(g);
+    expect(bat.maxHp - bat.hp).toBe(6 * ULTIMATES['白龙'].dmgMul);
+    expect(bat.slowPct).toBeCloseTo(ULTIMATES['白龙'].slowPct);
+    expect(bat.dist).toBe(100);
+    expect(imp.dist).toBeCloseTo(300 - ULTIMATES['白龙'].knockback);
+    const h = battle(emptyGame(6));
+    const pig = put(h, 1, '八戒');
+    pig.rage = 1;
+    // 八戒 still aims at the ground, but the rake falls on the flyer above its target too.
+    const walker = enemy(h, '妖', 60);
+    const roc = enemy(h, '鹏', 30);
+    stepCombat(h);
+    expect(h.events.find((e) => e.t === 'ultimate')).toMatchObject({ hero: '八戒', tx: walker.x, ty: walker.y });
+    expect(roc.maxHp - roc.hp).toBeCloseTo(24 * ULTIMATES['八戒'].dmgMul);
+    expect(roc.stunT).toBeCloseTo(ULTIMATES['八戒'].stun);
+    expect(roc.dist).toBe(30);
+  });
+
   it('waits for a target instead of wasting the charge', () => {
     const g = battle(emptyGame());
     const hero = put(g, 1, '八戒');

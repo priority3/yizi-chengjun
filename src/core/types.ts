@@ -47,6 +47,10 @@ export interface UnitDef {
   projSpeed: number;
   /** Pixels an enemy is pushed back per hit. */
   knockback: number;
+  /** Whether its attacks reach flying monsters (false: 棍 and 八戒's slam only fight on the ground). */
+  hitsAir: boolean;
+  /** Damage multiplier against flying monsters (default 1). */
+  airMul?: number;
   fx: UnitFx;
   /** Glyph colour on the card. */
   color: string;
@@ -97,6 +101,8 @@ export interface EnemyDef {
   boss: boolean;
   elite: boolean;
   trait?: BossTrait;
+  /** Flies straight from its entrance to the camp (map.flights) instead of walking the road. */
+  flying?: boolean;
 }
 
 export interface Enemy {
@@ -107,9 +113,14 @@ export interface Enemy {
   /** World position, derived from `dist` along the road every tick. */
   x: number;
   y: number;
-  /** Which road it walks (index into map.paths). */
+  /** Which road it walks (index into map.paths), or for a flyer which entrance's flight line (map.flights). */
   path: number;
-  /** Distance travelled along the road, in px. */
+  /**
+   * A flyer (EnemyDef.flying): it follows map.flights[path], shrugs off knockback and only units with hitsAir reach it.
+   * Reason: set once from the def, so hashState needn't mix it.
+   */
+  air: boolean;
+  /** Distance travelled along the road (or flight line), in px. */
   dist: number;
   /** Sideways offset factor (-1..1) so a crowd spreads across the road. */
   side: number;
@@ -150,7 +161,7 @@ export interface Spawn {
   /** Seconds after the wave started. */
   at: number;
   def: string;
-  /** Road to walk (index into map.paths). */
+  /** Road to walk (index into map.paths), or the entrance a flyer takes off from (map.flights). */
   path: number;
   /** Sideways offset factor (-1..1). */
   side: number;

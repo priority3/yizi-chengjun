@@ -27,6 +27,8 @@ export interface MapData {
   rows: number;
   theme: MapTheme;
   paths: PathData[];
+  /** Flying monsters' routes: one straight line per entrance, from its road's start to the camp (same index as paths). */
+  flights: PathData[];
   /** Where the roads end: 唐僧's camp. */
   camp: Pt;
   /** Road starts, one per path. */
@@ -148,6 +150,7 @@ export function buildMap(def: MapDef): MapData {
   if (spawnCells.length === 0) throw new Error('map: no entrance (1-4)');
   spawnCells.sort((a, b) => a.n - b.n);
   const paths = spawnCells.map((s) => toPath(smooth(trace(road, cols, rows, s.i, exit).map(centre), 2)));
+  const flights = spawnCells.map((s) => toPath([centre(s.i), centre(exit)]));
   const avgLen = paths.reduce((sum, p) => sum + p.length, 0) / paths.length;
   // Reason: a monster on a road twice as long is shot at twice as long; scale HP so every map fights fair.
   const hpScale = Math.min(2.2, Math.max(0.6, (avgLen / REF_ROAD) ** 0.85)) * (def.hp ?? 1);
@@ -161,6 +164,7 @@ export function buildMap(def: MapDef): MapData {
     rows,
     theme: def.theme,
     paths,
+    flights,
     camp: centre(exit),
     spawns: spawnCells.map((s) => centre(s.i)),
     slots,
@@ -226,22 +230,25 @@ export function slotAt(map: MapData, x: number, y: number): number {
 const SAMPLE_STEP = 12;
 const coverageCache = new WeakMap<MapData, Map<string, number>>();
 
-/** Share (0..1) of all road length within `range` of a slot. Used by the bot to place tiles. */
-export function coverage(map: MapData, slot: number, range: number): number {
+/**
+ * Share (0..1) of all road length within `range` of a slot. Used by the bot to place tiles.
+ * With `flights`, the flyers' straight lines count as road too.
+ */
+export function coverage(map: MapData, slot: number, range: number, flights = false): number {
   if (!Number.isFinite(range)) return 1;
   let cache = coverageCache.get(map);
   if (!cache) {
     cache = new Map();
     coverageCache.set(map, cache);
   }
-  const key = `${slot}:${range}`;
+  const key = flights ? `${slot}:${range}:air` : `${slot}:${range}`;
   const cached = cache.get(key);
   if (cached !== undefined) return cached;
   const s = map.slots[slot];
   const r2 = range * range;
   let hit = 0;
   let total = 0;
-  for (const p of map.paths) {
+  for (const p of flights ? [...map.paths, ...map.flights] : map.paths) {
     for (let d = 0; d <= p.length; d += SAMPLE_STEP) {
       const q = pathPoint(p, d);
       total++;

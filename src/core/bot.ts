@@ -11,6 +11,7 @@ import { currentRefreshCost, offerPrice } from './shop.ts';
 import { padRange, slotKindOf } from './slots.ts';
 import { tileDps } from './stats.ts';
 import type { Action, EncounterId, GameState, Tile, UnitId } from './types.ts';
+import { hasAirRaids } from './waves.ts';
 
 export interface BotKnobs {
   /** Chance that a purchase goes into a random empty cell instead of the best one. */
@@ -22,10 +23,20 @@ export const DEFAULT_BOT: BotKnobs = { mistake: 0.1, maxRefreshes: 2 };
 
 const asTile = (id: UnitId, level = 1, divine = false): Tile => ({ uid: 0, id, level, divine, cd: 0, invested: 0, rage: 0 });
 
-/** Rough usefulness of a tile: damage per second for fighters, a flat value for everything else. */
-export function tileValue(t: Tile): number {
+/** How much more the bot values an anti-air unit (箭, 雷) once air raids can come. */
+const AIR_VALUE = 1.2;
+
+/** Whether `id` counts as anti-air for the bot in `chapter`: its airMul only pays off in chapters with air raids. */
+function antiAir(id: UnitId, chapter: number): boolean {
+  return hasAirRaids(chapter) && (UNITS[id].airMul ?? 1) > 1;
+}
+
+/** Rough usefulness of a tile in `chapter`: damage per second for fighters, a flat value for everything else. */
+export function tileValue(t: Tile, chapter: number): number {
   const kind = UNITS[t.id].kind;
-  if (kind === 'attack' || kind === 'hero') return tileDps(t) * (kind === 'hero' ? 1.4 : 1) * (t.id === '白龙' ? 4 : 1);
+  if (kind === 'attack' || kind === 'hero') {
+    return tileDps(t) * (kind === 'hero' ? 1.4 : 1) * (t.id === '白龙' ? 4 : 1) * (antiAir(t.id, chapter) ? AIR_VALUE : 1);
+  }
   if (kind === 'support') return 12 * t.level;
   if (kind === 'divine') return 60;
   return 4;
@@ -39,7 +50,7 @@ function cellScore(g: GameState, cell: number, t: Tile): number {
   const kind = UNITS[t.id].kind;
   if (kind === 'attack' || kind === 'hero') {
     const pad = slotKindOf(g, cell);
-    return coverage(g.map, cell, padRange(t, pad, g.mods)) * SLOT_BONUS[pad].dmgMul;
+    return coverage(g.map, cell, padRange(t, pad, g.mods), antiAir(t.id, g.chapter)) * SLOT_BONUS[pad].dmgMul;
   }
   if (t.id === '速') {
     // 速 wants fighters within its reach.
@@ -107,7 +118,7 @@ function boardCombo(g: GameState): Action | null {
     let best = -1;
     for (let i = 0; i < s.length; i++) {
       const t = s[i];
-      if (t && canBeDivine(t) && (best < 0 || tileValue(t) > tileValue(s[best] as Tile))) best = i;
+      if (t && canBeDivine(t) && (best < 0 || tileValue(t, g.chapter) > tileValue(s[best] as Tile, g.chapter))) best = i;
     }
     if (best >= 0) return { t: 'drop', from: god, to: best };
   }
@@ -139,14 +150,14 @@ function bestPurchase(g: GameState): Action | null {
       const hero = heroFor(o.id, t.id);
       if (t.id === o.id && t.level === 1 && isStackable(o.id)) {
         cell = c;
-        score = 100 + tileValue(card);
+        score = 100 + tileValue(card, g.chapter);
       } else if (hero) {
         // Bought onto its other half, the hero awakens right there: never in a 泥沼.
         if (canPlace(g, c, hero)) {
           cell = c;
           score = 130;
         }
-      } else if (o.id === '神' && canBeDivine(t) && tileValue(t) > 20) {
+      } else if (o.id === '神' && canBeDivine(t) && tileValue(t, g.chapter) > 20) {
         cell = c;
         score = 110;
       }
@@ -159,7 +170,7 @@ function bestPurchase(g: GameState): Action | null {
       // Lone fragments wait for their partner; only worth a cell when there is room to spare.
       if (kind === 'fragment' && empties < 3) return;
       cell = bestEmptyCell(g, card);
-      score = kind === 'fragment' ? 8 : (tileValue(card) / offerPrice(g, o)) * 10;
+      score = kind === 'fragment' ? 8 : (tileValue(card, g.chapter) / offerPrice(g, o)) * 10;
     }
     if (cell >= 0 && (!pick || score > pick.score)) pick = { offer: i, cell, score };
   });

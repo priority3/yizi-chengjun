@@ -29,9 +29,10 @@ group('descriptions on special pads', () => {
   const mods = defaultMods();
 
   it('show a fighter\'s boosted numbers and name the pad', () => {
-    expect(describe(card('箭'), mods)).toBe('箭 · 射程最远（伤害 8，射程 200）');
-    expect(describe(card('箭'), mods, 'altar')).toBe('箭 · 射程最远（伤害 10，射程 200，法阵 +20%）');
-    expect(describe(card('箭'), mods, 'high')).toBe('箭 · 射程最远（伤害 8，射程 230，高台 +30）');
+    // The unit blurb itself (射程最远，对空伤害 ×1.3) comes from config/units.ts; the pad only changes the numbers.
+    expect(describe(card('箭'), mods)).toBe('箭 · 射程最远，对空伤害 ×1.3（伤害 8，射程 200）');
+    expect(describe(card('箭'), mods, 'altar')).toBe('箭 · 射程最远，对空伤害 ×1.3（伤害 10，射程 200，法阵 +20%）');
+    expect(describe(card('箭'), mods, 'high')).toBe('箭 · 射程最远，对空伤害 ×1.3（伤害 8，射程 230，高台 +30）');
     expect(describe(card('悟空'), mods, 'altar')).toContain('（伤害 66，法阵 +20%）');
     expect(describe(card('沙僧'), mods, 'high')).toContain('（伤害 30，高台射程 +30）');
   });

@@ -1,7 +1,8 @@
 // Wave composition per chapter: minions from both gates, an elite mid-chapter, the chapter boss last,
-// plus whatever the last encounter queued (wolf packs, a thief, a visiting boss, speed/HP/bounty tweaks).
+// plus whatever the last encounter queued (wolf packs, a thief, a visiting boss, speed/HP/bounty tweaks)
+// and, in later chapters, now and then an air raid of bats flying straight at the camp.
 import { CHAPTERS, incomeMul, MIN_SPAWN_GAP, SPAWN_GAP } from '../config/chapters.ts';
-import { BASE_HP, ENEMIES, SPEED_GROWTH } from '../config/enemies.ts';
+import { AIR_RAID, BASE_HP, ENEMIES, SPEED_GROWTH } from '../config/enemies.ts';
 import { MAP_HP } from '../config/maps.ts';
 import { defaultWaveMods } from './encounters.ts';
 import { rand } from './rng.ts';
@@ -37,6 +38,21 @@ export function eliteWave(totalWaves: number): number {
 
 export function waveSize(chapter: number, wave: number): number {
   return 6 + 2 * wave + Math.floor(chapter / 2);
+}
+
+/** Whether `chapter` brings air raids at all (the bot plans for them from then on). */
+export function hasAirRaids(chapter: number): boolean {
+  return chapter >= AIR_RAID.fromChapter;
+}
+
+/** Whether wave `w` of `chapter` may bring an air raid: a chapter with raids, late enough, and not the boss wave. */
+export function airRaidPossible(chapter: number, w: number): boolean {
+  return hasAirRaids(chapter) && w >= AIR_RAID.fromWave && w !== CHAPTERS[chapter - 1].waves;
+}
+
+/** Monster of the i-th flyer in an air raid: bats, and from AIR_RAID.rocFromChapter every second one a 鹏雏. */
+export function raiderType(i: number, chapter: number): string {
+  return chapter >= AIR_RAID.rocFromChapter && i % 2 === 1 ? '鹏' : '蝠';
 }
 
 interface SpawnOpts {
@@ -84,7 +100,15 @@ export function buildWave(g: GameState, w: number): WavePlan {
     tail += gap;
   }
   if (mods.miniBoss) add(mods.miniBoss, tail, { hpMul: 0.5, bounty: MINI_BOSS_BOUNTY });
-  // Reason: spawns must stay sorted by time for the spawner; the thief was inserted mid-wave.
+  // Air raid: a flock takes off once about half of the ground monsters are out.
+  // Reason: the chapter and wave checks come before the draw, so chapters without raids (1-5) use exactly the random
+  // numbers they always did; and the ground monsters above drew theirs first, so they stay the same in every chapter.
+  if (airRaidPossible(g.chapter, w) && rand(g) < AIR_RAID.chance) {
+    const launch = Math.floor(count / 2) * gap;
+    const flock = AIR_RAID.size + Math.floor(w / 2);
+    for (let i = 0; i < flock; i++) add(raiderType(i, g.chapter), launch + i * AIR_RAID.spacing);
+  }
+  // Reason: spawns must stay sorted by time for the spawner; the thief and the air raid were inserted mid-wave.
   spawns.sort((a, b) => a.at - b.at);
   g.activeMods = mods;
   g.waveMods = defaultWaveMods();

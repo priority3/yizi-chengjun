@@ -5,6 +5,7 @@ import { ENEMIES } from '../config/enemies.ts';
 import { SLOT_NAME } from '../config/maps.ts';
 import { UNITS } from '../config/units.ts';
 import { pathDir, type Pt } from '../core/map.ts';
+import { routeOf } from '../core/monsters.ts';
 import { padAllows, padRange, slotRange } from '../core/slots.ts';
 import type { Enemy, EnemyDef, GameState, Tile, UnitId } from '../core/types.ts';
 import type { Stage } from '../platform/web.ts';
@@ -15,7 +16,7 @@ import { drawEncounterPanel } from './encounter-panel.ts';
 import { brush, sans } from './fonts.ts';
 import { L, viewRect, W, type Rect } from './layout.ts';
 import { drawMap, PAD_R } from './map-art.ts';
-import { FOOT, makePose, monsterPose, type Gait, type MonsterPose } from './monster-pose.ts';
+import { FLY_LIFT, FOOT, makePose, monsterPose, type Gait, type MonsterPose } from './monster-pose.ts';
 import { monsterSprite } from './monsters-art.ts';
 import { drawBanner, drawBattleBar, drawHud, drawShop, type PanelUi } from './panels.ts';
 import { drawAimBadge, drawPadLabel, drawRuneRings, PAD_TAG_COLOR } from './slot-marks.ts';
@@ -243,15 +244,19 @@ export class GameRenderer {
   private drawEnemy(ctx: CanvasRenderingContext2D, g: GameState, e: Enemy, vfx: Vfx, time: number): void {
     const def = ENEMIES[e.def];
     const pose = this.poseOf(g, e, time);
+    // Reason: a flyer's body, its status marks and its HP bar all hover FLY_LIFT above its spot; only the shadow stays down.
+    const lift = e.air ? FLY_LIFT : 0;
+    if (e.air) vfx.air.add(e.uid);
     this.drawGround(ctx, e, def, time);
-    this.drawBody(ctx, e, def, pose, vfx);
-    this.drawStatus(ctx, e, def, time);
-    this.drawTags(ctx, e, def);
+    this.drawBody(ctx, e, def, pose, vfx, lift);
+    this.drawStatus(ctx, e, def, time, lift);
+    this.drawTags(ctx, e, def, lift);
   }
 
   /** This frame's pose of `e` (the shared scratch object), carrying its facing over from the previous frame. */
   private poseOf(g: GameState, e: Enemy, time: number): MonsterPose {
-    const dir = pathDir(g.map.paths[e.path], e.dist);
+    // A flyer faces along its flight line.
+    const dir = pathDir(routeOf(g, e), e.dist);
     let face = this.facing.get(e.uid);
     if (!face) {
       // A newcomer simply faces the way its road heads.
@@ -259,8 +264,9 @@ export class GameRenderer {
       this.facing.set(e.uid, face);
     }
     face.seen = this.frame;
-    // Reason: nobody walks once the battle is over (a lost run freezes the field), and a stun stops a dash too.
-    const gait: Gait = g.phase !== 'battle' ? 'idle' : e.stunT > 0 ? 'stun' : e.dashT > 0 ? 'dash' : 'walk';
+    // Reason: nobody walks once the battle is over (a lost run freezes the field), a stun stops a dash too, and flyers
+    // beat their wings instead of stepping.
+    const gait: Gait = g.phase !== 'battle' ? 'idle' : e.stunT > 0 ? 'stun' : e.air ? 'fly' : e.dashT > 0 ? 'dash' : 'walk';
     monsterPose(this.pose, dir, face.left, gait, time, e.uid);
     face.left = this.pose.flip;
     return this.pose;
@@ -268,6 +274,14 @@ export class GameRenderer {
 
   /** Ground shadow and the boss's pulsing aura. */
   private drawGround(ctx: CanvasRenderingContext2D, e: Enemy, def: EnemyDef, time: number): void {
+    if (e.air) {
+      // A flyer only casts a small, faint shadow, on the ground where its feet would be.
+      ctx.beginPath();
+      ctx.ellipse(e.x, e.y + def.radius * FOOT, def.radius * 0.6, def.radius * 0.2, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(40,20,5,0.16)';
+      ctx.fill();
+      return;
+    }
     ctx.beginPath();
     ctx.ellipse(e.x, e.y + def.radius * FOOT, def.radius * 0.9, def.radius * 0.28, 0, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(40,20,5,0.25)';
@@ -280,15 +294,18 @@ export class GameRenderer {
     }
   }
 
-  /** The sprite and its hit flash, mirrored, leaned and squashed about the feet so a squash never lifts it off the ground. */
-  private drawBody(ctx: CanvasRenderingContext2D, e: Enemy, def: EnemyDef, pose: MonsterPose, vfx: Vfx): void {
+  /**
+   * The sprite and its hit flash, mirrored, leaned and squashed about the feet so a squash never lifts it off the ground;
+   * `lift` raises a flyer's whole body.
+   */
+  private drawBody(ctx: CanvasRenderingContext2D, e: Enemy, def: EnemyDef, pose: MonsterPose, vfx: Vfx, lift: number): void {
     const { img, flash, box } = monsterSprite(e.def);
     const foot = def.radius * FOOT;
     // Sprite corner relative to the feet: unposed, the sprite is centred on the enemy's position.
     const left = -box / 2;
     const top = -foot - box / 2;
     ctx.save();
-    ctx.translate(e.x, e.y + foot);
+    ctx.translate(e.x, e.y + foot - lift);
     // Reason: the rotation sits outside the mirror, so `lean` is in world terms — a monster walking left tips left.
     ctx.rotate(pose.lean);
     ctx.scale(pose.flip ? -pose.sx : pose.sx, pose.sy);
@@ -301,10 +318,10 @@ export class GameRenderer {
     ctx.restore();
   }
 
-  /** Status marks around the feet and over the head: the slow ring with its snowflake, the stun stars. */
-  private drawStatus(ctx: CanvasRenderingContext2D, e: Enemy, def: EnemyDef, time: number): void {
+  /** Status marks around the feet and over the head (of a flyer's lifted body): the slow ring with its snowflake, the stun stars. */
+  private drawStatus(ctx: CanvasRenderingContext2D, e: Enemy, def: EnemyDef, time: number, lift: number): void {
     const x = e.x;
-    const y = e.y;
+    const y = e.y - lift;
     if (e.slowT > 0) {
       ctx.beginPath();
       ctx.ellipse(x, y + def.radius * 0.9, def.radius * 1.05, def.radius * 0.36, 0, 0, Math.PI * 2);
@@ -321,21 +338,24 @@ export class GameRenderer {
     }
   }
 
-  /** HP bar above the monster, plus the name under bosses and elites. */
-  private drawTags(ctx: CanvasRenderingContext2D, e: Enemy, def: EnemyDef): void {
+  /** HP bar above the monster (a flyer's lifted body), plus the name under bosses and elites. */
+  private drawTags(ctx: CanvasRenderingContext2D, e: Enemy, def: EnemyDef, lift: number): void {
     const barW = Math.max(22, def.radius * 2);
-    drawBar(ctx, e.x - barW / 2, e.y - def.radius - 9, barW, 4, e.hp / e.maxHp, def.boss ? '#ff5a3a' : '#6fdc5a');
+    const y = e.y - lift;
+    drawBar(ctx, e.x - barW / 2, y - def.radius - 9, barW, 4, e.hp / e.maxHp, def.boss ? '#ff5a3a' : '#6fdc5a');
     if (def.boss || def.elite) {
-      outlined(ctx, def.name, e.x, e.y + def.radius + 12, brush(def.boss ? 14 : 12), def.boss ? '#ffd166' : '#ffb0a0', 'rgba(20,10,4,0.9)', 3);
+      outlined(ctx, def.name, e.x, y + def.radius + 12, brush(def.boss ? 14 : 12), def.boss ? '#ffd166' : '#ffb0a0', 'rgba(20,10,4,0.9)', 3);
     }
   }
 
   private drawEnemies(ctx: CanvasRenderingContext2D, g: GameState, vfx: Vfx, time: number): void {
-    // Reason: draw in y order so monsters further down overlap the ones behind them.
-    const list = g.enemies.filter((e) => !e.gone).sort((a, b) => a.y - b.y);
+    // Reason: draw in y order so monsters further down overlap the ones behind them; flyers go over everyone on the ground.
+    const list = g.enemies.filter((e) => !e.gone).sort((a, b) => Number(a.air) - Number(b.air) || a.y - b.y);
     // Fresh corpses lie on the ground, under everyone still walking.
     vfx.drawCorpses(ctx);
     this.frame++;
+    // Refilled by drawEnemy, so hit sparks and shots aimed at a flyer can rise to its body.
+    vfx.air.clear();
     for (const e of list) this.drawEnemy(ctx, g, e, vfx, time);
     // Every monster drawn has a facing, so any surplus belongs to the dead or to those that reached the camp.
     if (this.facing.size > list.length) this.facing.forEach(this.forgetStale);

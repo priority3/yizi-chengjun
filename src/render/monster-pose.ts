@@ -1,6 +1,7 @@
 // How a monster's body is posed this frame: which way it faces, how far it leans into its walk, the squash and
-// stretch of its two-frame waddle, and the topple of a fresh corpse. Pure maths that writes into caller-owned
-// objects, so the renderer can pose every monster every frame without allocating, and tests can pin the numbers.
+// stretch of its two-frame waddle (or a flyer's wing beat), and the topple of a fresh corpse. Pure maths that
+// writes into caller-owned objects, so the renderer can pose every monster every frame without allocating, and
+// tests can pin the numbers.
 
 /** The feet sit this many radii below an enemy's position (the centre of its ground shadow); every pose pivots there. */
 export const FOOT = 0.95;
@@ -19,9 +20,17 @@ export const STRETCH_SY = 1.04;
 /** A stunned monster stops walking and sways dizzily on its feet: amplitude (radians) and sways per second. */
 export const WOBBLE = 0.08;
 export const WOBBLE_HZ = 2;
+/** Flying monsters hover this many px above their spot on the ground, where only their shadow stays. */
+export const FLY_LIFT = 24;
+/** Wing beats per second; each beat narrows a flyer's body to FLAP_MIN of its width and back. */
+export const FLAP_HZ = 8;
+export const FLAP_MIN = 0.85;
 
-/** What the body is doing: standing still (no battle running), walking, dashing (a boss trait) or reeling from a stun. */
-export type Gait = 'idle' | 'walk' | 'dash' | 'stun';
+/**
+ * What the body is doing: standing still (no battle running), walking, dashing (a boss trait), reeling from a stun,
+ * or flying (a flyer beats its wings instead of stepping).
+ */
+export type Gait = 'idle' | 'walk' | 'dash' | 'stun' | 'fly';
 
 /** A monster's pose; the renderer owns one and refills it for every monster it draws. */
 export interface MonsterPose {
@@ -63,13 +72,26 @@ export function walkFrame(time: number, uid: number, dashing: boolean): number {
   return Math.floor(time * fps + uidPhase(uid) * 2) & 1;
 }
 
+/** A flyer's horizontal body scale at `time` (s): FLAP_MIN..1, FLAP_HZ beats a second, phased by uid across a flock. */
+export function flapScale(time: number, uid: number): number {
+  const beat = 0.5 + 0.5 * Math.cos((time * FLAP_HZ + uidPhase(uid)) * Math.PI * 2);
+  return FLAP_MIN + (1 - FLAP_MIN) * beat;
+}
+
 /**
  * Fills `out` with the pose of monster `uid` at `time` (s) on a road heading `dir` (radians) and returns it.
  * Walking and dashing lean into the horizontal part of the road and squash/stretch; a stun swaps both for a
- * small sway; idle stands straight. Facing follows `facesLeft` in every gait.
+ * small sway; flying beats the wings (flapScale) without leaning; idle stands straight. Facing follows `facesLeft`
+ * in every gait.
  */
 export function monsterPose(out: MonsterPose, dir: number, wasLeft: boolean, gait: Gait, time: number, uid: number): MonsterPose {
   out.flip = facesLeft(dir, wasLeft);
+  if (gait === 'fly') {
+    out.sx = flapScale(time, uid);
+    out.sy = 1;
+    out.lean = 0;
+    return out;
+  }
   if (gait === 'walk' || gait === 'dash') {
     const squashed = walkFrame(time, uid, gait === 'dash') === 0;
     out.sx = squashed ? SQUASH_SX : STRETCH_SX;
@@ -116,4 +138,14 @@ export function corpsePose(out: CorpsePose, k: number): CorpsePose {
   out.landed = t <= FALL_SHARE ? 0 : (t - FALL_SHARE) / (1 - FALL_SHARE);
   out.alpha = 1 - out.landed;
   return out;
+}
+
+/**
+ * How high above the ground (px) a corpse that died `lift` px up in the air is at `k` = age / life: it drops while it
+ * topples, landing just as the fall ends (then it lies there and fades like any other corpse). 0 for a ground monster.
+ */
+export function corpseHeight(lift: number, k: number): number {
+  const fall = Math.min(1, Math.max(0, k) / FALL_SHARE);
+  // Reason: ease-in like the topple, so the body accelerates as it drops instead of floating down.
+  return lift * (1 - fall * fall);
 }
