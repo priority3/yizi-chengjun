@@ -2,6 +2,7 @@
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
+import { serviceWorker } from './build/sw-plugin.ts';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 
@@ -23,6 +24,8 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(pkg.version),
     __APP_BUILD__: JSON.stringify(commitHash()),
   },
+  // Writes dist/sw.js (offline play, update prompt); see build/sw-plugin.ts.
+  plugins: [serviceWorker(pkg.version)],
   test: {
     // Reason: parallel agents work in git worktrees under .claude/worktrees; never pick up their copies of the tests.
     exclude: ['**/node_modules/**', '**/.git/**', '**/dist/**', '.claude/**'],
