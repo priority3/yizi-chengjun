@@ -2,6 +2,7 @@
 import { RAGE_DIVINE_MUL, RAGE_PER_HIT, ULTIMATES } from '../config/ultimates.ts';
 import { applySlow, applyStun, damage, dist2, knock } from './effects.ts';
 import { pathDir } from './map.ts';
+import { routeOf } from './monsters.ts';
 import { tileDamage, tileRange } from './stats.ts';
 import type { Enemy, GameState, HeroId, RunMods, Tile } from './types.ts';
 
@@ -27,9 +28,10 @@ export function castUltimate(g: GameState, t: Tile, cell: number, target: Enemy)
   };
   switch (hero) {
     case '悟空':
-      // The staff sweeps a long stretch of the target's road, ahead and behind it.
+      // The staff sweeps a long stretch of the target's road, ahead and behind it; flyers overhead are out of its reach
+      // (and never its target: see canHitAir in combat.ts).
       for (const e of g.enemies) {
-        if (e.hp <= 0 || e.gone || e.path !== target.path || Math.abs(e.dist - target.dist) > u.reach) continue;
+        if (e.hp <= 0 || e.gone || e.air || e.path !== target.path || Math.abs(e.dist - target.dist) > u.reach) continue;
         hit(e, dmg);
         knock(g, e, u.knockback);
       }
@@ -71,6 +73,6 @@ export function castUltimate(g: GameState, t: Tile, cell: number, target: Enemy)
       }
       break;
   }
-  const dir = pathDir(g.map.paths[target.path], target.dist);
+  const dir = pathDir(routeOf(g, target), target.dist);
   g.events.push({ t: 'ultimate', hero, cell, x: p.x, y: p.y, tx: target.x, ty: target.y, path: target.path, dir, targets });
 }

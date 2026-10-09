@@ -130,6 +130,79 @@ describe('instant attacks', () => {
   });
 });
 
+// On the test map a flyer's flight line runs straight down the road, so a bat at dist d hovers over (216, 72 + d) too.
+describe('flying monsters', () => {
+  it('are out of reach of 棍 and 八戒, but not of 箭', () => {
+    const g = battle(emptyGame(6));
+    const club = put(g, 0, '棍');
+    const pig = put(g, 1, '八戒');
+    const arrow = put(g, 3, '箭');
+    const bat = enemy(g, '蝠', 60);
+    expect(findTarget(g, club, 0)).toBeNull();
+    expect(findTarget(g, pig, 1)).toBeNull();
+    expect(findTarget(g, arrow, 3)).toBe(bat);
+    // Behind a walker or ahead of it, the ground fighters only ever pick the walker.
+    const imp = enemy(g, '妖', 30);
+    expect(findTarget(g, club, 0)).toBe(imp);
+    expect(findTarget(g, pig, 1)).toBe(imp);
+    expect(findTarget(g, arrow, 3)).toBe(bat);
+  });
+
+  it('take ×1.3 damage from 箭 and 雷, ×1 from the rest', () => {
+    const g = battle(emptyGame(6));
+    put(g, 1, '箭');
+    const bat = enemy(g, '蝠', 48);
+    runTicks(g, 15);
+    expect(bat.maxHp - bat.hp).toBeCloseTo(8 * 1.3);
+    const h = battle(emptyGame(6));
+    put(h, 1, '雷');
+    const roc = enemy(h, '鹏', 48);
+    stepCombat(h);
+    expect(roc.maxHp - roc.hp).toBeCloseTo(38 * 1.3);
+    const k = battle(emptyGame(6));
+    put(k, 1, '冰');
+    const bat2 = enemy(k, '蝠', 48);
+    runTicks(k, 20);
+    expect(bat2.maxHp - bat2.hp).toBeCloseTo(4);
+    expect(bat2.slowT).toBeGreaterThan(0);
+  });
+
+  it("are caught in 火's splash (its unit hits the air), never in 八戒's slam", () => {
+    const g = battle(emptyGame(6));
+    put(g, 1, '火');
+    const target = enemy(g, '妖', 90);
+    const bat = enemy(g, '蝠', 70);
+    runTicks(g, 40);
+    expect(target.maxHp - target.hp).toBeCloseTo(9);
+    expect(bat.maxHp - bat.hp).toBeCloseTo(9 * 0.6);
+    const h = battle(emptyGame(6));
+    put(h, 1, '八戒');
+    const imp = enemy(h, '妖', 60);
+    const over = enemy(h, '蝠', 50);
+    stepCombat(h);
+    expect(imp.maxHp - imp.hp).toBeCloseTo(24);
+    expect(imp.stunT).toBeCloseTo(0.9);
+    expect(over.hp).toBe(over.maxHp);
+    expect(over.stunT).toBe(0);
+  });
+
+  it("are hit by 悟空's staff and 白龙's sweep, which reach the air", () => {
+    const g = battle(emptyGame(6));
+    put(g, 0, '悟空');
+    const line = [enemy(g, '蝠', 100), enemy(g, '妖', 80), enemy(g, '蝠', 60)];
+    stepCombat(g);
+    for (const e of line) expect(e.maxHp - e.hp).toBeCloseTo(55);
+    // Hit, but not pushed back like the walker.
+    expect(line[0].dist).toBe(100);
+    expect(line[1].dist).toBeCloseTo(74);
+    const h = battle(emptyGame(6));
+    put(h, 1, '白龙');
+    const bat = enemy(h, '蝠', 300);
+    stepCombat(h);
+    expect(bat.maxHp - bat.hp).toBe(6);
+  });
+});
+
 describe('modifiers and supports', () => {
   it('速 hastes slots within reach up to the cap', () => {
     const g = emptyGame();

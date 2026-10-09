@@ -1,22 +1,28 @@
 // Damage and status primitives shared by normal attacks and hero ultimates.
 import { ENEMIES } from '../config/enemies.ts';
-import { SLOW_CAP } from '../config/units.ts';
+import { SLOW_CAP, UNITS } from '../config/units.ts';
 import { pathPoint } from './map.ts';
+import { routeOf } from './monsters.ts';
 import type { Enemy, GameState, UnitId } from './types.ts';
 
+/**
+ * Deals one hit of `amount` from `unit` to `e`. This is the one place a unit's anti-air bonus (UnitDef.airMul)
+ * applies, so shots, splashes, beams and ultimates all agree; it comes before a boss's flat armour.
+ */
 export function damage(g: GameState, e: Enemy, amount: number, unit: UnitId): void {
   const tr = ENEMIES[e.def].trait;
-  const dealt = tr?.t === 'armor' ? Math.max(1, amount - tr.flat) : amount;
+  const hit = e.air ? amount * (UNITS[unit].airMul ?? 1) : amount;
+  const dealt = tr?.t === 'armor' ? Math.max(1, hit - tr.flat) : hit;
   e.hp -= dealt;
   g.events.push({ t: 'hit', uid: e.uid, x: e.x, y: e.y, unit, dmg: dealt });
 }
 
-/** Pushes an enemy back along its road. Bosses are too heavy to move; elites move half as far. */
+/** Pushes an enemy back along its road. Bosses are too heavy to move; elites move half as far; flyers can't be pushed. */
 export function knock(g: GameState, e: Enemy, px: number): void {
-  if (px <= 0 || ENEMIES[e.def].boss) return;
+  if (px <= 0 || ENEMIES[e.def].boss || e.air) return;
   const push = ENEMIES[e.def].elite ? px / 2 : px;
   e.dist = Math.max(0, e.dist - push);
-  const p = pathPoint(g.map.paths[e.path], e.dist, e.side);
+  const p = pathPoint(routeOf(g, e), e.dist, e.side);
   e.x = p.x;
   e.y = p.y;
 }

@@ -1,25 +1,32 @@
-// Enemies: spawning onto a road, walking it, hurting the camp when they reach the end, and the timed boss traits.
+// Enemies: spawning onto a road (or a flyer's flight line), walking it, hurting the camp when they reach the end,
+// and the timed boss traits.
 import { incomeMul, LEAK_MUL } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
 import { MAP_SPEED } from '../config/maps.ts';
 import { DT } from './clock.ts';
-import { pathPoint } from './map.ts';
+import { pathPoint, type PathData } from './map.ts';
 import { rand } from './rng.ts';
 import { waveHp } from './waves.ts';
 import type { Enemy, GameState } from './types.ts';
 
+/** The line `e` follows: its entrance's road, or for a flyer the straight flight line from that entrance to the camp. */
+export function routeOf(g: GameState, e: Enemy): PathData {
+  return e.air ? g.map.flights[e.path] : g.map.paths[e.path];
+}
+
 export function makeEnemy(g: GameState, def: string, path: number, hp: number, speed: number, bounty: number, dist = 0, side = 0): Enemy {
   const d = ENEMIES[def];
   const tr = d.trait;
-  const p = pathPoint(g.map.paths[path], dist, side);
-  return {
+  const e: Enemy = {
     uid: g.nextUid++,
     def,
     hp,
     maxHp: hp,
-    x: p.x,
-    y: p.y,
+    // Set by placeOnRoad below, once the enemy knows whether it walks or flies.
+    x: 0,
+    y: 0,
     path,
+    air: d.flying === true,
     dist,
     side,
     // Roads are long, so everyone walks faster than on the old camp; 定风珠 and similar 法宝 slow them again.
@@ -34,11 +41,13 @@ export function makeEnemy(g: GameState, def: string, path: number, hp: number, s
     bounty,
     gone: false,
   };
+  placeOnRoad(g, e);
+  return e;
 }
 
-/** Puts the enemy where its `dist` says it is on the road. */
+/** Puts the enemy where its `dist` says it is on its road (or flight line). */
 export function placeOnRoad(g: GameState, e: Enemy): void {
-  const p = pathPoint(g.map.paths[e.path], e.dist, e.side);
+  const p = pathPoint(routeOf(g, e), e.dist, e.side);
   e.x = p.x;
   e.y = p.y;
 }
@@ -104,7 +113,7 @@ export function moveEnemies(g: GameState): void {
       e.dashT -= DT;
     }
     e.dist += v * DT;
-    const road = g.map.paths[e.path];
+    const road = routeOf(g, e);
     if (e.dist >= road.length) {
       e.dist = road.length;
       placeOnRoad(g, e);

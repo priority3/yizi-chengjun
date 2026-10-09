@@ -5,7 +5,7 @@ import { DIVINE, HASTE_CAP, LEVEL_MUL, UNITS } from '../config/units.ts';
 import { DT } from './clock.ts';
 import { applySlow, applyStun, damage, dist2, knock } from './effects.ts';
 import type { Pt } from './map.ts';
-import { spawnMinions } from './monsters.ts';
+import { routeOf, spawnMinions } from './monsters.ts';
 import { fxScale, tileDamage, tileInterval, tileRange } from './stats.ts';
 import type { Enemy, GameState, Projectile, Tile } from './types.ts';
 import { castUltimate, isUltimateReady, rageGain } from './ultimates.ts';
@@ -39,13 +39,24 @@ export function findTarget(g: GameState, t: Tile, cell: number): Enemy | null {
   let bestRem = Infinity;
   for (const e of g.enemies) {
     if (e.hp <= 0 || e.gone || dist2(e, p.x, p.y) > r2) continue;
-    const rem = g.map.paths[e.path].length - e.dist;
+    // Flyers are out of reach of ground fighters (see canHitAir).
+    if (e.air && !canHitAir(t)) continue;
+    const rem = routeOf(g, e).length - e.dist;
     if (rem < bestRem || (rem === bestRem && best !== null && e.uid < best.uid)) {
       best = e;
       bestRem = rem;
     }
   }
   return best;
+}
+
+/**
+ * Whether `t`'s next attack can reach a flying monster: never for ground fighters (UnitDef.hitsAir false: 棍,
+ * 八戒's slam), nor for a 悟空 whose next attack is its ultimate.
+ * Reason: 金箍棒·横扫 sweeps a stretch of road, so a charged 悟空 keeps its charge for a target on the ground.
+ */
+export function canHitAir(t: Tile): boolean {
+  return UNITS[t.id].hitsAir && !(t.id === '悟空' && isUltimateReady(t));
 }
 
 /** 悟空's staff: every enemy along the line from the cell through the target, nearest first. */
@@ -60,6 +71,7 @@ function fireBeam(g: GameState, t: Tile, cell: number, p: Pt, target: Enemy, dmg
   const hits: Array<{ e: Enemy; along: number }> = [];
   for (const e of g.enemies) {
     if (e.hp <= 0 || e.gone) continue;
+    if (e.air && !def.hitsAir) continue;
     const ex = e.x - p.x;
     const ey = e.y - p.y;
     const along = ex * ux + ey * uy;
@@ -91,6 +103,7 @@ function fire(g: GameState, t: Tile, cell: number): boolean {
     let any = false;
     for (const e of g.enemies) {
       if (e.hp <= 0 || e.gone) continue;
+      if (e.air && !def.hitsAir) continue;
       damage(g, e, dmg, t.id);
       any = true;
     }
@@ -128,6 +141,8 @@ function fire(g: GameState, t: Tile, cell: number): boolean {
     const dur = def.fx.dur * fxScale(t) * g.mods.stunMul;
     for (const e of g.enemies) {
       if (e.hp <= 0 || e.gone || dist2(e, target.x, target.y) > r2) continue;
+      // The slam shakes the ground: flyers overhead don't feel it.
+      if (e.air && !def.hitsAir) continue;
       damage(g, e, e === target ? dmg : dmg * 0.6, t.id);
       applyStun(e, dur);
       knock(g, e, def.knockback);
@@ -149,8 +164,10 @@ function impact(g: GameState, pr: Projectile, target: Enemy | null): void {
     const radius = fx.radius * g.mods.splashRadiusMul;
     const r2 = radius * radius;
     const pct = Math.min(1, fx.pct * pr.fxK);
+    // Splash only reaches flyers when the unit that fired it can hit the air.
+    const air = UNITS[pr.unit].hitsAir;
     for (const e of g.enemies) {
-      if (e !== target && e.hp > 0 && !e.gone && dist2(e, pr.tx, pr.ty) <= r2) damage(g, e, pr.dmg * pct, pr.unit);
+      if (e !== target && e.hp > 0 && !e.gone && (air || !e.air) && dist2(e, pr.tx, pr.ty) <= r2) damage(g, e, pr.dmg * pct, pr.unit);
     }
     return;
   }

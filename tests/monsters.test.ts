@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { LEAK_MUL } from '../src/config/chapters.ts';
 import { ENEMIES } from '../src/config/enemies.ts';
-import { MAP_SPEED } from '../src/config/maps.ts';
+import { MAP_SPEED, type MapDef } from '../src/config/maps.ts';
 import { TICKS_PER_SEC } from '../src/core/clock.ts';
 import { stepCombat } from '../src/core/combat.ts';
-import { moveEnemies } from '../src/core/monsters.ts';
+import { applySlow, applyStun, knock } from '../src/core/effects.ts';
+import { makeEnemy, moveEnemies, routeOf } from '../src/core/monsters.ts';
 import { battle, emptyGame, enemy, ROAD_X, roadY } from './helpers.ts';
+
+/** The road runs right along the top, then down to the camp at (168, 168); flyers cut the corner from (24, 24). */
+const BEND: MapDef = { theme: 'ridge', rows: ['1###', '.O.#', '...#', '...E'] };
 
 function runSeconds(g: ReturnType<typeof emptyGame>, s: number): void {
   for (let i = 0; i < s * TICKS_PER_SEC; i++) moveEnemies(g);
@@ -75,5 +79,49 @@ describe('enemies', () => {
     river.hp = 50;
     runSeconds(k, 1);
     expect(river.hp).toBeCloseTo(52, 0);
+  });
+});
+
+describe('flying monsters', () => {
+  it('fly their straight flight line to the camp while walkers take the road, and bite it like anyone else', () => {
+    const g = battle(emptyGame(6, 1, BEND));
+    const bat = makeEnemy(g, '蝠', 0, 100, ENEMIES['蝠'].speed, 2);
+    const imp = makeEnemy(g, '妖', 0, 100, ENEMIES['妖'].speed, 2);
+    g.enemies.push(bat, imp);
+    expect([bat.air, imp.air]).toEqual([true, false]);
+    expect(routeOf(g, bat)).toBe(g.map.flights[0]);
+    expect(routeOf(g, imp)).toBe(g.map.paths[0]);
+    expect([bat.x, bat.y]).toEqual([24, 24]);
+    runSeconds(g, 1);
+    const flown = ENEMIES['蝠'].speed * MAP_SPEED;
+    expect(bat.dist).toBeCloseTo(flown, 0);
+    // On the diagonal, not on the road along the top.
+    expect(bat.x).toBeCloseTo(24 + flown / Math.SQRT2, 0);
+    expect(bat.y).toBeCloseTo(bat.x, 5);
+    expect(imp.y).toBeCloseTo(24, 0);
+    runSeconds(g, 2);
+    expect(bat.gone).toBe(true);
+    expect(bat.dist).toBe(g.map.flights[0].length);
+    expect(imp.gone).toBe(false);
+    expect(g.campHp).toBe(g.campMax - ENEMIES['蝠'].atk * LEAK_MUL);
+    expect(g.events.filter((e) => e.t === 'leak')).toHaveLength(1);
+    stepCombat(g);
+    expect(g.enemies).toEqual([imp]);
+  });
+
+  it('shrug off knockback, but slows and stuns still work on them', () => {
+    const g = battle(emptyGame(6, 1, BEND));
+    const bat = makeEnemy(g, '蝠', 0, 100, ENEMIES['蝠'].speed, 2, 60);
+    const roc = makeEnemy(g, '鹏', 0, 100, ENEMIES['鹏'].speed, 2, 60);
+    g.enemies.push(bat, roc);
+    const at = [bat.x, bat.y];
+    knock(g, bat, 40);
+    expect(bat.dist).toBe(60);
+    expect([bat.x, bat.y]).toEqual(at);
+    applyStun(bat, 1);
+    applySlow(roc, 0.5, 10);
+    runSeconds(g, 0.5);
+    expect(bat.dist).toBe(60);
+    expect(roc.dist).toBeCloseTo(60 + ENEMIES['鹏'].speed * MAP_SPEED * 0.5 * 0.5, 0);
   });
 });
