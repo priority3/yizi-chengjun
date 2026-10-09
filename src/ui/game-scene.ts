@@ -21,13 +21,15 @@ import { inRect, L, viewRect, type Rect } from '../render/layout.ts';
 import { NUMERALS } from '../render/panels.ts';
 import { GameRenderer, type GameUi } from '../render/renderer.ts';
 import { Sfx } from '../render/sfx.ts';
+import type { ShareInfo } from '../render/share-card.ts';
 import { Vfx } from '../render/vfx.ts';
 import { AIM_LABEL, describe } from './describe.ts';
-import { drawPause, drawResult, pausePanel, resultPanel, tapButtons, type OverlayButton, type ResultInfo } from './game-overlays.ts';
+import { drawPause, drawResult, pausePanel, tapButtons, tapResult, type OverlayButton, type ResultInfo } from './game-overlays.ts';
 import { Toasts } from './hud.ts';
 import type { Pointer } from './input.ts';
 import { CameraControls, CardDrag } from './map-controls.ts';
 import type { Nav, Scene } from './scenes.ts';
+import { chapterShareInfo, shareResult } from './share-result.ts';
 import { Tutorial } from './tutorial.ts';
 
 /** Seconds after the run ends before the result panel appears (let the last effects play). */
@@ -215,7 +217,7 @@ export class GameScene implements Scene {
     this.pressed = null;
     const g = this.g;
     if (isOver(g)) {
-      if (this.endT >= RESULT_DELAY) tapButtons(p, resultPanel(this.resultInfo()), this.resultButtons());
+      if (this.endT >= RESULT_DELAY) tapResult(p, this.resultInfo(), this.resultButtons(), () => void shareResult(this.shareInfo()));
       return;
     }
     if (this.paused) {
@@ -400,6 +402,11 @@ export class GameScene implements Scene {
 
   private resultInfo(): ResultInfo {
     return { g: this.g, chapter: this.chapter, rewards: this.rewards, award: this.award, t: this.endT - RESULT_DELAY };
+  }
+
+  /** What the 战报 card shows for this run (分享战报; the dev console's `__zdxyShare()` reads it too). */
+  shareInfo(): ShareInfo {
+    return chapterShareInfo(this.g, new Date());
   }
 
   /** Background music for the moment: calm while building, faster in battle, darker for the boss wave. */

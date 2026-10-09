@@ -4,13 +4,15 @@ import { ENEMIES } from '../config/enemies.ts';
 import { MAX_STARS, THREE_STAR_PCT, type StarAward } from '../core/rating.ts';
 import { effectText, type ClearRewards } from '../core/treasures.ts';
 import type { GameState } from '../core/types.ts';
-import { text } from '../render/draw.ts';
+import { roundRect, text } from '../render/draw.ts';
 import { brush, sans } from '../render/fonts.ts';
 import { inRect, L, W, type Rect } from '../render/layout.ts';
 import { drawRatingStar } from '../render/rating-art.ts';
+import { drawSeal } from '../render/share-art.ts';
 import { drawStone, drawTreasureToken } from '../render/treasure-art.ts';
 import { drawButton, drawPanel } from '../render/widgets.ts';
 import type { Pointer } from './input.ts';
+import { isSharing } from './share-result.ts';
 
 export interface OverlayButton {
   label: string;
@@ -172,5 +174,57 @@ export function drawResult(ctx: CanvasRenderingContext2D, info: ResultInfo, butt
     text(ctx, `坚持到第 ${g.wave}/${g.totalWaves} 波`, W / 2, r.y + 88, sans(14, 600), '#6a4a26');
     text(ctx, '多合成、多解锁格子；法宝页能炼器变强', W / 2, r.y + 116, sans(11, 500), '#7a6248');
   }
+  drawShareSeal(ctx, r, info.t);
   drawButtons(ctx, r, buttons);
+}
+
+// ---- 分享战报 ---------------------------------------------------------------
+
+/**
+ * The 分享 seal: its size, and its centre's offset from the panel's top-right corner.
+ * Reason: hung over the corner rather than inside the panel, so it stays clear of the title (even a five-character
+ * one) and of the stars under it at every design height, without moving anything else on the panel.
+ */
+const SHARE_SEAL = { w: 64, h: 40, dx: -14, dy: 6 };
+/** Room around the seal that still counts as a tap on it. */
+const SHARE_SLOP = 8;
+/** The seal stamps down this long after the panel appears, taking SEAL_STAMP seconds. */
+const SEAL_AT = 0.1;
+const SEAL_STAMP = 0.22;
+
+/** Where a tap means 分享战报: the seal plus a finger's margin. */
+export function shareButtonRect(panel: Rect): Rect {
+  const cx = panel.x + panel.w + SHARE_SEAL.dx;
+  const cy = panel.y + SHARE_SEAL.dy;
+  const { w, h } = SHARE_SEAL;
+  return { x: cx - w / 2 - SHARE_SLOP, y: cy - h / 2 - SHARE_SLOP, w: w + 2 * SHARE_SLOP, h: h + 2 * SHARE_SLOP };
+}
+
+/** 分享 as a red seal stamped onto the panel's corner just after it appears; dimmed while a share is under way. */
+function drawShareSeal(ctx: CanvasRenderingContext2D, panel: Rect, t: number): void {
+  const k = Math.min(1, (t - SEAL_AT) / SEAL_STAMP);
+  if (k <= 0) return;
+  const r = shareButtonRect(panel);
+  const { w, h } = SHARE_SEAL;
+  const tilt = -0.1;
+  ctx.save();
+  ctx.globalAlpha = k * (isSharing() ? 0.5 : 1);
+  ctx.translate(r.x + r.w / 2, r.y + r.h / 2);
+  // Comes down from a little larger, like a stamp pressed onto the paper.
+  ctx.scale(1.35 - 0.35 * k, 1.35 - 0.35 * k);
+  ctx.save();
+  ctx.rotate(tilt);
+  roundRect(ctx, -w / 2 + 1, -h / 2 + 3, w, h, 5);
+  ctx.fillStyle = 'rgba(30,10,5,0.35)';
+  ctx.fill();
+  ctx.restore();
+  drawSeal(ctx, 0, 0, w, h, ['分享'], tilt);
+  ctx.restore();
+}
+
+/** A tap on the result panel: 分享战报 on the seal (once it has stamped down), else one of the stacked buttons. */
+export function tapResult(p: Pointer, info: ResultInfo, buttons: readonly OverlayButton[], share: () => void): void {
+  const panel = resultPanel(info);
+  if (info.t >= SEAL_AT && inRect(p.x, p.y, shareButtonRect(panel))) share();
+  else tapButtons(p, panel, buttons);
 }
