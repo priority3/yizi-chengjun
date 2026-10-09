@@ -72,7 +72,9 @@ export function createGame(opts: GameOptions): GameState {
     nextUid: 1,
   };
   // Every chapter starts with one free 箭 on the slot that sees the most road, and a shop with attack cards.
-  g.slots[bestOpenSlot(map)] = makeTile(g, '箭', 0);
+  // Reason: a map from the editor may have no open pad a fighter can stand on; it then starts without the 箭.
+  const start = bestOpenSlot(map);
+  if (start >= 0) g.slots[start] = makeTile(g, '箭', 0);
   restock(g, FIRST_SHOP_ATTACKERS);
   return g;
 }
