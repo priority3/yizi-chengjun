@@ -28,7 +28,7 @@ const LOOKS: Record<string, Look> = {
   蝠: { body: '#3d2652', belly: '#5d3d78', shape: 'small', ears: 'bat', eyes: 'glow', mouth: 'tiny', extra: 'batwings' },
   鹏: { body: '#e8b53c', belly: '#f8de92', shape: 'round', eyes: 'round', mouth: 'bigbeak', extra: 'chick' },
   魔: { body: '#7c1f25', belly: '#a8433f', shape: 'tall', horns: 'big', eyes: 'glow', mouth: 'teeth' },
-  白骨精: { body: '#efe9da', belly: '#d9d0bb', shape: 'tall', eyes: 'hollow', mouth: 'teeth', extra: 'bones' },
+  白骨精: { body: '#efe9da', belly: '#d9d0bb', shape: 'tall', eyes: 'glow', mouth: 'teeth', extra: 'bones' },
   黄风怪: { body: '#c8983a', belly: '#e9c86c', shape: 'round', ears: 'pointy', eyes: 'angry', mouth: 'fang', extra: 'wind' },
   金角大王: { body: '#3f6d3a', belly: '#6a9a5a', shape: 'wide', horns: 'gold', eyes: 'angry', mouth: 'grin', extra: 'gourd' },
   红孩儿: { body: '#f2b68c', belly: '#f8d2b2', shape: 'round', eyes: 'round', mouth: 'grin', extra: 'flame' },
