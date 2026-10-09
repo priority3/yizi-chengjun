@@ -9,7 +9,7 @@ import { routeOf } from '../core/monsters.ts';
 import { padAllows, padRange, slotRange } from '../core/slots.ts';
 import { isRooted } from '../core/status.ts';
 import type { Enemy, EnemyDef, GameState, Tile, UnitId } from '../core/types.ts';
-import type { Stage } from '../platform/web.ts';
+import type { Stage } from '../platform/env.ts';
 import type { Camera } from './camera.ts';
 import { CARD, cardSprite } from './cards.ts';
 import { drawBar, drawCoin, drawStar, outlined, roundRect, text } from './draw.ts';

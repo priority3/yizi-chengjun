@@ -1,21 +1,16 @@
-// Browser glue: fits the canvas to the screen (DPR-aware, adaptive design height), blocks mobile browser
-// gestures, and persists progress (chapters + the 法宝 vault). Everything platform-specific stays in this file.
-import { EQUIP_SLOTS, MAX_TIER } from '../config/treasures.ts';
-import { MAX_STARS } from '../core/rating.ts';
-import { emptyEndlessRecord, type DailyRecord } from '../core/records.ts';
-import { emptyVault, isTreasureId, type Vault } from '../core/treasures.ts';
+// The web platform (platform/env.ts): the game as a web page. Fits the canvas to the screen (DPR-aware, adaptive
+// design height), blocks mobile browser gestures, and implements every PlatformEnv member with browser APIs. The
+// pointer events are in web-input.ts, the share sheet and save-image overlay in share.ts, offline updates in pwa.ts.
+import { GAME_NAME } from '../config/brand.ts';
+import { BRUSH_FAMILY } from '../render/fonts.ts';
 import { L, MAX_H, MIN_H, setDesignHeight, W } from '../render/layout.ts';
 import { sprites } from '../render/sprites.ts';
+import type { KeyValueStore, PlatformEnv, Stage } from './env.ts';
+import { applyPwaUpdate, pwaUpdateReady, pwaUpdating } from './pwa.ts';
+import { shareImage } from './share.ts';
+import { listenPointers } from './web-input.ts';
 
-export interface Stage {
-  canvas: HTMLCanvasElement;
-  ctx: CanvasRenderingContext2D;
-  /** Backing-store pixels per design unit (CSS scale x devicePixelRatio). */
-  pixelRatio: number;
-  /** Converts a client (CSS pixel) point into design coordinates. */
-  toDesign(clientX: number, clientY: number): { x: number; y: number };
-}
-
+/** Puts the game's canvas into `container` and keeps it fitted to the container (the web platform's createStage). */
 export function createStage(container: HTMLElement): Stage {
   const canvas = document.createElement('canvas');
   container.appendChild(canvas);
@@ -68,150 +63,101 @@ export function installGuards(): void {
   document.addEventListener('touchmove', stop, { passive: false });
 }
 
-export interface SoundSettings {
-  /** All sound off (the HUD speaker button). */
-  muted: boolean;
-  /** Background music on (the pause panel switch). */
-  music: boolean;
-}
+/** Gestures that may start audio. Reason: a touch only counts as a user activation on release (touchend / pointerup). */
+const UNLOCK_EVENTS = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'] as const;
 
-export interface Progress {
-  /** Highest chapter the player may start (1-based). */
-  unlocked: number;
-  /** Clears per chapter. */
-  wins: number[];
-  vault: Vault;
-  /** The chapter-1 animated guide has been completed. */
-  tutorialDone: boolean;
-  sound: SoundSettings;
-  /** Best star rating per chapter (see core/rating.ts): 1..3, or 0 when not rated (not cleared since ratings exist). */
-  stars: number[];
-  /** Per chapter: the one-time three-star bonus has been paid. */
-  starBonus: boolean[];
-  /** Most waves survived in an endless run (core/records.ts). */
-  endlessBest: number;
-  /** The daily challenge's best, for one day at a time (a new day starts over). */
-  daily: DailyRecord;
-}
-
-const STORAGE_KEY = 'yzcj:v3';
 /**
- * Older keys, read when STORAGE_KEY is empty, newest first: the save from before the game was renamed 一字成军
- * (zdxy = 字斗西游), then the v2 save that had no vault yet (upgraded on first load).
+ * armAudioUnlock: listens on the window (capture phase, so nothing can swallow it) until a gesture has the audio
+ * running. Idempotent: arming again re-adds the same listener, which the browser keeps only once.
  */
-const LEGACY_KEYS = ['zdxy:v3', 'zdxy:v2'];
-let memoryCopy: Progress | null = null;
-
-function parseVault(raw: unknown): Vault {
-  const v = emptyVault();
-  if (!raw || typeof raw !== 'object') return v;
-  const r = raw as Partial<Vault>;
-  v.stones = Math.max(0, Math.floor(Number(r.stones) || 0));
-  for (const s of Array.isArray(r.treasures) ? r.treasures : []) {
-    if (s && isTreasureId(String(s.id)) && Number(s.count) > 0) {
-      v.treasures.push({ id: s.id, tier: Math.min(MAX_TIER, Math.max(1, Math.floor(Number(s.tier) || 1))), count: Math.floor(Number(s.count)) });
-    }
-  }
-  for (const id of Array.isArray(r.equipped) ? r.equipped : []) {
-    if (isTreasureId(String(id)) && !v.equipped.includes(id) && v.equipped.length < EQUIP_SLOTS) v.equipped.push(id);
-  }
-  return v;
+function audioUnlocker(): (unlock: () => boolean) => void {
+  let unlock: (() => boolean) | null = null;
+  const onGesture = (e: Event): void => {
+    // Reason: Chrome logs a warning for audio started on a touch's pointerdown; its touchend follows anyway.
+    if (e.type === 'pointerdown' && (e as PointerEvent).pointerType !== 'mouse') return;
+    if (unlock?.()) for (const t of UNLOCK_EVENTS) window.removeEventListener(t, onGesture, true);
+  };
+  return (fn) => {
+    unlock = fn;
+    for (const t of UNLOCK_EVENTS) window.addEventListener(t, onGesture, true);
+  };
 }
 
-/** Sound settings with defaults (sound on, music on) for saves made before they existed. */
-export function parseSound(raw: unknown): SoundSettings {
-  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<SoundSettings>;
-  return { muted: r.muted === true, music: r.music !== false };
+type AudioCtor = new () => AudioContext;
+
+/** A new AudioContext (webkit-prefixed on old iOS), or null without WebAudio. */
+function createAudioContext(): AudioContext | null {
+  const g = globalThis as { AudioContext?: AudioCtor; webkitAudioContext?: AudioCtor };
+  const Ctor = g.AudioContext ?? g.webkitAudioContext;
+  return Ctor ? new Ctor() : null;
+}
+
+/** localStorage, or null where there is none (Node) or it is blocked (private mode, some in-app browsers). */
+function webStorage(): KeyValueStore | null {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    // Reason: some browsers throw on merely touching localStorage when site data is disabled.
+    return null;
+  }
+}
+
+/** The brush font in canvas font syntax, under the family index.html's @font-face declares. */
+const BRUSH_PROBE = `40px ${BRUSH_FAMILY}`;
+
+/** No document (Node tests) or no CSS Font Loading API: there is no font loading to wait for. */
+function noFontApi(): boolean {
+  return typeof document === 'undefined' || !('fonts' in document);
 }
 
 /**
- * Best stars of one chapter: 0 while it has no clear, else 1..3.
- * Reason: every win earns at least one star, so a chapter cleared in a save from before ratings existed shows one
- * (three empty outlines would read as "never cleared"); a chapter without a clear can't carry stars, so junk in a
- * hand-edited save can't rate it.
+ * Waits for the brush font (declared in index.html) with a timeout.
+ * Reason: canvas text only uses a web font once it has loaded; drawing earlier silently falls back.
  */
-function parseStars(raw: unknown, wins: number): number {
-  if (wins <= 0) return 0;
-  return Math.min(MAX_STARS, Math.max(1, Math.floor(Number(raw) || 0)));
-}
-
-/** A whole number of at least 0 from a saved value; 0 for anything else (missing, junk, negative, infinite). */
-function whole(raw: unknown): number {
-  const n = Number(raw);
-  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
-}
-
-/** The daily record, with no day and no best for saves made before it existed (or junk). */
-function parseDaily(raw: unknown): DailyRecord {
-  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<DailyRecord>;
-  return { key: whole(r.key), best: whole(r.best) };
-}
-
-/** Parses a saved progress string (null when it isn't one); missing fields get their defaults. Pure. */
-export function parseProgress(raw: string | null, chapters: number): Progress | null {
-  if (!raw) return null;
-  const p = JSON.parse(raw) as Partial<Progress>;
-  if (typeof p.unlocked !== 'number' || !Array.isArray(p.wins)) return null;
-  const wins = Array.from({ length: chapters }, (_, i) => Number(p.wins?.[i]) || 0);
-  const stars = (Array.isArray(p.stars) ? p.stars : []) as unknown[];
-  const bonus = (Array.isArray(p.starBonus) ? p.starBonus : []) as unknown[];
-  return {
-    unlocked: Math.min(chapters, Math.max(1, p.unlocked)),
-    wins,
-    vault: parseVault(p.vault),
-    tutorialDone: p.tutorialDone === true,
-    sound: parseSound(p.sound),
-    stars: wins.map((w, i) => parseStars(stars[i], w)),
-    starBonus: wins.map((_, i) => bonus[i] === true),
-    endlessBest: whole(p.endlessBest),
-    daily: parseDaily(p.daily),
-  };
-}
-
-/** Progress of a brand-new player. */
-function freshProgress(chapters: number): Progress {
-  return {
-    unlocked: 1,
-    wins: new Array<number>(chapters).fill(0),
-    vault: emptyVault(),
-    tutorialDone: false,
-    sound: parseSound(null),
-    stars: new Array<number>(chapters).fill(0),
-    starBonus: new Array<boolean>(chapters).fill(false),
-    ...emptyEndlessRecord(),
-  };
-}
-
-export function loadProgress(chapters: number): Progress {
+async function loadBrushFont(timeoutMs: number): Promise<string | null> {
+  if (noFontApi()) return null;
   try {
-    const current = parseProgress(localStorage.getItem(STORAGE_KEY), chapters);
-    if (current) return current;
-    // Reason: a player from before the rename keeps their progress; the next save writes it under the new key.
-    for (const key of LEGACY_KEYS) {
-      const legacy = parseProgress(localStorage.getItem(key), chapters);
-      if (legacy) return legacy;
-    }
+    await Promise.race([document.fonts.load(BRUSH_PROBE, GAME_NAME), new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
+    return document.fonts.check(BRUSH_PROBE, '字') ? BRUSH_FAMILY : null;
   } catch {
-    // Storage blocked (private mode / some in-app browsers): fall back to the in-memory copy below.
+    return null;
   }
-  return memoryCopy ?? freshProgress(chapters);
 }
 
-export function saveProgress(p: Progress): void {
-  memoryCopy = {
-    unlocked: p.unlocked,
-    wins: [...p.wins],
-    vault: { stones: p.vault.stones, treasures: p.vault.treasures.map((s) => ({ ...s })), equipped: [...p.vault.equipped] },
-    tutorialDone: p.tutorialDone,
-    sound: { ...p.sound },
-    stars: [...p.stars],
-    starBonus: [...p.starBonus],
-    endlessBest: p.endlessBest,
-    daily: { ...p.daily },
+/** The game's address for the share text: this page without query or hash; '' off the web (a file opened from disk). */
+function shareUrl(): string {
+  if (typeof location === 'undefined' || !location.protocol.startsWith('http')) return '';
+  return `${location.origin}${location.pathname}`;
+}
+
+/** The browser platform. Touches nothing until its members are called, so tests install it without a page. */
+export function webPlatform(): PlatformEnv {
+  return {
+    createStage() {
+      const root = document.getElementById('app');
+      if (!root) throw new Error('#app container is missing');
+      return createStage(root);
+    },
+    createCanvas(width, height) {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      return canvas;
+    },
+    now: () => performance.now(),
+    requestFrame: (frame) => void requestAnimationFrame(frame),
+    listenPointers,
+    loadBrushFont,
+    brushFontReady: () => noFontApi() || document.fonts.check(BRUSH_PROBE, '字'),
+    storage: webStorage,
+    createAudioContext,
+    armAudioUnlock: audioUnlocker(),
+    onVisibility: (listener) => document.addEventListener('visibilitychange', () => listener(!document.hidden)),
+    shareImage: (canvas, text) => shareImage(canvas, text),
+    // The page's host (e.g. zidou-xiyou.vercel.app, localhost:5173); '' where there is none (tests, a file from disk).
+    host: () => (typeof location === 'undefined' ? '' : location.host),
+    shareUrl,
+    // Production builds only: in dev no service worker registers, so no update is ever ready (pwa.ts).
+    update: { ready: pwaUpdateReady, applying: pwaUpdating, apply: applyPwaUpdate },
   };
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryCopy));
-  } catch {
-    // Ignore: progress still lives in memory for this session.
-  }
 }

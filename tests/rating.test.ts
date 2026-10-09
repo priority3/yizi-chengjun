@@ -6,7 +6,7 @@ import { stonesFor } from '../src/config/treasures.ts';
 import { awardStars, STAR_BONUS, starRating, type StarRecord } from '../src/core/rating.ts';
 import { playChapter } from '../src/core/sim.ts';
 import { clearRewards, emptyVault } from '../src/core/treasures.ts';
-import { loadProgress, parseProgress, saveProgress, type Progress } from '../src/platform/web.ts';
+import { loadProgress, parseProgress, saveProgress, type Progress } from '../src/platform/progress.ts';
 import { dayOfYear, menuMapIndex } from '../src/render/map-art.ts';
 
 const N = CHAPTERS.length;

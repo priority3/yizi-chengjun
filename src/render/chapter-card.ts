@@ -4,6 +4,7 @@
 import { CHAPTERS } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
 import { MAPS } from '../config/maps.ts';
+import { offscreen } from '../platform/env.ts';
 import { fitPx, roundRect, text } from './draw.ts';
 import { brush, sans } from './fonts.ts';
 import type { Rect } from './layout.ts';
@@ -98,11 +99,9 @@ export class ChapterCards {
 function paintSprite(r: Rect, c: ChapterCard, m: DOMMatrix, key: string): CardSprite {
   const x = Math.floor(m.a * (r.x - SPRITE_MARGIN) + m.e);
   const y = Math.floor(m.d * (r.y - SPRITE_MARGIN) + m.f);
-  const img = document.createElement('canvas');
-  img.width = Math.ceil(m.a * (r.x + r.w + SPRITE_MARGIN) + m.e) - x;
-  img.height = Math.ceil(m.d * (r.y + r.h + SPRITE_MARGIN) + m.f) - y;
-  const g = img.getContext('2d');
-  if (!g) throw new Error('Canvas 2D is not supported in this browser');
+  const w = Math.ceil(m.a * (r.x + r.w + SPRITE_MARGIN) + m.e) - x;
+  const h = Math.ceil(m.d * (r.y + r.h + SPRITE_MARGIN) + m.f) - y;
+  const { canvas: img, ctx: g } = offscreen(w, h);
   // The screen's own transform, shifted so the canvas starts at (x, y): the same pixels as drawing in place.
   g.setTransform(m.a, 0, 0, m.d, m.e - x, m.f - y);
   drawChapterCard(g, r, c);

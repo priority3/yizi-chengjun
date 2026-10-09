@@ -2,7 +2,7 @@
 // stone pads cards stand on. Painted once per zoom level into an offscreen canvas.
 import { MAPS, TILE, type SlotKind } from '../config/maps.ts';
 import { buildMap, pathPoint, ROAD_W, type MapData, type Pt } from '../core/map.ts';
-import type { Stage } from '../platform/web.ts';
+import { offscreen, type Stage } from '../platform/env.ts';
 import { hash01, roundRect, text } from './draw.ts';
 import { brush } from './fonts.ts';
 import { drawPortrait } from './heroes-art.ts';
@@ -260,11 +260,7 @@ export function mapImage(map: MapData, zoom: number, pixelRatio: number): HTMLCa
   }
   const hit = byRes.get(res);
   if (hit) return hit;
-  const c = document.createElement('canvas');
-  c.width = Math.ceil(map.w * res);
-  c.height = Math.ceil(map.h * res);
-  const ctx = c.getContext('2d');
-  if (!ctx) throw new Error('Canvas 2D is not supported in this browser');
+  const { canvas: c, ctx } = offscreen(Math.ceil(map.w * res), Math.ceil(map.h * res));
   ctx.setTransform(res, 0, 0, res, 0, 0);
   paintMap(ctx, map);
   // Reason: keep only a few zoom levels per map; large maps at high resolution are tens of megabytes.
@@ -304,11 +300,7 @@ export function menuBackdrop(ctx: CanvasRenderingContext2D, stage: Stage, dim: n
   if (!menu || menu.index !== index || menu.res !== res) {
     // Reason: painted here rather than through mapImage, whose per-map cache would keep up to three copies;
     // replacing `menu` keeps exactly one image, and yesterday's map is dropped at midnight.
-    const img = document.createElement('canvas');
-    img.width = Math.ceil(map.w * res);
-    img.height = Math.ceil(map.h * res);
-    const g = img.getContext('2d');
-    if (!g) throw new Error('Canvas 2D is not supported in this browser');
+    const { canvas: img, ctx: g } = offscreen(Math.ceil(map.w * res), Math.ceil(map.h * res));
     g.setTransform(res, 0, 0, res, 0, 0);
     paintMap(g, map);
     menu = { index, res, map, img };

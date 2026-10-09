@@ -4,7 +4,8 @@
 // 返回 leave as they should — and every state renders without throwing.
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { MAPS, TILE } from '../src/config/maps.ts';
-import { parseProgress, type Stage } from '../src/platform/web.ts';
+import type { Stage } from '../src/platform/env.ts';
+import { parseProgress } from '../src/platform/progress.ts';
 import { Camera } from '../src/render/camera.ts';
 import { MIN_H, setDesignHeight, type Rect } from '../src/render/layout.ts';
 import { ACTIONS, actionRect, BACK_BTN, loadCard, mapView, paletteRect, PAN_TOOL, sizeButtons, type ActionId } from '../src/ui/editor-layout.ts';

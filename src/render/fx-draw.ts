@@ -3,6 +3,7 @@
 import { ENEMIES } from '../config/enemies.ts';
 import { GOLD_GLYPH } from '../config/terms.ts';
 import type { ShotKind } from '../core/types.ts';
+import { platform } from '../platform/env.ts';
 import { drawCoin, drawStar, hash01, outlined, roundRect, text } from './draw.ts';
 import { drawNeedleShot, drawNetShot } from './fx-cards.ts';
 import { brush, sans } from './fonts.ts';
@@ -376,7 +377,7 @@ export function drawProjectile(ctx: CanvasRenderingContext2D, kind: ShotKind, x:
       ctx.fillRect(-1, -1.5, 5, 1.5);
       break;
     case 'crescent':
-      ctx.rotate(performance.now() / 60);
+      ctx.rotate(platform().now() / 60);
       ctx.beginPath();
       ctx.arc(0, 0, 9, -1.3, 1.3);
       ctx.arc(-4, 0, 7, 1.1, -1.1, true);
@@ -391,7 +392,7 @@ export function drawProjectile(ctx: CanvasRenderingContext2D, kind: ShotKind, x:
       drawNeedleShot(ctx);
       break;
     case 'net':
-      drawNetShot(ctx, performance.now() / 90);
+      drawNetShot(ctx, platform().now() / 90);
       break;
     default:
       break;

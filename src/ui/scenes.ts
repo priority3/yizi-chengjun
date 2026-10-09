@@ -7,10 +7,10 @@ import { dailyMapIndex, dayLabel } from '../core/modes.ts';
 import { STAR_BONUS, THREE_STAR_PCT, TWO_STAR_PCT } from '../core/rating.ts';
 import { dailyBest } from '../core/records.ts';
 import type { GameMode } from '../core/types.ts';
-import { applyPwaUpdate, pwaUpdateReady, pwaUpdating } from '../platform/pwa.ts';
+import { platform, type Stage } from '../platform/env.ts';
+import { loadProgress, saveProgress, type Progress } from '../platform/progress.ts';
 import { clearRun, loadRun, peekRun, type RunInfo } from '../platform/save.ts';
 import { todayKey } from '../platform/today.ts';
-import { loadProgress, saveProgress, type Progress, type Stage } from '../platform/web.ts';
 import { ChapterCards, thumbRect, type ChapterCard } from '../render/chapter-card.ts';
 import { fitPx, outlined, text } from '../render/draw.ts';
 import { brush, sans } from '../render/fonts.ts';
@@ -23,7 +23,6 @@ import { drawUpdateBanner, updateBannerHit } from '../render/update-banner.ts';
 import { BACK, backdrop, drawButton, drawPanel } from '../render/widgets.ts';
 import { AboutScene } from './about-scene.ts';
 import { chapterRect, entryRect } from './chapter-layout.ts';
-import { EditorScene } from './editor-scene.ts';
 import { GameScene } from './game-scene.ts';
 import type { GestureHandlers, Pointer } from './input.ts';
 import { SplashScene } from './splash-scene.ts';
@@ -53,7 +52,7 @@ export interface Nav {
   /** The 法宝 (treasure) screen. */
   treasures(): void;
   save(): void;
-  /** The map editor (plan.md D1), opened from the address …/#editor. */
+  /** The map editor (plan.md D1), opened from the address …/#editor; does nothing in a build without it. */
   editor(): void;
   /**
    * The map editor's 试玩: a chapter-1 run on `def` without 法宝. It is never saved and earns nothing, so the saved
@@ -69,17 +68,24 @@ export interface SceneOptions {
    * v0.9); main.ts leaves it out when the page opens the map editor. Default true.
    */
   splash?: boolean;
+  /**
+   * Makes the map editor, a web-only screen (ui/editor-scene.ts): main.ts passes it, so the shared scenes never import
+   * the editor and a mini-game build leaves it out. Without it editor() does nothing.
+   */
+  editor?: (nav: Nav, stage: Stage) => Scene;
 }
 
 export class SceneManager implements Nav {
   readonly progress: Progress;
   current: Scene;
   private readonly stage: Stage;
+  private readonly makeEditor: SceneOptions['editor'];
   /** The map editor, made the first time it opens. */
-  private editorScene: EditorScene | null = null;
+  private editorScene: Scene | null = null;
 
   constructor(stage: Stage, options: SceneOptions = {}) {
     this.stage = stage;
+    this.makeEditor = options.editor;
     this.progress = loadProgress(CHAPTERS.length);
     const title = new TitleScene(this, stage);
     this.current = options.splash === false ? title : this.splash(title);
@@ -147,7 +153,8 @@ export class SceneManager implements Nav {
 
   /** One editor per page: coming back from 试玩 (or reopening it) finds its undo steps and view as they were. */
   editor(): void {
-    this.editorScene ??= new EditorScene(this, this.stage);
+    if (!this.makeEditor) return;
+    this.editorScene ??= this.makeEditor(this, this.stage);
     this.current = this.editorScene;
   }
 
@@ -233,13 +240,15 @@ class TitleScene implements Scene {
     const v = versionAnchor();
     text(ctx, versionLabel(), v.x, v.y, sans(9, 500), 'rgba(255,240,210,0.45)', 'right');
     drawButton(ctx, ABOUT_BUTTON, '关于', 'ghost');
-    // A newer build is installed and waiting (production only, see platform/pwa.ts).
-    if (pwaUpdateReady()) drawUpdateBanner(ctx, this.t, pwaUpdating());
+    // A newer build is installed and waiting (web production builds only, see platform/pwa.ts).
+    const update = platform().update;
+    if (update?.ready()) drawUpdateBanner(ctx, this.t, update.applying());
   }
 
   tap(p: Pointer): void {
-    if (pwaUpdateReady() && inRect(p.x, p.y, updateBannerHit())) {
-      applyPwaUpdate();
+    const update = platform().update;
+    if (update?.ready() && inRect(p.x, p.y, updateBannerHit())) {
+      update.apply();
       return;
     }
     if (inRect(p.x, p.y, ABOUT_BUTTON)) {

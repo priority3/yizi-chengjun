@@ -9,6 +9,7 @@ import { DEFEAT, FINAL_WIN } from '../config/terms.ts';
 import { TREASURES, type TreasureId } from '../config/treasures.ts';
 import { buildMap, type MapData } from '../core/map.ts';
 import { MAX_STARS } from '../core/rating.ts';
+import { offscreen, platform } from '../platform/env.ts';
 import { fitPx, roundRect, text } from './draw.ts';
 import { brush, sans } from './fonts.ts';
 import { drawPortrait, type PortraitId } from './heroes-art.ts';
@@ -148,16 +149,12 @@ function mapOf(info: ShareInfo): MapData | null {
   return def ? buildMap(def) : null;
 }
 
-/** The address players can open the game at, '' where there is none (a file opened from disk, tests). */
-function siteHost(): string {
-  return typeof location === 'undefined' ? '' : location.host;
-}
-
 /**
  * Paints the whole card onto `ctx`, whose transform maps card pixels (CARD_W x CARD_H) onto the target. `host` is the
- * address printed at the bottom (this page's by default; nothing is printed when it is '').
+ * address printed at the bottom (by default the platform's host(): this page's on the web; nothing is printed when it
+ * is '', e.g. a file opened from disk or tests).
  */
-export function paintShareCard(ctx: CanvasRenderingContext2D, info: ShareInfo, host = siteHost()): void {
+export function paintShareCard(ctx: CanvasRenderingContext2D, info: ShareInfo, host = platform().host()): void {
   ctx.save();
   paintPaper(ctx, CARD_W, CARD_H);
   paintFrame(ctx, CARD_W, CARD_H, CARD_LAYOUT.inner);
@@ -173,11 +170,7 @@ export function paintShareCard(ctx: CanvasRenderingContext2D, info: ShareInfo, h
 
 /** A new CARD_W x CARD_H canvas with the card painted on it. */
 export function renderShareCard(info: ShareInfo): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
-  canvas.width = CARD_W;
-  canvas.height = CARD_H;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Canvas 2D is not supported in this browser');
+  const { canvas, ctx } = offscreen(CARD_W, CARD_H);
   paintShareCard(ctx, info);
   return canvas;
 }

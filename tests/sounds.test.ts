@@ -6,7 +6,7 @@ import { SILENT_EVENTS, soundFor, SOUNDS, type SoundId, type Voice } from '../sr
 import type { HeroId, ShotKind, SimEvent } from '../src/core/types.ts';
 import { AudioEngine } from '../src/platform/audio.ts';
 import { BARS, makeTune, Music, music, STEPS_PER_BAR, stepVoices, type MusicMode } from '../src/platform/music.ts';
-import { parseProgress, parseSound } from '../src/platform/web.ts';
+import { parseProgress, parseSound } from '../src/platform/progress.ts';
 import { Sfx, SFX_MAX_PER_CALL, SFX_REPEAT_MS } from '../src/render/sfx.ts';
 
 /** Problems with a voice's parameters; empty when it is playable without clicks or inaudible pitches. */

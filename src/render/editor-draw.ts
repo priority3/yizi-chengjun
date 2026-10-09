@@ -4,6 +4,7 @@
 // map itself is paintMap's, exactly as a run paints it, cached per layout by PaintedMap.
 import { PAD_LETTERS, SLOT_NAME, TILE, type MapTheme, type SlotKind } from '../config/maps.ts';
 import type { MapData } from '../core/map.ts';
+import { offscreen } from '../platform/env.ts';
 import { roundRect, text } from './draw.ts';
 import { sans } from './fonts.ts';
 import { paintMap, PAD_R } from './map-art.ts';
@@ -275,11 +276,8 @@ export class PaintedMap {
     const res = Math.round(Math.min(want, Math.sqrt(PIXEL_BUDGET / (map.w * map.h))) * 100) / 100;
     let img = this.byRes.get(res);
     if (!img) {
-      img = document.createElement('canvas');
-      img.width = Math.ceil(map.w * res);
-      img.height = Math.ceil(map.h * res);
-      const g = img.getContext('2d');
-      if (!g) throw new Error('Canvas 2D is not supported in this browser');
+      const { canvas, ctx: g } = offscreen(Math.ceil(map.w * res), Math.ceil(map.h * res));
+      img = canvas;
       g.setTransform(res, 0, 0, res, 0, 0);
       paintMap(g, map);
       if (this.byRes.size >= KEEP_RES) this.byRes.delete(this.byRes.keys().next().value as number);

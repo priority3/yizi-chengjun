@@ -1,15 +1,16 @@
-// Entry point: sets up the stage, waits for the brush font, then runs the scene loop.
-import { LOG_TAG } from './config/brand.ts';
-import { audio } from './platform/audio.ts';
+// Web entry point: installs the browser platform (platform/web.ts), starts the game (boot.ts), then adds what only the
+// web version has: the map editor at …/#editor, offline play and updates (service worker), and the dev console hooks.
+import { startGame } from './boot.ts';
 import { wantsEditor } from './platform/editor-io.ts';
+import { installPlatform, platform } from './platform/env.ts';
 import { registerServiceWorker } from './platform/pwa.ts';
-import { createStage, installGuards } from './platform/web.ts';
+import { showShareOverlay } from './platform/share.ts';
+import { installGuards, webPlatform } from './platform/web.ts';
 import { appIconDataUrl } from './render/app-icon.ts';
-import { loadFonts } from './render/fonts.ts';
-import { L, W } from './render/layout.ts';
-import { sprites } from './render/sprites.ts';
-import { attachGestures } from './ui/input.ts';
-import { SceneManager } from './ui/scenes.ts';
+import { renderShareCard, type ShareInfo } from './render/share-card.ts';
+import { EditorScene } from './ui/editor-scene.ts';
+import type { Scene, SceneManager } from './ui/scenes.ts';
+import { sampleShareInfo, shareText } from './ui/share-result.ts';
 
 declare global {
   interface Window {
@@ -17,47 +18,20 @@ declare global {
     __yzcj?: SceneManager;
     /** Dev-only: the app icon as a PNG data URL (`maskable` = full-bleed, emblem inside the safe zone). */
     __yzcjIcon?: (size: number, maskable?: boolean) => string;
+    /** Dev only: paints a result card and shows it in the save-image overlay; returns the PNG as a data URL. */
+    __yzcjShare?: (patch?: Partial<ShareInfo>) => string;
   }
 }
 
+installPlatform(webPlatform());
 installGuards();
-const root = document.getElementById('app');
-if (!root) throw new Error('#app container is missing');
-const stage = createStage(root);
-
-stage.ctx.setTransform(stage.pixelRatio, 0, 0, stage.pixelRatio, 0, 0);
-stage.ctx.fillStyle = '#1d1714';
-stage.ctx.fillRect(0, 0, W, L.H);
-
-if (!(await loadFonts())) console.warn(`${LOG_TAG} brush font not loaded; falling back to the system font`);
-// Reason: anything painted before the font arrived used the fallback font.
-sprites.clear();
 
 // Every launch opens on the 健康游戏忠告 splash, except a page opened on the map editor (#editor, see below).
-const scenes = new SceneManager(stage, { splash: !wantsEditor() });
-attachGestures(stage, () => scenes.current);
-// The saved sound settings apply before the first tap creates the AudioContext.
-audio.setMuted(scenes.progress.sound.muted);
-audio.setMusicOn(scenes.progress.sound.music);
-
-/** Gestures that may start audio. Reason: a touch only counts as a user activation on release (touchend / pointerup). */
-const UNLOCK_EVENTS = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'] as const;
-
-function unlockAudio(e: Event): void {
-  // Reason: Chrome logs a warning for audio started on a touch's pointerdown; its touchend follows anyway.
-  if (e.type === 'pointerdown' && (e as PointerEvent).pointerType !== 'mouse') return;
-  audio.unlock();
-  if (audio.running) for (const t of UNLOCK_EVENTS) window.removeEventListener(t, unlockAudio, true);
-}
-
-/** Listens (capture phase, so nothing can swallow it) until a gesture has the audio running. Idempotent. */
-function armAudioUnlock(): void {
-  for (const t of UNLOCK_EVENTS) window.addEventListener(t, unlockAudio, true);
-}
-armAudioUnlock();
+const scenes = await startGame({ splash: !wantsEditor(), editor: (nav, stage) => new EditorScene(nav, stage) });
 if (import.meta.env.DEV) window.__yzcj = scenes;
 // Exports public/icons/*.png from the browser console (the project has no image assets or Node canvas).
 if (import.meta.env.DEV) window.__yzcjIcon = appIconDataUrl;
+if (import.meta.env.DEV) window.__yzcjShare = devShare;
 // Offline play and the 有新版本 banner; a no-op in dev and wherever service workers are unavailable.
 registerServiceWorker();
 
@@ -72,29 +46,19 @@ function followAddress(): void {
 window.addEventListener('hashchange', followAddress);
 followAddress();
 
-let last = performance.now();
-
-function frame(now: number): void {
-  // Reason: clamp long gaps (tab switches, breakpoints) so the simulation never tries to catch up minutes at once.
-  const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
-  last = now;
-  scenes.current.update(dt);
-  stage.ctx.setTransform(stage.pixelRatio, 0, 0, stage.pixelRatio, 0, 0);
-  scenes.current.render(stage.ctx);
-  requestAnimationFrame(frame);
-}
-
-requestAnimationFrame(frame);
-
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) scenes.current.pause?.();
-  last = performance.now();
-  if (document.hidden) {
-    audio.suspend();
-  } else {
-    audio.resume();
-    // Reason: iOS may refuse to resume outside a gesture; then the next tap unlocks the audio again.
-    armAudioUnlock();
-  }
-});
 window.addEventListener('pagehide', () => scenes.current.pause?.());
+
+/**
+ * Dev console hook. `__yzcjShare()` paints the card of the run on screen (in any phase) or, away from a run, a sample
+ * chapter-1 win; `__yzcjShare({ chapter: 8 })` paints a sample of chapter 8; any other fields patch the card, e.g.
+ * `__yzcjShare({ won: false, waves: 3, stars: undefined })`. Shows it in the overlay (never the share sheet).
+ */
+function devShare(patch: Partial<ShareInfo> = {}): string {
+  // Reason: only a run's scene (ui/game-scene.ts) has shareInfo; the Scene interface doesn't promise it.
+  const scene = scenes.current as Scene & { shareInfo?: () => ShareInfo };
+  const base = patch.chapter === undefined && scene.shareInfo ? scene.shareInfo() : sampleShareInfo(patch.chapter ?? 1, new Date());
+  const info: ShareInfo = { ...base, ...patch };
+  const url = renderShareCard(info).toDataURL('image/png');
+  showShareOverlay(url, shareText(info, platform().shareUrl()));
+  return url;
+}

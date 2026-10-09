@@ -1,8 +1,10 @@
 // Hands a painted picture to the player: the system share sheet with the PNG attached where the browser can share
 // files (most phones), else a full-screen copy of the picture to long-press (phones) or right-click (desktop) and
-// save. That overlay is the game's only DOM UI besides the canvas.
+// save. That overlay is the game's only DOM UI besides the canvas. Web only: the web platform's shareImage
+// (platform/web.ts); a mini-game platform shares through its own share API instead.
 import { GAME_NAME } from '../config/brand.ts';
 import { SANS_STACK } from '../render/fonts.ts';
+import type { ShareOutcome } from './env.ts';
 
 /** Title of the shared picture and of the save-image overlay. */
 export const SHARE_TITLE = `${GAME_NAME}战报`;
@@ -10,9 +12,6 @@ export const SHARE_TITLE = `${GAME_NAME}战报`;
 export const SAVE_HINT = '长按图片保存，或右键另存为';
 /** File name the share sheet shows for the picture. */
 export const SHARE_FILE = 'yizi-chengjun.png';
-
-/** How a share ended: sent through the share sheet, the sheet closed by the player, or the picture shown to save by hand. */
-export type ShareOutcome = 'shared' | 'cancelled' | 'saved';
 
 /** The canvas method shareImage uses (tests pass a fake). */
 export type PngSource = Pick<HTMLCanvasElement, 'toDataURL'>;

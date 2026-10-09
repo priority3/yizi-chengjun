@@ -1,6 +1,6 @@
 // 分享战报: what the result card shows for a run (pure, built from the run's state: chapterShareInfo, modeShareInfo
-// for endless and daily runs), and the tap that paints the card once and hands it to the share sheet or the
-// save-image overlay. The card and the share flow work from ShareInfo alone.
+// for endless and daily runs), and the tap that paints the card once and hands it to the platform's share (on the
+// web the share sheet or the save-image overlay). The card and the share flow work from ShareInfo alone.
 import { GAME_NAME, LOG_TAG } from '../config/brand.ts';
 import { CHAPTERS } from '../config/chapters.ts';
 import { ENDLESS_CHAPTER } from '../config/endless.ts';
@@ -13,8 +13,8 @@ import { starRating } from '../core/rating.ts';
 import { wavesSurvived } from '../core/records.ts';
 import { buildMods, defaultMods, effectValue, type Vault } from '../core/treasures.ts';
 import type { GameState, RunMods } from '../core/types.ts';
-import { shareImage, showShareOverlay, type ShareOutcome } from '../platform/share.ts';
-import { BRUSH_FAMILY, loadFonts } from '../render/fonts.ts';
+import { platform, type ShareOutcome } from '../platform/env.ts';
+import { loadFonts } from '../render/fonts.ts';
 import { NUMERALS } from '../render/panels.ts';
 import { renderShareCard, type ShareInfo, type ShareToken } from '../render/share-card.ts';
 
@@ -122,12 +122,6 @@ export function shareText(info: ShareInfo, url: string): string {
   return `《${GAME_NAME}》${info.title}：${result}，${DEFEAT} ${info.kills} 只妖怪！${url ? ` ${url}` : ''}`;
 }
 
-/** The game's address for the share text: this page without query or hash; '' off the web (a file opened from disk). */
-function siteUrl(): string {
-  if (typeof location === 'undefined' || !location.protocol.startsWith('http')) return '';
-  return `${location.origin}${location.pathname}`;
-}
-
 /** A share is being prepared, or its sheet is open. */
 let busy = false;
 
@@ -137,15 +131,16 @@ export function isSharing(): boolean {
 }
 
 /**
- * 分享战报: paints the card (only now, on the tap; never per frame) and shares it through shareImage. Ignored while a
- * share is under way. Resolves to how the share ended, or null when it didn't happen.
+ * 分享战报: paints the card (only now, on the tap; never per frame) and shares it through the platform's shareImage,
+ * with the platform's address in the text. Ignored while a share is under way. Resolves to how the share ended, or
+ * null when it didn't happen.
  */
 export async function shareResult(info: ShareInfo): Promise<ShareOutcome | null> {
   if (busy) return null;
   busy = true;
   try {
     await brushReady();
-    return await shareImage(renderShareCard(info), shareText(info, siteUrl()));
+    return await platform().shareImage(renderShareCard(info), shareText(info, platform().shareUrl()));
   } catch (err) {
     console.warn(`${LOG_TAG} 战报分享失败`, err);
     return null;
@@ -159,7 +154,7 @@ export async function shareResult(info: ShareInfo): Promise<ShareOutcome | null>
  * already, and then nothing waits (the card is painted in the same task as the tap, which the share sheet needs).
  */
 async function brushReady(): Promise<void> {
-  if (typeof document === 'undefined' || !('fonts' in document) || document.fonts.check(`40px ${BRUSH_FAMILY}`, '字')) return;
+  if (platform().brushFontReady()) return;
   await loadFonts(1500);
 }
 
@@ -182,26 +177,3 @@ export function sampleShareInfo(chapter: number, now: Date): ShareInfo {
   g.campHp = Math.round(g.campMax * 0.85);
   return chapterShareInfo(g, now);
 }
-
-declare global {
-  interface Window {
-    /** Dev only: paints a result card and shows it in the save-image overlay; returns the PNG as a data URL. */
-    __yzcjShare?: (patch?: Partial<ShareInfo>) => string;
-  }
-}
-
-/**
- * Dev console hook. `__yzcjShare()` paints the card of the run on screen (in any phase) or, away from a run, a sample
- * chapter-1 win; `__yzcjShare({ chapter: 8 })` paints a sample of chapter 8; any other fields patch the card, e.g.
- * `__yzcjShare({ won: false, waves: 3, stars: undefined })`. Shows it in the overlay (never the share sheet).
- */
-function devShare(patch: Partial<ShareInfo> = {}): string {
-  const scene = (window as unknown as { __yzcj?: { current?: { shareInfo?: () => ShareInfo } } }).__yzcj?.current;
-  const base = patch.chapter === undefined && scene?.shareInfo ? scene.shareInfo() : sampleShareInfo(patch.chapter ?? 1, new Date());
-  const info: ShareInfo = { ...base, ...patch };
-  const url = renderShareCard(info).toDataURL('image/png');
-  showShareOverlay(url, shareText(info, siteUrl()));
-  return url;
-}
-
-if (import.meta.env.DEV && typeof window !== 'undefined') window.__yzcjShare = devShare;

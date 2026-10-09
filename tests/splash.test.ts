@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GAME_NAME } from '../src/config/brand.ts';
 import { HEALTH_ADVICE } from '../src/config/legal.ts';
-import type { Stage } from '../src/platform/web.ts';
+import type { Stage } from '../src/platform/env.ts';
 import { MIN_H, setDesignHeight } from '../src/render/layout.ts';
 import type { Pointer } from '../src/ui/input.ts';
 import { SceneManager, type Scene } from '../src/ui/scenes.ts';

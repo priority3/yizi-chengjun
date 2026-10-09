@@ -16,10 +16,10 @@ import { buildMods, defaultMods, type ClearRewards } from '../core/treasures.ts'
 import type { Action, ActionResult, GameMode, GameState, SimEvent, Tile } from '../core/types.ts';
 import { isBossWave } from '../core/waves.ts';
 import { audio } from '../platform/audio.ts';
+import type { Stage } from '../platform/env.ts';
 import { music, type MusicMode } from '../platform/music.ts';
 import { clearRun, saveRun, type CameraPos, type SavedRun } from '../platform/save.ts';
 import { todayKey } from '../platform/today.ts';
-import type { Stage } from '../platform/web.ts';
 import { Camera } from '../render/camera.ts';
 import { encounterCardRects } from '../render/encounter-panel.ts';
 import { inRect, L, viewRect, type Rect } from '../render/layout.ts';

@@ -1,12 +1,11 @@
 // The map editor (plan.md D1), opened from the address …/#editor (no button leads there). Pick a brush in the palette,
 // then tap or drag on the map to paint; the camp and each entrance move when placed again. Every edit is checked live:
 // the map is painted exactly as a run paints it, or shown as raw squares under a red banner while it doesn't build.
-// 撤销 / 清空 / 尺寸 / 载入 / 导出 / 导入 / 试玩 sit at the bottom; the draft is kept in localStorage ('yzcj:editor')
-// and comes back the next time the editor opens.
+// 撤销 / 清空 / 尺寸 / 载入 / 导出 / 导入 / 试玩 sit at the bottom; the draft is kept in the platform's storage
+// ('yzcj:editor') and comes back the next time the editor opens. A web-only screen: main.ts hands it to the scenes.
 import { MAPS, TILE } from '../config/maps.ts';
 import { askText, copyText, leaveEditorAddress } from '../platform/editor-io.ts';
-import { browserStorage } from '../platform/save.ts';
-import type { Stage } from '../platform/web.ts';
+import { platform, type Stage } from '../platform/env.ts';
 import { Camera } from '../render/camera.ts';
 import { thumbRect } from '../render/chapter-card.ts';
 import { drawBestPads, drawEntranceTags, drawFaults, drawGridLines, drawPadMarks, drawRawGrid, PaintedMap } from '../render/editor-draw.ts';
@@ -83,7 +82,7 @@ interface Stroke {
 export class EditorScene implements Scene {
   private readonly nav: Nav;
   private readonly stage: Stage;
-  private readonly store = browserStorage();
+  private readonly store = platform().storage();
   private draft: Draft;
   private readonly history = new History();
   /** The last check, and the draft it was made of: squares edited since are drawn raw until the next check. */

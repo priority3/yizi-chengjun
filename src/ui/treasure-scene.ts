@@ -1,7 +1,7 @@
 // 法宝 screen: equip up to three treasures, forge new ones with 灵石, merge three of a kind into a higher tier.
 import { EQUIP_SLOTS, FORGE_COST, MERGE_COUNT, RARITY_LABEL, TREASURE_IDS, TREASURES, type TreasureId } from '../config/treasures.ts';
 import { effectText, forge, mergeAll, ownedTier, toggleEquip, type Vault } from '../core/treasures.ts';
-import type { Stage } from '../platform/web.ts';
+import type { Stage } from '../platform/env.ts';
 import { outlined, roundRect, text } from '../render/draw.ts';
 import { brush, sans } from '../render/fonts.ts';
 import { inRect, L, W, type Rect } from '../render/layout.ts';
