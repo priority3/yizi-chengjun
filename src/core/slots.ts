@@ -3,6 +3,7 @@
 // Combat, ultimates, the bot, the range ring and the card description all read tile stats through these.
 import { SLOT_BONUS, type SlotKind } from '../config/maps.ts';
 import { UNITS } from '../config/units.ts';
+import { drumMul } from './buffs.ts';
 import { tileDamage, tileRange } from './stats.ts';
 import type { GameState, RunMods, Tile, UnitId } from './types.ts';
 
@@ -34,9 +35,13 @@ export function padRange(t: Tile, kind: SlotKind, mods?: RunMods): number {
   return isFighter(t.id) ? r + SLOT_BONUS[kind].range : r;
 }
 
-/** tileDamage of `t` with the 法阵 bonus of the pad it stands on, run 法宝 included. */
+/**
+ * tileDamage of `t` with the 法阵 bonus of the pad it stands on and the 鼓 beating next to it (the two multiply), run
+ * 法宝 included.
+ */
 export function slotDamage(g: GameState, t: Tile, cell: number): number {
-  return padDamage(t, slotKindOf(g, cell), g.mods);
+  const d = padDamage(t, slotKindOf(g, cell), g.mods);
+  return isFighter(t.id) ? d * drumMul(g, cell) : d;
 }
 
 /** tileRange of `t` with the 高台 bonus of the pad it stands on, run 法宝 included. */

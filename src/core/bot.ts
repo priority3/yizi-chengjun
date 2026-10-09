@@ -6,6 +6,8 @@ import { heroFor } from '../config/combos.ts';
 import { SLOT_BONUS } from '../config/maps.ts';
 import { MAX_LEVEL, UNITS } from '../config/units.ts';
 import { canBeDivine, canPlace, isStackable } from './board.ts';
+import { drumValue, NET_VALUE, placedValue, poisonValue, SUPPORT_VALUE, wantsNet } from './bot-cards.ts';
+import { drumMul } from './buffs.ts';
 import { coverage } from './map.ts';
 import { isOpenEnded } from './modes.ts';
 import { rand, type RngHolder } from './rng.ts';
@@ -33,13 +35,18 @@ function antiAir(id: UnitId, chapter: number): boolean {
   return hasAirRaids(chapter) && (UNITS[id].airMul ?? 1) > 1;
 }
 
-/** Rough usefulness of a tile in `chapter`: damage per second for fighters, a flat value for everything else. */
+/**
+ * Rough usefulness of a tile in `chapter`: damage per second for fighters (a 毒's poison included), a flat value for a
+ * 网 and everything else. Buying a 鼓 or 镜 is rated on the board instead (placedValue in bot-cards.ts).
+ */
 export function tileValue(t: Tile, chapter: number): number {
   const kind = UNITS[t.id].kind;
+  if (UNITS[t.id].fx.t === 'root') return NET_VALUE * t.level;
   if (kind === 'attack' || kind === 'hero') {
-    return tileDps(t) * (kind === 'hero' ? 1.4 : 1) * (t.id === '白龙' ? 4 : 1) * (antiAir(t.id, chapter) ? AIR_VALUE : 1);
+    const dps = tileDps(t) + poisonValue(t);
+    return dps * (kind === 'hero' ? 1.4 : 1) * (t.id === '白龙' ? 4 : 1) * (antiAir(t.id, chapter) ? AIR_VALUE : 1);
   }
-  if (kind === 'support') return 12 * t.level;
+  if (kind === 'support') return SUPPORT_VALUE * t.level;
   if (kind === 'divine') return 60;
   return 4;
 }
@@ -52,8 +59,11 @@ function cellScore(g: GameState, cell: number, t: Tile): number {
   const kind = UNITS[t.id].kind;
   if (kind === 'attack' || kind === 'hero') {
     const pad = slotKindOf(g, cell);
-    return coverage(g.map, cell, padRange(t, pad, g.mods), antiAir(t.id, g.chapter)) * SLOT_BONUS[pad].dmgMul;
+    // A 鼓 beside the cell counts like a 法阵 (drumMul is 1 without one, so boards without drums score as before).
+    return coverage(g.map, cell, padRange(t, pad, g.mods), antiAir(t.id, g.chapter)) * SLOT_BONUS[pad].dmgMul * drumMul(g, cell);
   }
+  // 鼓 wants the strongest fighters within its reach.
+  if (t.id === '鼓') return drumValue(g, cell, t.level);
   if (t.id === '速') {
     // 速 wants fighters within its reach.
     let n = 0;
@@ -143,6 +153,8 @@ function bestPurchase(g: GameState): Action | null {
   const weak = boardDps(g) < dpsNeeded(g);
   g.shop.forEach((o, i) => {
     if (o.sold || offerPrice(g, o) > g.gongde) return;
+    // A 网 only for the boss and elite waves, and never a second one (nor a merge): see wantsNet.
+    if (UNITS[o.id].fx.t === 'root' && !wantsNet(g, o.id)) return;
     const card = asTile(o.id);
     let cell = -1;
     let score = 0;
@@ -167,12 +179,15 @@ function bestPurchase(g: GameState): Action | null {
     }
     if (cell < 0 && empties > 0 && o.id !== '神') {
       const kind = UNITS[o.id].kind;
-      // While the camp is under-gunned, fighters come first.
-      if (weak && kind !== 'attack') return;
+      // While the camp is under-gunned, fighters come first — and a 网, which barely hurts, doesn't count as one.
+      if (weak && (kind !== 'attack' || UNITS[o.id].fx.t === 'root')) return;
       // Lone fragments wait for their partner; only worth a cell when there is room to spare.
       if (kind === 'fragment' && empties < 3) return;
       cell = bestEmptyCell(g, card);
-      score = kind === 'fragment' ? 8 : (tileValue(card, g.chapter) / offerPrice(g, o)) * 10;
+      const value = cell < 0 ? 0 : (placedValue(g, card, cell) ?? tileValue(card, g.chapter));
+      score = kind === 'fragment' ? 8 : (value / offerPrice(g, o)) * 10;
+      // A 鼓 with no fighter beside it would add nothing: leave it in the shop.
+      if (score <= 0) return;
     }
     if (cell >= 0 && (!pick || score > pick.score)) pick = { offer: i, cell, score };
   });
@@ -225,7 +240,8 @@ function longGame(g: GameState): boolean {
  */
 function cellToFree(g: GameState): number {
   if (!longGame(g) || emptyCellsFor(g, '箭').length > 0) return -1;
-  if (g.slots.some((t) => t !== null && t.level === 1 && UNITS[t.id].kind === 'attack')) return -1;
+  // Reason: a 网 never waits for a copy (the bot keeps one, unmerged: see wantsNet), so it must not hold up selling.
+  if (g.slots.some((t) => t !== null && t.level === 1 && UNITS[t.id].kind === 'attack' && UNITS[t.id].fx.t !== 'root')) return -1;
   let cell = -1;
   let low = Infinity;
   g.slots.forEach((t, i) => {

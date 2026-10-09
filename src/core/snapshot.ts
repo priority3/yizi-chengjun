@@ -73,7 +73,9 @@ function shape<T>(fields: Checks<T>): Check {
 const unitId = keyOf(UNITS);
 /** A fighter's target priority; older saves and never-switched tiles have none ('first'). */
 const targetMode: Check = (x) => x === undefined || TARGET_MODES.some((m) => m === x);
-const tile = shape<Tile>({ uid: count, id: unitId, level: intIn(1, MAX_LEVEL), divine: bool, cd: num, invested: num, rage: num, target: targetMode });
+/** The leak damage a 镜 carries into the next wave; older saves and every other tile have none. */
+const charge: Check = (x) => x === undefined || (num(x) && (x as number) >= 0);
+const tile = shape<Tile>({ uid: count, id: unitId, level: intIn(1, MAX_LEVEL), divine: bool, cd: num, invested: num, rage: num, target: targetMode, charge });
 const offer = shape<ShopOffer>({ id: unitId, price: num, sold: bool });
 const waveMods = shape<WaveMods>({
   speedMul: num,

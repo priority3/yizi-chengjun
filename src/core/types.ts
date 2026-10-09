@@ -2,8 +2,8 @@
 // so a whole run can be snapshotted, hashed and replayed in tests.
 import type { MapData } from './map.ts';
 
-export type AttackId = '棍' | '箭' | '火' | '冰' | '雷';
-export type SupportId = '速' | '钱' | '疗';
+export type AttackId = '棍' | '箭' | '火' | '冰' | '雷' | '毒' | '网';
+export type SupportId = '速' | '钱' | '疗' | '鼓' | '镜';
 export type FragId = '悟' | '空' | '八' | '戒' | '沙' | '僧' | '白' | '龙';
 export type HeroId = '悟空' | '八戒' | '沙僧' | '白龙';
 export type UnitId = AttackId | SupportId | FragId | HeroId | '神';
@@ -14,7 +14,7 @@ export type UnitKind = 'attack' | 'hero' | 'support' | 'fragment' | 'divine';
  * How an attack is delivered. Projectile shots travel and deal damage on arrival;
  * the others resolve instantly (the renderer still animates them).
  */
-export type ShotKind = 'arrow' | 'fire' | 'ice' | 'crescent' | 'swing' | 'bolt' | 'beam' | 'slam' | 'dragon' | 'none';
+export type ShotKind = 'arrow' | 'fire' | 'ice' | 'crescent' | 'swing' | 'bolt' | 'beam' | 'slam' | 'dragon' | 'needle' | 'net' | 'none';
 
 export type UnitFx =
   | { t: 'none' }
@@ -26,7 +26,18 @@ export type UnitFx =
   | { t: 'global' }
   | { t: 'haste'; pct: number }
   | { t: 'income'; amount: number }
-  | { t: 'heal'; amount: number };
+  | { t: 'heal'; amount: number }
+  /** 毒: each hit adds a stack (up to `max`) that deals `dps` a second (level 1) for `dur` s; every hit refreshes them all. */
+  | { t: 'poison'; dps: number; dur: number; max: number }
+  /** 网: holds the target in place for `dur` s (times the level's effect scale), bosses included. */
+  | { t: 'root'; dur: number }
+  /** 鼓: fighters within reach deal `dmg` more damage and attack `speed` faster, per drum level. */
+  | { t: 'drum'; dmg: number; speed: number }
+  /**
+   * 镜: every pulse, the camp damage caught since the last one (at most `cap`), times `k` x level x a 小妖's HP this
+   * wave, hits everyone.
+   */
+  | { t: 'mirror'; k: number; cap: number };
 
 export interface UnitDef {
   id: UnitId;
@@ -72,6 +83,8 @@ export interface Tile {
   rage: number;
   /** Target priority of a fighter (瞄准); absent means 'first'. */
   target?: TargetMode;
+  /** 镜 only: camp damage from leaks caught since its last pulse; absent until the first leak it sees. */
+  charge?: number;
 }
 
 export type BossTrait =
@@ -105,6 +118,15 @@ export interface EnemyDef {
   flying?: boolean;
 }
 
+/** 毒 on a monster: `stacks` stacks, each dealing `dps` a second, for `t` more seconds (JSON-safe, like the rest of Enemy). */
+export interface Poison {
+  stacks: number;
+  /** Seconds left; every needle that lands sets it back to the full duration. */
+  t: number;
+  /** Damage per second of one stack: the strongest needle that hit it so far. */
+  dps: number;
+}
+
 export interface Enemy {
   uid: number;
   def: string;
@@ -128,6 +150,13 @@ export interface Enemy {
   slowPct: number;
   slowT: number;
   stunT: number;
+  /** 毒 stacks eating at it, or null (see core/status.ts). */
+  poison: Poison | null;
+  /**
+   * 网: seconds until a net can catch it again; 0 = free. While above ROOT_GUARD it is caught (isRooted in
+   * core/status.ts): held in place, still hittable. Its last ROOT_GUARD seconds it is shaking the net off.
+   */
+  rootT: number;
   /** Camp damage (times LEAK_MUL) if it reaches the end of the road. */
   atk: number;
   revives: number;
@@ -273,6 +302,8 @@ export type SimEvent =
   | { t: 'invalid'; cell: number; msg: string }
   | { t: 'income'; cell: number; amount: number }
   | { t: 'heal'; cell: number; amount: number }
+  /** The 镜 on `cell` sent `dmg` back from the camp (x, y) at every monster on the field: `targets`. */
+  | { t: 'mirror'; cell: number; x: number; y: number; dmg: number; targets: Array<{ uid: number; x: number; y: number }> }
   | { t: 'unlock'; cell: number }
   /** The fighter on `cell` switched its target priority. */
   | { t: 'mode'; cell: number; mode: TargetMode }

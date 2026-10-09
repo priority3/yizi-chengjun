@@ -12,11 +12,26 @@ export const LEVEL_MUL: readonly number[] = [1, 2.2, 4.84, 10.65, 23.4];
 export const LEVEL_FX = 0.1;
 /** Modifiers applied by 神. */
 export const DIVINE = { dmg: 2.5, interval: 0.8, range: 30, fx: 1.5 } as const;
-/** 速: total attack-speed bonus a single cell can receive. */
+/** 速 and 鼓 together: total attack-speed bonus a single cell can receive. */
 export const HASTE_CAP = 1.5;
 export const SLOW_CAP = 0.7;
 /** Seconds between 疗 pulses at level 1 (divided by level). */
 export const HEAL_EVERY = 8;
+/** 鼓: most extra damage a single cell can get from the drums around it (+45 %, a level-3 drum). */
+export const DRUM_DMG_CAP = 0.45;
+/** Seconds between 镜 pulses. */
+export const MIRROR_EVERY = 6;
+/**
+ * 网: once a net lets go, the monster spends this many seconds shaking it off, and no net can catch it meanwhile.
+ * Reason: a net holds a boss for its whole time (a stun only half); without this pause a few nets taking turns could
+ * hold one for good, and a chapter wave never goes berserk to end that. Now however many nets wait, everyone gets
+ * this long to walk between two catches (half the time against level-1 nets).
+ */
+export const ROOT_GUARD = 1;
+
+const POISON_FX = { t: 'poison', dps: 2, dur: 4, max: 5 } as const;
+const DRUM_FX = { t: 'drum', dmg: 0.15, speed: 0.1 } as const;
+const pct = (v: number): number => Math.round(v * 100);
 
 const frag = (id: FragId): UnitDef => ({
   id,
@@ -58,9 +73,13 @@ export const UNITS: Record<UnitId, UnitDef> = {
   火: { id: '火', kind: 'attack', label: '溅射', desc: '火球炸开，伤到周围的妖怪', price: 14, dmg: 9, range: 160, interval: 1.2, shot: 'fire', projSpeed: 300, knockback: 0, hitsAir: true, fx: { t: 'splash', radius: 44, pct: 0.6 }, color: '#d23a12' },
   冰: { id: '冰', kind: 'attack', label: '减速', desc: '冰锥让妖怪变慢', price: 12, dmg: 4, range: 160, interval: 1, shot: 'ice', projSpeed: 440, knockback: 0, hitsAir: true, fx: { t: 'slow', pct: 0.35, dur: 1.6 }, color: '#1e84b8' },
   雷: { id: '雷', kind: 'attack', label: '重击', desc: '天雷劈下，出手慢，对空 ×1.3', price: 16, dmg: 38, range: 170, interval: 2.4, shot: 'bolt', projSpeed: 0, knockback: 0, hitsAir: true, airMul: 1.3, fx: { t: 'none' }, color: '#6a35b5' },
+  毒: { id: '毒', kind: 'attack', label: '中毒', desc: `毒针叠毒，最多 ${POISON_FX.max} 层，Boss 也吃满`, price: 12, dmg: 5, range: 180, interval: 0.8, shot: 'needle', projSpeed: 480, knockback: 0, hitsAir: true, fx: POISON_FX, color: '#3f8f2a' },
+  网: { id: '网', kind: 'attack', label: '定身', desc: '撒网定身，Boss 也网得住', price: 12, dmg: 2, range: 150, interval: 4, shot: 'net', projSpeed: 340, knockback: 0, hitsAir: true, fx: { t: 'root', dur: 1 }, color: '#8a5a24' },
   速: support('速', '加速', '周围 8 格的字攻速提高', 12, 0, { t: 'haste', pct: 0.2 }, '#0d7f73'),
   钱: support('钱', '生财', '战斗时每 4 秒产出功德', 15, 4, { t: 'income', amount: 3 }, '#a87400'),
   疗: support('疗', '回血', '阵地受伤时慢慢回血', 12, HEAL_EVERY, { t: 'heal', amount: 6 }, '#c93f73'),
+  鼓: support('鼓', '鼓舞', `周围 8 格的字每级伤害 +${pct(DRUM_FX.dmg)}%、攻速 +${pct(DRUM_FX.speed)}%`, 12, 0, DRUM_FX, '#b8321f'),
+  镜: support('镜', '反弹', `每 ${MIRROR_EVERY} 秒把阵地受的伤反弹全场`, 14, MIRROR_EVERY, { t: 'mirror', k: 0.006, cap: 30 }, '#6f86a6'),
   悟: frag('悟'),
   空: frag('空'),
   八: frag('八'),
@@ -78,10 +97,13 @@ export const UNITS: Record<UnitId, UnitDef> = {
 
 export const FRAGMENTS: readonly FragId[] = ['悟', '空', '八', '戒', '沙', '僧', '白', '龙'];
 
-/** Shop weights (sum 100). 'frag' expands to one of the eight name fragments. */
+/**
+ * Shop weights (sum 100). 'frag' expands to one of the eight name fragments.
+ * Reason: 毒 网 鼓 镜 took their 16 points from the older entries in proportion (x 0.84, rounded to whole numbers).
+ */
 export const SHOP_WEIGHTS: ReadonlyArray<readonly [UnitId | 'frag', number]> = [
-  ['棍', 13], ['箭', 14], ['火', 11], ['冰', 10], ['雷', 9],
-  ['速', 8], ['钱', 7], ['疗', 6], ['frag', 18], ['神', 4],
+  ['棍', 11], ['箭', 12], ['火', 9], ['冰', 8], ['雷', 8], ['毒', 6], ['网', 4],
+  ['速', 7], ['钱', 6], ['疗', 5], ['鼓', 3], ['镜', 3], ['frag', 15], ['神', 3],
 ];
 /** 神 only shows up in the shop from this wave on (0 = before wave 1). */
 export const DIVINE_FROM_WAVE = 2;

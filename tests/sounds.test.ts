@@ -28,7 +28,7 @@ function voiceProblems(v: Voice): string[] {
 
 // Reason: Records keyed by the union types, so a new ShotKind, hero or SimEvent fails to compile here until
 // the sound table (and these samples) cover it.
-const SHOT_KINDS = Object.keys({ arrow: 0, fire: 0, ice: 0, crescent: 0, swing: 0, bolt: 0, beam: 0, slam: 0, dragon: 0, none: 0 } satisfies Record<ShotKind, 0>) as ShotKind[];
+const SHOT_KINDS = Object.keys({ arrow: 0, fire: 0, ice: 0, crescent: 0, swing: 0, bolt: 0, beam: 0, slam: 0, dragon: 0, needle: 0, net: 0, none: 0 } satisfies Record<ShotKind, 0>) as ShotKind[];
 const HEROES = Object.keys({ 悟空: 0, 八戒: 0, 沙僧: 0, 白龙: 0 } satisfies Record<HeroId, 0>) as HeroId[];
 const at = { x: 10, y: 20 };
 const shot = (kind: ShotKind): SimEvent => ({ t: 'shot', kind, unit: '箭', cell: 0, ...at, tx: 0, ty: 0, divine: false });
@@ -51,6 +51,7 @@ const SAMPLES: { [K in SimEvent['t']]: Array<Extract<SimEvent, { t: K }>> } = {
   invalid: [{ t: 'invalid', cell: 0, msg: '不行' }],
   income: [{ t: 'income', cell: 0, amount: 3 }],
   heal: [{ t: 'heal', cell: 0, amount: 6 }],
+  mirror: [{ t: 'mirror', cell: 0, ...at, dmg: 40, targets: [{ uid: 1, ...at }] }],
   unlock: [{ t: 'unlock', cell: 0 }],
   mode: [{ t: 'mode', cell: 0, mode: 'strong' }],
   refresh: [{ t: 'refresh' }],

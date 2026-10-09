@@ -261,7 +261,7 @@ export class GameScene implements Scene {
     else if (g.phase === 'build' && L.shopCards.some((r) => inRect(p.x, p.y, r))) {
       const i = L.shopCards.findIndex((r) => inRect(p.x, p.y, r));
       const o = g.shop[i];
-      if (o && !o.sold) this.toasts.push(`${describe({ id: o.id, level: 1, divine: false }, g.mods)} · 拖到石台上购买`);
+      if (o && !o.sold) this.toasts.push(`${describe({ id: o.id, level: 1, divine: false }, g.mods, 'plain', { g, cell: -1 })} · 拖到石台上购买`);
     } else {
       const cell = this.slotUnder(p.x, p.y);
       if (cell < 0) return;
@@ -277,7 +277,7 @@ export class GameScene implements Scene {
         }
         this.selected = cell;
         this.selectedT = 2.5;
-        this.toasts.push(describe(t, g.mods, slotKindOf(g, cell)));
+        this.toasts.push(describe(t, g.mods, slotKindOf(g, cell), { g, cell }));
         // Once per run, say how to switch it.
         if (isFighter(t.id) && !this.told.has('aim')) {
           this.told.add('aim');
