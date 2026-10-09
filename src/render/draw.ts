@@ -77,7 +77,7 @@ export function fitPx(
   return minPx;
 }
 
-/** A 铜钱 (square-holed copper coin), the 功德 icon. */
+/** A 铜钱 (square-holed copper coin), the currency's icon. */
 export function drawCoin(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
   const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.2, x, y, r);
   g.addColorStop(0, '#ffe39a');

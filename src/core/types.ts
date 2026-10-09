@@ -41,11 +41,16 @@ export type UnitFx =
 
 export interface UnitDef {
   id: UnitId;
+  /**
+   * The character on the card and in its texts, when it isn't the id (glyphOf in config/units.ts): only the
+   * strengthening card, id '神', shows 金 (config/terms.ts).
+   */
+  glyph?: string;
   kind: UnitKind;
   /** Short role label for tooltips, e.g. 远程. */
   label: string;
   desc: string;
-  /** Shop price in 功德. */
+  /** Shop price in 铜钱. */
   price: number;
   /** Level-1 damage per hit (0 for tiles that never attack). */
   dmg: number;
@@ -77,7 +82,7 @@ export interface Tile {
   divine: boolean;
   /** Seconds until the next attack / pulse. */
   cd: number;
-  /** 功德 spent to produce this tile; selling refunds a share of it. */
+  /** 铜钱 spent to produce this tile; selling refunds a share of it. */
   invested: number;
   /** Hero rage 0..1; at 1 the next attack is the ultimate (always 0 for non-heroes). */
   rage: number;
@@ -95,7 +100,7 @@ export type BossTrait =
   | { t: 'armor'; flat: number }
   | { t: 'regen'; pctPerSec: number }
   | { t: 'split'; count: number; minion: string }
-  /** Reaching the camp steals 功德 instead of biting, then the thief vanishes. */
+  /** Reaching the camp steals 铜钱 instead of biting, then the thief vanishes. */
   | { t: 'steal'; amount: number };
 
 export interface EnemyDef {
@@ -181,7 +186,7 @@ export interface Projectile {
   ty: number;
   speed: number;
   dmg: number;
-  /** Effect multiplier of the tile that fired it (level / 神). */
+  /** Effect multiplier of the tile that fired it (level / 鎏金). */
   fxK: number;
   divine: boolean;
 }
@@ -224,11 +229,15 @@ export type Action =
   /** Cycle the target priority of the fighter on `cell` (first -> strong -> weak); build and battle alike. */
   | { t: 'mode'; cell: number };
 
+/**
+ * A 奇遇 card. The first four have ASCII ids because their names are regulated wording: cards and banners show the
+ * names from config/terms.ts (encounterName in core/encounters.ts); the others show their id.
+ */
 export type EncounterId =
-  | '观音赐福'
-  | '财神到'
-  | '天降神字'
-  | '土地公摆摊'
+  | 'renewal'
+  | 'fortune'
+  | 'goldDrop'
+  | 'peddler'
   | '宝箱'
   | '妖风大作'
   | '月圆之夜'
@@ -241,11 +250,11 @@ export interface WaveMods {
   speedMul: number;
   hpMul: number;
   bountyMul: number;
-  /** Multiplies the 功德 paid when the wave is cleared. */
+  /** Multiplies the 铜钱 paid when the wave is cleared. */
   bonusMul: number;
   /** Replace the minions with 1.5x as many wolves. */
   wolves: boolean;
-  /** Add a 功德-stealing thief mid-wave. */
+  /** Add a 铜钱-stealing thief mid-wave. */
   thief: boolean;
   /** Add this boss at half HP at the end of the wave. */
   miniBoss: string | null;
@@ -312,7 +321,7 @@ export type SimEvent =
   | { t: 'ultimate'; hero: HeroId; cell: number; x: number; y: number; tx: number; ty: number; path: number; dir: number; targets: Array<{ x: number; y: number }> }
   | { t: 'encounterOffer'; options: EncounterId[] }
   | { t: 'encounter'; id: EncounterId }
-  /** A 宝箱 opened: a card landed on `cell`, or 功德 when the camp had no room (cell -1, unit null). */
+  /** A 宝箱 opened: a card landed on `cell`, or 铜钱 when the camp had no room (cell -1, unit null). */
   | { t: 'chest'; cell: number; unit: UnitId | null }
   | { t: 'steal'; x: number; y: number; amount: number }
   /** `mods` is the HUD label of the encounter modifiers in force, '' for a plain wave. */
@@ -360,7 +369,7 @@ export interface GameState {
   waveMods: WaveMods;
   /** Modifiers of the wave currently being fought (for bonus multipliers and the HUD). */
   activeMods: WaveMods;
-  /** Price multiplier this build phase (土地公摆摊 = 0.5). */
+  /** Price multiplier this build phase (货郎摆摊 = 0.5). */
   shopDiscount: number;
   freeRefresh: boolean;
   /** A 宝箱 opens after the next wave. */

@@ -29,12 +29,12 @@ export interface MapData {
   paths: PathData[];
   /** Flying monsters' routes: one straight line per entrance, from its road's start to the camp (same index as paths). */
   flights: PathData[];
-  /** Where the roads end: 唐僧's camp. */
+  /** Where the roads end: 师父's camp. */
   camp: Pt;
   /** Road starts, one per path. */
   spawns: Pt[];
   slots: Pt[];
-  /** Slots open from the start; the rest are bought with 功德. */
+  /** Slots open from the start; the rest are bought with 铜钱. */
   open: boolean[];
   /** Kind of each slot's pad (法阵 / 高台 / 泥沼 or a plain stone), same index as `slots`. */
   slotKind: SlotKind[];

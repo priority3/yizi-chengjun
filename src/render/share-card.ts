@@ -5,6 +5,7 @@
 import { GAME_NAME, TAGLINE } from '../config/brand.ts';
 import { CHAPTERS } from '../config/chapters.ts';
 import { MAPS, type MapDef } from '../config/maps.ts';
+import { DEFEAT, FINAL_WIN } from '../config/terms.ts';
 import { TREASURES, type TreasureId } from '../config/treasures.ts';
 import { buildMap, type MapData } from '../core/map.ts';
 import { MAX_STARS } from '../core/rating.ts';
@@ -105,11 +106,11 @@ const INK_SOFT = '#3b2a1e';
 const BROWN = '#7a6248';
 const RED = '#b3261e';
 
-/** The outcome line: 章节通关！ (取得真经！ for the last chapter) / 阵地失守, or 撑过第 N 波 for runs without a last wave. */
+/** The outcome line: 章节通关！ (FINAL_WIN for the last chapter) / 阵地失守, or 撑过第 N 波 for runs without a last wave. */
 export function shareHeadline(info: ShareInfo): string {
   if (info.mode === 'chapter') {
     if (!info.won) return '阵地失守';
-    return info.chapter === CHAPTERS.length ? '取得真经！' : '章节通关！';
+    return info.chapter === CHAPTERS.length ? FINAL_WIN : '章节通关！';
   }
   return info.waves > 0 ? `撑过第 ${info.waves} 波` : '阵地失守';
 }
@@ -125,7 +126,7 @@ export function shareStats(info: ShareInfo): ShareStat[] {
   return [
     { label: '守住波数', value: info.totalWaves === undefined ? String(info.waves) : `${info.waves}/${info.totalWaves}` },
     { label: '剩余阵地', value: `${info.campHp}/${info.campMax}` },
-    { label: '击杀妖怪', value: String(info.kills) },
+    { label: `${DEFEAT}妖怪`, value: String(info.kills) },
   ];
 }
 

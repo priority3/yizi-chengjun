@@ -3,7 +3,7 @@ import type { HeroId } from '../core/types.ts';
 
 /** Rage gained per normal attack (10 attacks to charge). */
 export const RAGE_PER_HIT = 0.1;
-/** 神 heroes charge faster. */
+/** Gilded heroes (金X) charge faster. */
 export const RAGE_DIVINE_MUL = 1.5;
 
 export interface UltimateDef {

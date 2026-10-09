@@ -46,7 +46,7 @@ describe('editor brushes', () => {
     for (const [ch, p] of Object.entries(PAD_LETTERS)) {
       const b = BRUSHES.find((x) => x.ch === ch);
       expect(b?.label, ch).toBe(SLOT_NAME[p.kind]);
-      expect(b?.hint, ch).toContain(p.open ? '开局可用' : '花功德解锁');
+      expect(b?.hint, ch).toContain(p.open ? '开局可用' : '花铜钱解锁');
     }
   });
 

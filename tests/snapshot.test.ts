@@ -82,7 +82,7 @@ describe('snapshot round trip', () => {
     mods.campHpBonus = 30;
     const g = createGame({ seed: 3, chapter: 4, mods });
     g.wave = 2;
-    g.encounter = ['财神到', '宝箱', '妖王亲临'];
+    g.encounter = ['fortune', '宝箱', '妖王亲临'];
     g.encounters = 1;
     g.waveMods = { ...g.waveMods, speedMul: 1.4, bountyMul: 2, bonusMul: 2, thief: true, miniBoss: '白骨精' };
     g.activeMods = { ...g.activeMods, wolves: true, bountyMul: 2 };
@@ -93,7 +93,7 @@ describe('snapshot round trip', () => {
     const r = restore(viaJson(snapshot(g)));
     expect(r).not.toBeNull();
     if (!r) return;
-    expect(r.encounter).toEqual(['财神到', '宝箱', '妖王亲临']);
+    expect(r.encounter).toEqual(['fortune', '宝箱', '妖王亲临']);
     expect(r.waveMods).toEqual(g.waveMods);
     expect(r.activeMods).toEqual(g.activeMods);
     expect(r.chest).toBe(true);
@@ -220,7 +220,8 @@ describe('restore checks', () => {
     expect(restore(withState({ slots: overLevel }))).toBeNull();
     expect(restore(withState({ gongde: '70' }))).toBeNull();
     expect(restore(withState({ campHp: null }))).toBeNull();
-    expect(restore(withState({ encounter: ['财神到', '不存在'] }))).toBeNull();
+    // An offer with an id this build doesn't know (e.g. one renamed since the save) means no save, never a crash.
+    expect(restore(withState({ encounter: ['fortune', '不存在'] }))).toBeNull();
     expect(restore(withState({ mods: { ...s.state.mods, unitDmgMul: { toString: 2 } } }))).toBeNull();
     expect(restore(withState({ waveMods: { ...s.state.waveMods, miniBoss: '孙悟空' } }))).toBeNull();
     expect(restore({ ...s, state: null } as unknown as RunSnapshot)).toBeNull();

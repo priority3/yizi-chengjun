@@ -166,7 +166,7 @@ describe('endless waves', () => {
 });
 
 describe('berserk waves', () => {
-  /** A bear held next to a level-5 神八戒, whose slams stun it for longer than they take to come round. */
+  /** A bear held next to a level-5 金八戒, whose slams stun it for longer than they take to come round. */
   function pinned(mode: 'chapter' | 'endless') {
     const g = createGame({ seed: 2, chapter: ENDLESS_CHAPTER, mode, map: TEST_MAP });
     g.slots.fill(null);

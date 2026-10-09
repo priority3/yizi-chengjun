@@ -14,7 +14,7 @@ export interface Buffs {
 // Reason: reused every step to avoid per-frame allocation; resized when a map has a different slot count.
 const buffs: Buffs = { haste: new Float64Array(0), dmg: new Float64Array(0) };
 
-/** 神 multiplies a support's effect like any other (supports can't take 神 today, so this is 1). */
+/** 鎏金 multiplies a support's effect like any other (supports can't be gilded today, so this is 1). */
 const divineFx = (t: Tile): number => (t.divine ? DIVINE.fx : 1);
 
 /** Attack-speed bonus `t` gives every slot within its reach, before the cap: 速 and 鼓 add up. */

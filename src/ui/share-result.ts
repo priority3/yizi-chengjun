@@ -5,6 +5,7 @@ import { GAME_NAME, LOG_TAG } from '../config/brand.ts';
 import { CHAPTERS } from '../config/chapters.ts';
 import { ENDLESS_CHAPTER } from '../config/endless.ts';
 import { ENEMIES } from '../config/enemies.ts';
+import { DEFEAT } from '../config/terms.ts';
 import { MAX_TIER, TREASURE_IDS, TREASURES } from '../config/treasures.ts';
 import { createGame } from '../core/game.ts';
 import { dailyMapIndex, dayLabel } from '../core/modes.ts';
@@ -118,7 +119,7 @@ export function shareText(info: ShareInfo, url: string): string {
   if (info.mode !== 'chapter') result = `撑过第 ${info.waves} 波`;
   else if (info.won) result = `${info.stars ? `${STAR_WORDS[info.stars]}星` : ''}通关`;
   else result = `守住 ${info.waves}/${info.totalWaves ?? info.waves} 波`;
-  return `《${GAME_NAME}》${info.title}：${result}，击杀 ${info.kills} 只妖怪！${url ? ` ${url}` : ''}`;
+  return `《${GAME_NAME}》${info.title}：${result}，${DEFEAT} ${info.kills} 只妖怪！${url ? ` ${url}` : ''}`;
 }
 
 /** The game's address for the share text: this page without query or hash; '' off the web (a file opened from disk). */

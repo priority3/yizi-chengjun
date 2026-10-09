@@ -1,6 +1,7 @@
 // Pause and result panels of the chapter screen (kept apart from the scene so each file stays small).
 import { CHAPTERS } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
+import { DEFEAT, FINAL_WIN } from '../config/terms.ts';
 import { MAX_STARS, THREE_STAR_PCT, type StarAward } from '../core/rating.ts';
 import type { EndlessAward } from '../core/records.ts';
 import { effectText, type ClearRewards } from '../core/treasures.ts';
@@ -178,14 +179,14 @@ export function drawResult(ctx: CanvasRenderingContext2D, info: ResultInfo, butt
   const ch = CHAPTERS[chapter - 1];
   const won = g.phase === 'won';
   drawPanel(ctx, r);
-  const title = won ? (chapter === CHAPTERS.length ? '取得真经！' : '章节通关！') : '阵地失守';
+  const title = won ? (chapter === CHAPTERS.length ? FINAL_WIN : '章节通关！') : '阵地失守';
   text(ctx, title, W / 2, r.y + 46, brush(34), won ? '#b3261e' : '#4a3a2e');
   if (won) {
     // A win: the stars under the title push the rest down.
     const stars = info.award?.stars ?? 0;
     drawResultStars(ctx, r.y + 100, stars, info.t);
     text(ctx, `打败了${ENEMIES[ch.boss].name}`, W / 2, r.y + 140, sans(14, 600), '#6a4a26');
-    text(ctx, `击杀 ${g.kills} · 阵地剩余 ${Math.ceil(g.campHp)}/${g.campMax}`, W / 2, r.y + 163, sans(12, 500), '#7a6248');
+    text(ctx, `${DEFEAT} ${g.kills} · 阵地剩余 ${Math.ceil(g.campHp)}/${g.campMax}`, W / 2, r.y + 163, sans(12, 500), '#7a6248');
     if (stars < MAX_STARS) text(ctx, `阵地剩 ${THREE_STAR_PCT}% 以上通关可得三星`, W / 2, r.y + 182, sans(10, 600), '#9a7a52');
     if (rewards) drawRewards(ctx, r, rewards, info.award, info.t);
   } else {

@@ -27,7 +27,7 @@ describe('shop offers', () => {
     }
   });
 
-  it('keeps 神 out of the shop before wave 2', () => {
+  it('keeps the 金 card out of the shop before wave 2', () => {
     for (let seed = 1; seed <= 300; seed++) {
       const g = createGame({ seed, chapter: 1 });
       for (let i = 0; i < 5; i++) expect(rollOffer(g)).not.toBe('神');

@@ -2,6 +2,7 @@
 // so game-scene.ts stays small).
 import { CHAPTERS } from '../config/chapters.ts';
 import { ENDLESS, ENDLESS_CHAPTER } from '../config/endless.ts';
+import { CURRENCY } from '../config/terms.ts';
 import { dayLabel } from '../core/modes.ts';
 import type { GameState } from '../core/types.ts';
 import { NUMERALS } from '../render/panels.ts';
@@ -22,7 +23,7 @@ export function openEndedBanner(g: GameState, gear: string): BannerText {
 
 /** The banner of the map editor's 试玩: chapter 1's monsters and economy on the edited map. */
 export function testBanner(): BannerText {
-  return { title: '试玩 · 自制地图', sub: '第一章的妖怪和功德 · 不带法宝 · 不存档、不计奖励' };
+  return { title: '试玩 · 自制地图', sub: `第一章的妖怪和${CURRENCY} · 不带法宝 · 不存档、不计奖励` };
 }
 
 /** The banner of a resumed run: the wave that comes next, and where. */

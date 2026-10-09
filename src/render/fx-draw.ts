@@ -1,6 +1,7 @@
 // Drawing for individual effects, corpses, particles and projectiles. Pure functions of their inputs;
 // the Vfx class owns the state and timing.
 import { ENEMIES } from '../config/enemies.ts';
+import { GOLD_GLYPH } from '../config/terms.ts';
 import type { ShotKind } from '../core/types.ts';
 import { drawCoin, drawStar, hash01, outlined, roundRect, text } from './draw.ts';
 import { drawNeedleShot, drawNetShot } from './fx-cards.ts';
@@ -252,7 +253,7 @@ export function drawFx(ctx: CanvasRenderingContext2D, f: Fx): void {
       break;
     }
     case 'seal': {
-      // A red chop stamped down onto the card.
+      // A red 金 chop stamped down onto the card it gilds.
       const scale = k < 0.3 ? 2.4 - (k / 0.3) * 1.4 : 1;
       ctx.globalAlpha = k < 0.75 ? 1 : (1 - k) / 0.25;
       ctx.translate(f.x, f.y);
@@ -261,7 +262,7 @@ export function drawFx(ctx: CanvasRenderingContext2D, f: Fx): void {
       roundRect(ctx, -14, -14, 28, 28, 4);
       ctx.fillStyle = '#c8001f';
       ctx.fill();
-      text(ctx, '神', 0, 1, brush(22), '#fff4ec');
+      text(ctx, GOLD_GLYPH, 0, 1, brush(22), '#fff4ec');
       break;
     }
     case 'slash':

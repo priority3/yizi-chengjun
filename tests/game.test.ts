@@ -5,7 +5,7 @@ import { runChapter } from '../src/core/sim.ts';
 import { emptyGame, enemy, put } from './helpers.ts';
 
 describe('run flow', () => {
-  it('starts in the build phase with a free 箭 and some 功德', () => {
+  it('starts in the build phase with a free 箭 and some 铜钱', () => {
     const g = createGame({ seed: 1, chapter: 1 });
     expect(g.phase).toBe('build');
     const starter = g.slots.findIndex((t) => t?.id === '箭');

@@ -3,9 +3,10 @@
 // drawn under the camera, except the boss vignette, which the renderer paints in screen space from `introDim()`;
 // nothing feeds back into the simulation, so it may use Math.random freely.
 import { ENEMIES, traitText } from '../config/enemies.ts';
+import { CURRENCY, TRIAL } from '../config/terms.ts';
 import { ULTIMATES } from '../config/ultimates.ts';
-import { UNITS } from '../config/units.ts';
-import { ENCOUNTERS, KIND_LABEL } from '../core/encounters.ts';
+import { glyphOf, UNITS } from '../config/units.ts';
+import { encounterName, ENCOUNTERS, KIND_LABEL } from '../core/encounters.ts';
 import type { MapData, Pt } from '../core/map.ts';
 import type { HeroId, Projectile, SimEvent } from '../core/types.ts';
 import { COLORS } from './draw.ts';
@@ -244,7 +245,7 @@ export class Vfx {
           this.shake = Math.max(this.shake, 3);
           break;
         case 'steal':
-          this.float(e.x, e.y - 12, `-${e.amount} 功德`, '#ff6a5a', 15, false, 1.1);
+          this.float(e.x, e.y - 12, `-${e.amount} ${CURRENCY}`, '#ff6a5a', 15, false, 1.1);
           this.float(e.x, e.y - 34, '溜了', '#ffd166', 18, true, 1);
           this.burst(e.x, e.y, 8, 'coin', '', 120, 3, 0.7, 150);
           this.shake = Math.max(this.shake, 2);
@@ -274,9 +275,9 @@ export class Vfx {
           if (e.cell >= 0 && e.unit) {
             this.pops[e.cell] = 0.4;
             this.add('burst', p.x, p.y, 0, 0, '#ffd27a', 60, 0.5);
-            this.float(p.x, p.y - 30, `宝箱 · ${e.unit}`, '#fff1c2', 15, true, 1.2);
+            this.float(p.x, p.y - 30, `宝箱 · ${glyphOf(e.unit)}`, '#fff1c2', 15, true, 1.2);
           } else {
-            this.float(p.x, p.y - 40, '宝箱 · +30 功德', COLORS.gold, 15, true, 1.2);
+            this.float(p.x, p.y - 40, `宝箱 · +30 ${CURRENCY}`, COLORS.gold, 15, true, 1.2);
           }
           break;
         }
@@ -332,12 +333,12 @@ export class Vfx {
         }
         case 'encounter': {
           const def = ENCOUNTERS[e.id];
-          this.showBanner(`${KIND_LABEL[def.kind]} · ${e.id}`, def.desc, KIND_COLOR[def.kind], null, 2.2);
+          this.showBanner(`${KIND_LABEL[def.kind]} · ${encounterName(e.id)}`, def.desc, KIND_COLOR[def.kind], null, 2.2);
           break;
         }
         case 'waveStart': {
           const boss = e.boss ? ENEMIES[e.boss] : null;
-          const sub = boss ? `Boss ${boss.name}：${traitText(boss)}` : e.elite ? '魔将压阵，小心！' : e.mods ? `劫难：${e.mods}` : '妖怪从城门出发，别放它们走到营地';
+          const sub = boss ? `Boss ${boss.name}：${traitText(boss)}` : e.elite ? '魔将压阵，小心！' : e.mods ? `${TRIAL}：${e.mods}` : '妖怪从城门出发，别放它们走到营地';
           this.showBanner(`第 ${e.wave} 波`, sub, boss ? '#ff8a5c' : e.mods ? '#ffb07a' : '#fff1c2');
           if (boss) {
             // Boss entrance: the ground rumbles and the corners darken once (update() holds the rumble up).
@@ -347,7 +348,7 @@ export class Vfx {
           break;
         }
         case 'waveClear':
-          this.showBanner(`击退第 ${e.wave} 波`, `+${e.bonus} 功德 · 商店补货了`, '#aef0b8', null, 1.6);
+          this.showBanner(`击退第 ${e.wave} 波`, `+${e.bonus} ${CURRENCY} · 商店补货了`, '#aef0b8', null, 1.6);
           break;
         case 'enrage':
           this.showBanner('妖怪狂暴了！', '这一波拖得太久：眩晕、减速、击退都不管用了', '#ff8a5c', null, 2.4);

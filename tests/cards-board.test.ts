@@ -236,7 +236,7 @@ describe('runs with the new cards', () => {
 });
 
 describe('the bot and the new cards', () => {
-  /** A board well above the bot's "under-gunned" line (dpsNeeded) for the first waves, with 功德 to spend. */
+  /** A board well above the bot's "under-gunned" line (dpsNeeded) for the first waves, with 铜钱 to spend. */
   const strong = (chapter = 1): GameState => {
     const g = emptyGame(chapter);
     put(g, 3, '棍', 5);

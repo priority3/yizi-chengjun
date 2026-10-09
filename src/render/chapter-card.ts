@@ -147,7 +147,7 @@ function drawChapterCard(ctx: CanvasRenderingContext2D, r: Rect, c: ChapterCard)
   const w = r.x + r.w - 7 - x;
   const ink = c.open ? '#3b2a1e' : '#b0a698';
   text(ctx, `第${NUMERALS[c.chapter - 1]}章`, x, r.y + r.h * 0.19, brush(15), c.open ? '#8a3a22' : ink, 'left');
-  // Reason: four-character names (小雷音寺) would overflow the column at the default size.
+  // Reason: a name of four characters or more would overflow the column at the default size.
   text(ctx, ch.name, x, r.y + r.h * 0.43, brush(fitPx(ctx, ch.name, w, 22, brush)), ink, 'left');
   drawBoss(ctx, ch.boss, x, r.y + r.h * 0.66, w, c.open, c.cleared);
   const sr = r.h * 0.072;

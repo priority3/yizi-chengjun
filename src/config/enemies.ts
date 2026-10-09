@@ -1,5 +1,6 @@
 // Enemy table: minions shared by every chapter, one elite, and one boss per chapter.
 import type { BossTrait, EnemyDef } from '../core/types.ts';
+import { CURRENCY } from './terms.ts';
 
 export const BASE_HP = 24;
 /** Per-wave speed growth (HP growth is per chapter, see chapters.ts). */
@@ -83,6 +84,6 @@ export function traitText(def: EnemyDef): string {
     case 'split':
       return `死后分裂成 ${tr.count} 只${ENEMIES[tr.minion].name}`;
     case 'steal':
-      return `摸到阵地偷走 ${tr.amount} 功德`;
+      return `摸到阵地偷走 ${tr.amount} ${CURRENCY}`;
   }
 }

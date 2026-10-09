@@ -267,7 +267,7 @@ function gourd(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, l
   }
 }
 
-/** 神: a golden sun with rays. */
+/** The 金 card (id '神'): a golden sun with rays. */
 function sun(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): void {
   ctx.lineCap = 'round';
   for (let i = 0; i < 12; i++) {
@@ -290,7 +290,7 @@ function sun(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): vo
 }
 
 // The B5 cards (毒 网 鼓 镜) are painted in unit-art-extra.ts.
-const PAINTERS: Partial<Record<UnitId, Painter>> = { 棍: staff, 箭: bow, 火: flame, 冰: ice, 雷: thunder, 速: wind, 钱: money, 疗: gourd, 神: sun, ...EXTRA_PAINTERS };
+const PAINTERS: Partial<Record<UnitId, Painter>> = { 棍: staff, 箭: bow, 火: flame, 冰: ice, 雷: thunder, 速: wind, 钱: money, 疗: gourd, '神': sun, ...EXTRA_PAINTERS };
 
 /** Draws the unit's illustration in a box of size `s` centred at (x, y). False when the unit has none (fragments, heroes). */
 export function drawUnitIcon(ctx: CanvasRenderingContext2D, id: UnitId, x: number, y: number, s: number, level: number): boolean {

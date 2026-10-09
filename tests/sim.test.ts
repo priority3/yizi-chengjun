@@ -94,7 +94,7 @@ const total = (waves: WaveTrace[], key: 'spawned' | 'killed' | 'leaked') => wave
 function observe(seed: number, chapter: number) {
   let leaks = 0;
   let thefts = 0;
-  /** 功德 moved by the bot's own actions before each wave (key = the wave they lead up to). */
+  /** 铜钱 moved by the bot's own actions before each wave (key = the wave they lead up to). */
   const shopping = new Map<number, number>();
   let before = 0;
   const count = (events: readonly SimEvent[]) => {
@@ -148,16 +148,16 @@ describe('traceChapter', () => {
 
   it('counts every monster that entered the field, summons and split-offs included', () => {
     for (const { name, waves, seen } of cases) {
-      // Each monster that came out was killed, bit the camp, ran off with 功德, or is still out there at the end.
+      // Each monster that came out was killed, bit the camp, ran off with 铜钱, or is still out there at the end.
       const left = total(waves, 'killed') + total(waves, 'leaked') + seen.thefts + seen.final.enemies.length;
       expect(total(waves, 'spawned'), name).toBe(left);
     }
   });
 
-  it('reads 功德 when a wave starts (after shopping) and when it ends (after the clear bonus)', () => {
+  it('reads 铜钱 when a wave starts (after shopping) and when it ends (after the clear bonus)', () => {
     for (const { name, ch, waves, seen } of cases) {
       // Between two waves no tick runs, so only the bot's build actions (buys, refreshes, unlocks, 奇遇 rewards)
-      // separate one wave's closing 功德 from the next wave's opening 功德.
+      // separate one wave's closing 铜钱 from the next wave's opening 铜钱.
       waves.forEach((w, i) => {
         const closing = i === 0 ? startGongde(ch) : waves[i - 1].gongdeAfter;
         expect(w.gongdeBefore, `${name} wave ${w.wave}`).toBe(closing + (seen.shopping.get(w.wave) ?? 0));

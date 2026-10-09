@@ -4,6 +4,7 @@
 //        pnpm sim --endless 40   ·   pnpm sim --endless --trace --seed 7919
 import { CHAPTERS, type ChapterDef } from '../src/config/chapters.ts';
 import { ENDLESS_CHAPTER, MAX_SIM_WAVES } from '../src/config/endless.ts';
+import { CURRENCY, DEFEAT } from '../src/config/terms.ts';
 import { MAX_TIER, TREASURE_IDS } from '../src/config/treasures.ts';
 import { DEFAULT_BOT } from '../src/core/bot.ts';
 import { createGame } from '../src/core/game.ts';
@@ -25,7 +26,7 @@ const USAGE = `用法：pnpm sim [每章局数] [法宝,法宝:阶,...] [选项]
   --chapter N   只看第 N 章（1～${CHAPTERS.length}）
   --endless     打无尽模式（第 ${ENDLESS_CHAPTER} 章的地图和规则，没有最后一波）：机器人平均和最好倒在第几波，单局最多 ${MAX_SIM_WAVES} 波
   --leaks       每章每波的平均漏怪数，并标出第一个平均超过 ${COLLAPSE_LEAKS} 只的波（首个崩盘波）
-  --trace       重放一局，逐波打印出怪、击杀、漏怪、被偷、阵地血、功德、奇遇和机器人的操作（要配 --chapter 或 --endless）
+  --trace       重放一局，逐波打印出怪、${DEFEAT}、漏怪、被偷、阵地血、${CURRENCY}、奇遇和机器人的操作（要配 --chapter 或 --endless）
   --seed S      --trace 重放的种子，默认 ${seedOf(0)}（胜率表里每章的第一局）
   --help        显示这段说明
 
@@ -167,9 +168,9 @@ const pad = (n: number, width: number): string => String(n).padStart(width);
 function traceLine(w: WaveTrace): string {
   const parts = [
     `第${pad(w.wave, 2)}波${w.boss ? ` Boss ${w.boss}` : w.elite ? ' 魔将' : ''}`,
-    `出怪 ${pad(w.spawned, 3)} 击杀 ${pad(w.killed, 3)} 漏 ${pad(w.leaked, 2)} 被偷 ${pad(w.stolen, 2)}`,
+    `出怪 ${pad(w.spawned, 3)} ${DEFEAT} ${pad(w.killed, 3)} 漏 ${pad(w.leaked, 2)} 被偷 ${pad(w.stolen, 2)}`,
     `阵地 ${pad(w.campHpAfter, 3)}`,
-    `功德 ${pad(w.gongdeBefore, 3)}→${pad(w.gongdeAfter, 3)}`,
+    `${CURRENCY} ${pad(w.gongdeBefore, 3)}→${pad(w.gongdeAfter, 3)}`,
   ];
   if (w.encounter) parts.push(`奇遇 ${w.encounter}`);
   parts.push(`波前 ${w.bought.join('、') || '（没动）'}`);
@@ -177,13 +178,13 @@ function traceLine(w: WaveTrace): string {
 }
 
 const TRACE_LEGEND =
-  '每行：出怪/击杀/漏怪/被偷功德 │ 波末阵地血 │ 功德 开波→收波 │ 奇遇 候选 → 选择 │ 波前 机器人在构筑期的操作（石台按地图从上到下、从左到右编号）';
+  `每行：出怪/${DEFEAT}/漏怪/被偷${CURRENCY} │ 波末阵地血 │ ${CURRENCY} 开波→收波 │ 奇遇 候选 → 选择 │ 波前 机器人在构筑期的操作（石台按地图从上到下、从左到右编号）`;
 
 /** Replays one run and prints it wave by wave, then its result. */
 function printTrace(ch: ChapterDef, seed: number, mods: RunMods): void {
   const start = createGame({ seed, chapter: ch.id, mods });
   const { result, waves } = traceChapter(seed, ch.id, { knobs: DEFAULT_BOT, mods });
-  console.log(`第 ${ch.id} 章 ${ch.name} · 种子 ${seed} · 开局功德 ${start.gongde} · 阵地 ${start.campHp}/${start.campMax}`);
+  console.log(`第 ${ch.id} 章 ${ch.name} · 种子 ${seed} · 开局${CURRENCY} ${start.gongde} · 阵地 ${start.campHp}/${start.campMax}`);
   console.log(TRACE_LEGEND);
   for (const w of waves) console.log(traceLine(w));
   // Reason: a lost run always ends at 0 camp HP, so a run that is neither won nor at 0 ran into the time cap.
@@ -231,7 +232,7 @@ function printEndlessTrace(seed: number, mods: RunMods): void {
   const start = createGame({ seed, chapter: ENDLESS_CHAPTER, mods, mode: 'endless' });
   const { result, waves } = traceChapter(seed, ENDLESS_CHAPTER, opts);
   const map = CHAPTERS[ENDLESS_CHAPTER - 1].name;
-  console.log(`无尽 · ${map}的地图 · 种子 ${seed} · 开局功德 ${start.gongde} · 阵地 ${start.campHp}/${start.campMax}`);
+  console.log(`无尽 · ${map}的地图 · 种子 ${seed} · 开局${CURRENCY} ${start.gongde} · 阵地 ${start.campHp}/${start.campMax}`);
   console.log(TRACE_LEGEND);
   for (const w of waves) console.log(traceLine(w));
   const verdict = result.campHp <= 0 ? `倒在第 ${fellAt(result)} 波` : result.wavesCleared >= MAX_SIM_WAVES ? '撑满上限' : '超时';

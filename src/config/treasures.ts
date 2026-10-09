@@ -1,6 +1,7 @@
 // 法宝 (treasures): permanent rewards earned by clearing chapters, forged with 灵石, merged three-into-one.
 // Equipped treasures become RunMods that the simulation reads at the start of a chapter.
 import type { RunMods } from '../core/types.ts';
+import { CURRENCY, SUBDUE } from './terms.ts';
 
 export type TreasureId =
   | '金刚琢'
@@ -49,7 +50,7 @@ const mulUnit = (table: Partial<Record<string, number>>, key: string, v: number)
 
 export const TREASURES: Record<TreasureId, TreasureDef> = {
   金刚琢: { id: '金刚琢', short: '金刚', rarity: 'common', base: 30, text: (v) => `阵地血量 +${Math.round(v)}`, apply: (m, v) => void (m.campHpBonus += Math.round(v)) },
-  紫金红葫芦: { id: '紫金红葫芦', short: '葫芦', rarity: 'common', base: 30, text: (v) => `开局功德 +${Math.round(v)}`, apply: (m, v) => void (m.startGongde += Math.round(v)) },
+  紫金红葫芦: { id: '紫金红葫芦', short: '葫芦', rarity: 'common', base: 30, text: (v) => `开局${CURRENCY} +${Math.round(v)}`, apply: (m, v) => void (m.startGongde += Math.round(v)) },
   人参果: { id: '人参果', short: '人参', rarity: 'common', base: 15, text: (v) => `每清一波阵地回 ${Math.round(v)} 血`, apply: (m, v) => void (m.healOnClear += Math.round(v)) },
   缩地符: { id: '缩地符', short: '缩地', rarity: 'common', base: 0.15, text: (v) => `箭的射程 +${pct(v)}`, apply: (m, v) => mulUnit(m.unitRangeMul, '箭', v) },
   定风珠: { id: '定风珠', short: '定风', rarity: 'common', base: 0.1, text: (v) => `妖怪移速 -${pct(v)}`, apply: (m, v) => void (m.enemySpeedMul *= 1 - v) },
@@ -58,7 +59,7 @@ export const TREASURES: Record<TreasureId, TreasureDef> = {
   照妖镜: { id: '照妖镜', short: '照妖', rarity: 'rare', base: 0.1, text: (v) => `所有伤害 +${pct(v)}`, apply: (m, v) => void (m.dmgMul *= 1 + v) },
   九齿钉耙: { id: '九齿钉耙', short: '钉耙', rarity: 'rare', base: 0.4, text: (v) => `八戒眩晕时长 +${pct(v)}`, apply: (m, v) => void (m.stunMul *= 1 + v) },
   紧箍咒: { id: '紧箍咒', short: '紧箍', rarity: 'epic', base: 0.3, text: (v) => `英雄怒气积攒 +${pct(v)}`, apply: (m, v) => void (m.rageMul *= 1 + v) },
-  降妖宝杖: { id: '降妖宝杖', short: '宝杖', rarity: 'epic', base: 0.08, text: (v) => `沙僧斩杀线 +${pct(v)}`, apply: (m, v) => void (m.executeBonus += v) },
+  降妖宝杖: { id: '降妖宝杖', short: '宝杖', rarity: 'epic', base: 0.08, text: (v) => `沙僧${SUBDUE}线 +${pct(v)}`, apply: (m, v) => void (m.executeBonus += v) },
   定颜珠: { id: '定颜珠', short: '定颜', rarity: 'epic', base: 0.3, text: (v) => `白龙伤害 +${pct(v)}`, apply: (m, v) => mulUnit(m.unitDmgMul, '白龙', v) },
 };
 

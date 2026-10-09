@@ -1,4 +1,5 @@
 // Chapter list and run-wide rules (economy, camp, shop prices). Each chapter is a fresh run.
+import { LAST_CHAPTER_NAME } from './terms.ts';
 
 export interface ChapterDef {
   id: number;
@@ -22,18 +23,18 @@ export const CHAPTERS: readonly ChapterDef[] = [
   { id: 7, name: '盘丝洞', boss: '蜘蛛精', waves: 7, hpStart: 1.85, hpGrowth: 1.41 },
   { id: 8, name: '火焰山', boss: '牛魔王', waves: 7, hpStart: 1.6, hpGrowth: 1.49 },
   { id: 9, name: '狮驼岭', boss: '金翅大鹏', waves: 8, hpStart: 2.15, hpGrowth: 1.475 },
-  { id: 10, name: '小雷音寺', boss: '黄眉大王', waves: 8, hpStart: 1.8, hpGrowth: 1.547 },
+  { id: 10, name: LAST_CHAPTER_NAME, boss: '黄眉大王', waves: 8, hpStart: 1.8, hpGrowth: 1.547 },
 ];
 
 export const START_GONGDE = 70;
 /**
- * Extra starting 功德 for each chapter after the first.
+ * Extra starting 铜钱 for each chapter after the first.
  * Reason: later chapters open against much tougher first waves; without more to spend before wave 1 the camp
  * used to lose most of its HP right away (`pnpm sim --leaks`).
  */
 export const START_GROWTH = 6;
 
-/** 功德 a fresh run of `chapter` starts with (before 法宝). */
+/** 铜钱 a fresh run of `chapter` starts with (before 法宝). */
 export function startGongde(chapter: number): number {
   return START_GONGDE + START_GROWTH * (chapter - 1);
 }
@@ -50,7 +51,7 @@ export const SELL_REFUND = 0.5;
 export const SPAWN_GAP = 1.0;
 export const MIN_SPAWN_GAP = 0.45;
 
-/** 功德 paid out when wave `w` of `chapter` is cleared. */
+/** 铜钱 paid out when wave `w` of `chapter` is cleared. */
 export function waveBonus(w: number, chapter = 1): number {
   return Math.round((14 + 4 * w) * incomeMul(chapter));
 }
@@ -64,7 +65,7 @@ export function incomeMul(chapter: number): number {
   return 1 + INCOME_GROWTH * (chapter - 1);
 }
 
-/** Extra 功德 per chapter, on top of chapter 1's baseline. */
+/** Extra 铜钱 per chapter, on top of chapter 1's baseline. */
 export const INCOME_GROWTH = 0.05;
 
 /** Price of the next shop refresh in the current build phase. */

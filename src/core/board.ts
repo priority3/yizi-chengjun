@@ -1,8 +1,9 @@
-// Tile combination rules and drag-and-drop between camp cells (merge, awaken, 神, move, swap, sell), which pads
+// Tile combination rules and drag-and-drop between camp cells (merge, awaken, 鎏金, move, swap, sell), which pads
 // a tile may stand on (a 泥沼 refuses fighters), and each fighter's target priority (瞄准).
 import { heroFor } from '../config/combos.ts';
 import { SELL_REFUND } from '../config/chapters.ts';
 import type { SlotKind } from '../config/maps.ts';
+import { GILDING, GOLD_GLYPH } from '../config/terms.ts';
 import { MAX_LEVEL, UNITS } from '../config/units.ts';
 import { isFighter, padAllows, slotKindOf } from './slots.ts';
 import { tileInterval } from './stats.ts';
@@ -16,7 +17,7 @@ export function canPlace(g: GameState, cell: number, id: UnitId): boolean {
   return padAllows(slotKindOf(g, cell), id);
 }
 
-/** Same-id, same-level tiles can merge — except fragments and 神, which only combine by recipe. */
+/** Same-id, same-level tiles can merge — except fragments and the 金 card, which only combine by recipe. */
 export function isStackable(id: UnitId): boolean {
   const k = UNITS[id].kind;
   return k !== 'fragment' && k !== 'divine';
@@ -66,10 +67,10 @@ export function combineInto(g: GameState, a: Tile, to: number, from: number): Ac
   if (a.id === '神' || b.id === '神') {
     const god = a.id === '神' ? a : b;
     const target = god === a ? b : a;
-    if (target.id === '神') return invalid(g, to, '两个神字不能叠加');
-    if (target.divine) return invalid(g, to, '它已经是神了');
-    if (!canBeDivine(target)) return invalid(g, to, '神只能附在兵字或英雄上');
-    // The 神X ends up on `to`: a fighter dropped onto a 神 waiting in a 泥沼 can't follow it in.
+    if (target.id === '神') return invalid(g, to, `两个${GOLD_GLYPH}字不能叠加`);
+    if (target.divine) return invalid(g, to, `它已经${GILDING}了`);
+    if (!canBeDivine(target)) return invalid(g, to, `${GOLD_GLYPH}字只能附在兵字或英雄上`);
+    // The 金X ends up on `to`: a fighter dropped onto a 金 card waiting in a 泥沼 can't follow it in.
     if (!canPlace(g, to, target.id)) return invalid(g, to, MIRE_MSG);
     target.divine = true;
     target.invested += god.invested;
@@ -111,7 +112,7 @@ export function previewDrop(
 
 /**
  * Drags the tile in `from` onto cell `to` (or the trash for 'sell').
- * Priority: merge / awaken / 神 > move into an empty cell > swap. Results land in `to`.
+ * Priority: merge / awaken / 鎏金 > move into an empty cell > swap. Results land in `to`.
  */
 export function resolveDrop(g: GameState, from: number, to: number | 'sell'): ActionResult {
   const a = g.slots[from];
@@ -150,7 +151,7 @@ export const TARGET_MODES: readonly TargetMode[] = ['first', 'strong', 'weak'];
 
 /**
  * Switches the fighter on `cell` to its next target priority (first -> strong -> weak -> first). Allowed in the
- * build and the battle phase alike; supports, fragments and 神 never aim, so they are refused.
+ * build and the battle phase alike; supports, fragments and the 金 card never aim, so they are refused.
  */
 export function cycleTarget(g: GameState, cell: number): ActionResult {
   const t = g.slots[cell];

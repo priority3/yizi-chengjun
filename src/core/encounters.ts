@@ -2,6 +2,7 @@
 // Boons apply at once; challenges queue modifiers for the next wave in exchange for bigger rewards.
 import { CHAPTERS } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
+import { CURRENCY, ENC_FORTUNE, ENC_GOLD_DROP, ENC_PEDDLER, ENC_RENEWAL, GOLD_GLYPH, TRIAL } from '../config/terms.ts';
 import { UNITS } from '../config/units.ts';
 import { canPlace, makeTile } from './board.ts';
 import { UNLIMITED } from './modes.ts';
@@ -13,26 +14,34 @@ export type EncounterKind = 'boon' | 'trade' | 'challenge';
 
 export interface EncounterDef {
   id: EncounterId;
+  /** The name on the card and the banner when it isn't the id: the regulated names, from config/terms.ts. */
+  name?: string;
   kind: EncounterKind;
   desc: string;
 }
 
+// Reason: the offer roll picks from this table's key order (ENCOUNTER_IDS), so it must never be reordered.
 export const ENCOUNTERS: Record<EncounterId, EncounterDef> = {
-  观音赐福: { id: '观音赐福', kind: 'boon', desc: '阵地回满血，血量上限 +10' },
-  财神到: { id: '财神到', kind: 'boon', desc: '立刻获得 50 功德' },
-  天降神字: { id: '天降神字', kind: 'boon', desc: '一张「神」落到阵地空格上（没空格则得 40 功德）' },
-  土地公摆摊: { id: '土地公摆摊', kind: 'trade', desc: '本轮商店半价，刷新免费' },
+  renewal: { id: 'renewal', name: ENC_RENEWAL, kind: 'boon', desc: '阵地回满血，血量上限 +10' },
+  fortune: { id: 'fortune', name: ENC_FORTUNE, kind: 'boon', desc: `立刻获得 50 ${CURRENCY}` },
+  goldDrop: { id: 'goldDrop', name: ENC_GOLD_DROP, kind: 'boon', desc: `一张「${GOLD_GLYPH}」落到阵地空格上（没空格则得 40 ${CURRENCY}）` },
+  peddler: { id: 'peddler', name: ENC_PEDDLER, kind: 'trade', desc: '本轮商店半价，刷新免费' },
   宝箱: { id: '宝箱', kind: 'trade', desc: '打完下一波，开出一张随机卡放到阵地上' },
   妖风大作: { id: '妖风大作', kind: 'challenge', desc: '下一波妖怪快 40%，赏金和波次奖励翻倍' },
   月圆之夜: { id: '月圆之夜', kind: 'challenge', desc: '下一波妖怪多 50% 血，赏金 ×2.5' },
   狼群来袭: { id: '狼群来袭', kind: 'challenge', desc: '下一波全是狼，数量 ×1.5，赏金翻倍' },
-  盗宝妖: { id: '盗宝妖', kind: 'challenge', desc: '下一波混进一只小偷：摸到阵地偷 30 功德，杀掉得 30' },
+  盗宝妖: { id: '盗宝妖', kind: 'challenge', desc: `下一波混进一只小偷：摸到阵地偷 30 ${CURRENCY}，杀掉得 30` },
   妖王亲临: { id: '妖王亲临', kind: 'challenge', desc: '下一波末尾来一只半血妖王，赏金 60' },
 };
 
 export const ENCOUNTER_IDS = Object.keys(ENCOUNTERS) as EncounterId[];
 export const OFFER_SIZE = 3;
-export const KIND_LABEL: Record<EncounterKind, string> = { boon: '福缘', trade: '机缘', challenge: '劫难' };
+export const KIND_LABEL: Record<EncounterKind, string> = { boon: '福缘', trade: '机缘', challenge: TRIAL };
+
+/** The name a 奇遇 card, its banner and the sim trace show: the def's name, else the id. */
+export function encounterName(id: EncounterId): string {
+  return ENCOUNTERS[id].name ?? id;
+}
 
 export function defaultWaveMods(): WaveMods {
   return { speedMul: 1, hpMul: 1, bountyMul: 1, bonusMul: 1, wolves: false, thief: false, miniBoss: null };
@@ -90,14 +99,14 @@ export function offerEncounter(g: GameState): void {
 export function applyEncounter(g: GameState, id: EncounterId): void {
   const m = g.waveMods;
   switch (id) {
-    case '观音赐福':
+    case 'renewal':
       g.campMax += 10;
       g.campHp = g.campMax;
       break;
-    case '财神到':
+    case 'fortune':
       g.gongde += 50;
       break;
-    case '天降神字': {
+    case 'goldDrop': {
       const empty = emptyCellsFor(g, '神');
       if (empty.length === 0) {
         g.gongde += 40;
@@ -108,7 +117,7 @@ export function applyEncounter(g: GameState, id: EncounterId): void {
       g.events.push({ t: 'buy', cell, unit: '神' });
       break;
     }
-    case '土地公摆摊':
+    case 'peddler':
       g.shopDiscount = 0.5;
       g.freeRefresh = true;
       break;
@@ -149,7 +158,7 @@ export function chooseEncounter(g: GameState, option: number): ActionResult {
 }
 
 /**
- * The 宝箱 pays out after the wave: a random card onto an empty cell, or 功德 when the camp is full — or when the
+ * The 宝箱 pays out after the wave: a random card onto an empty cell, or 铜钱 when the camp is full — or when the
  * card is a fighter and only 泥沼 pads are free.
  */
 export function openChest(g: GameState): void {

@@ -1,5 +1,5 @@
 // 特殊石台: the A/H/M pad letters, the 法阵 / 高台 bonuses wherever a tile fights or is rated, and the 泥沼 rule
-// (no fighters) at every way a tile can land on a pad — shop, drag, swap, awakening, 神, encounters, chest, bot.
+// (no fighters) at every way a tile can land on a pad — shop, drag, swap, awakening, 鎏金, encounters, chest, bot.
 import { describe, expect, it } from 'vitest';
 import { MAPS, SLOT_BONUS, type MapDef } from '../src/config/maps.ts';
 import { UNITS } from '../src/config/units.ts';
@@ -149,7 +149,7 @@ describe('泥沼 placement', () => {
     expect(g.events.at(-1)).toMatchObject({ t: 'invalid', msg: MIRE_MSG });
   };
 
-  it('refuses buying a fighter onto an empty 泥沼, without charging; supports, fragments and 神 may go there', () => {
+  it('refuses buying a fighter onto an empty 泥沼, without charging; supports, fragments and the 金 card may go there', () => {
     for (const id of ['棍', '箭', '火', '冰', '雷'] as UnitId[]) {
       const g = padGame();
       shopOf(g, id);
@@ -167,7 +167,7 @@ describe('泥沼 placement', () => {
     }
   });
 
-  it('judges a purchase by what it turns into: no hero awakens and no 神X forms in a 泥沼', () => {
+  it('judges a purchase by what it turns into: no hero awakens and no 金X forms in a 泥沼', () => {
     const g = padGame();
     put(g, MIRE, '悟');
     shopOf(g, '空');
@@ -211,7 +211,7 @@ describe('泥沼 placement', () => {
     expect(g.slots[MIRE]?.id).toBe('疗');
   });
 
-  it('awakens a hero only outside the 泥沼, and puts 神 on a fighter only outside it', () => {
+  it('awakens a hero only outside the 泥沼, and gilds a fighter only outside it', () => {
     const g = padGame();
     put(g, MIRE, '悟');
     put(g, PLAIN, '空');
@@ -227,14 +227,14 @@ describe('泥沼 placement', () => {
     expect(h.slots[PLAIN]).toMatchObject({ id: '箭', divine: true });
   });
 
-  it('天降神字 may land its 神 in a 泥沼', () => {
+  it('the goldDrop (天降金字) may land its 金 card in a 泥沼', () => {
     const g = padGame();
     for (let i = 0; i < g.slots.length; i++) if (g.unlocked[i] && i !== MIRE) put(g, i, i === MIRE2 ? '钱' : '箭');
-    applyEncounter(g, '天降神字');
+    applyEncounter(g, 'goldDrop');
     expect(g.slots[MIRE]?.id).toBe('神');
   });
 
-  it('the 宝箱 skips the 泥沼 for a fighter, paying 功德 instead when nothing else is free', () => {
+  it('the 宝箱 skips the 泥沼 for a fighter, paying 铜钱 instead when nothing else is free', () => {
     let placed = 0;
     let paid = 0;
     for (let seed = 1; seed <= 60; seed++) {

@@ -1,8 +1,9 @@
 // Card sprites: framed parchment cards whose frame material rises with the level (wood, bronze, silver, gold,
-// jade), an illustration on top, the character on a name ribbon below, hero portraits, torn-scroll fragments
-// and the red 神 seal. Painted at 2x so they stay crisp when the camera zooms in.
+// jade), an illustration on top, the character (glyphOf) on a name ribbon below, hero portraits, torn-scroll
+// fragments and the red 金 seal of a gilded card. Painted at 2x so they stay crisp when the camera zooms in.
 import { HERO_RECIPES } from '../config/combos.ts';
-import { UNITS } from '../config/units.ts';
+import { GOLD_GLYPH } from '../config/terms.ts';
+import { glyphOf, UNITS } from '../config/units.ts';
 import type { HeroId, UnitId } from '../core/types.ts';
 import { drawStar, hash01, outlined, roundRect, text } from './draw.ts';
 import { brush, sans } from './fonts.ts';
@@ -12,7 +13,7 @@ import { drawLevelDressing, drawTornPaper, drawUnitIcon } from './unit-art.ts';
 
 /** Card size on the map (a slot pad is 50 wide). */
 export const CARD = 52;
-/** Padding around a card sprite for the 神 glow and shadow. */
+/** Padding around a card sprite for the gilded glow and shadow. */
 const PAD = 6;
 /** Supersampling factor of the cached sprites. */
 const RES = 2;
@@ -146,6 +147,8 @@ function gloss(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): 
 
 function paintCard(ctx: CanvasRenderingContext2D, id: UnitId, level: number, divine: boolean, s: number): void {
   const def = UNITS[id];
+  // Reason: the glyph is the id for every card but the gilding one, so every other card paints exactly as before.
+  const glyph = glyphOf(id);
   const x = PAD;
   const y = PAD;
   const material = def.kind === 'hero' ? HERO_MATERIAL : def.kind === 'fragment' ? FRAG_MATERIAL : def.kind === 'divine' ? DIVINE_MATERIAL : MATERIALS[level - 1];
@@ -170,10 +173,10 @@ function paintCard(ctx: CanvasRenderingContext2D, id: UnitId, level: number, div
     ctx.shadowOffsetY = 1.5;
     drawPortrait(ctx, id as HeroId, cx, y + s * 0.38, s * 0.26);
     ctx.restore();
-    ribbon(ctx, x, y, s, material, id);
+    ribbon(ctx, x, y, s, material, glyph);
   } else if (def.kind === 'fragment') {
     drawTornPaper(ctx, cx, y + s * 0.5, s * 0.6, s * 0.66, RIGHT_HALF.has(id));
-    text(ctx, id, cx, y + s * 0.52, brush(Math.round(s * 0.44)), def.color);
+    text(ctx, glyph, cx, y + s * 0.52, brush(Math.round(s * 0.44)), def.color);
   } else {
     const iy = y + s * 0.36;
     drawLevelDressing(ctx, cx, iy, s * 0.54, level);
@@ -183,7 +186,7 @@ function paintCard(ctx: CanvasRenderingContext2D, id: UnitId, level: number, div
     ctx.shadowOffsetY = 1.5;
     drawUnitIcon(ctx, id, cx, iy, s * 0.46, level);
     ctx.restore();
-    ribbon(ctx, x, y, s, material, id);
+    ribbon(ctx, x, y, s, material, glyph);
   }
   gloss(ctx, x, y, s);
   if (level > 1) {
@@ -210,7 +213,7 @@ function paintCard(ctx: CanvasRenderingContext2D, id: UnitId, level: number, div
     roundRect(ctx, -ss / 2, -ss / 2, ss, ss, 3);
     ctx.fillStyle = '#c8001f';
     ctx.fill();
-    text(ctx, '神', 0, 0.5, brush(Math.round(ss * 0.8)), '#fff4ec');
+    text(ctx, GOLD_GLYPH, 0, 0.5, brush(Math.round(ss * 0.8)), '#fff4ec');
     ctx.restore();
   }
 }

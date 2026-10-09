@@ -162,7 +162,7 @@ describe('网 nets', () => {
     expect(findTarget(g, arrow, 3)).toBe(lead);
   });
 
-  it('hold longer with the level and 神, and catch flyers too', () => {
+  it('hold longer with the level and 鎏金, and catch flyers too', () => {
     const g = battle(emptyGame(6));
     put(g, 1, '网', 5, true);
     const bat = enemy(g, '蝠', 48, 1e6);
@@ -191,7 +191,7 @@ describe('网 nets', () => {
 });
 
 describe('the new cards on the board', () => {
-  it('毒 and 网 are fighters (神 takes them, a 泥沼 refuses them); 鼓 and 镜 are supports that may stand in one', () => {
+  it('毒 and 网 are fighters (the 金 card takes them, a 泥沼 refuses them); 鼓 and 镜 are supports that may stand in one', () => {
     for (const id of ['毒', '网'] as const) {
       expect(isFighter(id)).toBe(true);
       expect(UNITS[id].hitsAir).toBe(true);
