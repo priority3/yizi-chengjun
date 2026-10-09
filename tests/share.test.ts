@@ -185,19 +185,19 @@ describe('share card data from an endless or daily run', () => {
 
   it('counts the waves survived, with no last wave and no stars', () => {
     const info = modeShareInfo(fell('endless', 7, buildMods(vaultWith([['金刚琢', 2]]))), DAY);
-    expect(info).toMatchObject({ mode: 'endless', title: '无尽模式', subtitle: '小雷音寺地图', map: 10, won: false, waves: 12, campHp: 0, kills: 240 });
+    expect(info).toMatchObject({ mode: 'endless', title: '无尽模式', subtitle: '雷音谷地图', map: 10, won: false, waves: 12, campHp: 0, kills: 240 });
     expect(info.totalWaves).toBeUndefined();
     expect(info.stars).toBeUndefined();
     expect(info.chapter).toBeUndefined();
     expect(info.treasures).toEqual([{ id: '金刚琢', tier: 2 }]);
     expect(shareHeadline(info)).toBe('撑过第 12 波');
-    expect(shareText(info, '')).toBe('《一字成军》无尽模式：撑过第 12 波，击杀 240 只妖怪！');
+    expect(shareText(info, '')).toBe('《一字成军》无尽模式：撑过第 12 波，击败 240 只妖怪！');
   });
 
   it('names the day and its map for a daily run, which plays without 法宝', () => {
-    // 20261009 ends in 9: the tenth map (小雷音寺); 20261003 ends in 3: the fourth (火云洞).
+    // 20261009 ends in 9: the tenth map (雷音谷); 20261003 ends in 3: the fourth (火云洞).
     const info = modeShareInfo(fell('daily', 20261009, buildMods(vaultWith([['金刚琢', 2]]))), DAY);
-    expect(info).toMatchObject({ mode: 'daily', title: '每日挑战 · 10月9日', subtitle: '小雷音寺地图', map: 10, waves: 12 });
+    expect(info).toMatchObject({ mode: 'daily', title: '每日挑战 · 10月9日', subtitle: '雷音谷地图', map: 10, waves: 12 });
     expect(info.treasures).toEqual([]);
     expect(modeShareInfo(fell('daily', 20261003), DAY)).toMatchObject({ map: 4, subtitle: '火云洞地图', title: '每日挑战 · 10月3日' });
   });
@@ -279,9 +279,9 @@ describe('share text and date', () => {
 
   it('sums the run up in one line, with the address when there is one', () => {
     const url = 'https://zidou-xiyou.vercel.app/';
-    expect(shareText(chapterShareInfo(wonRun(), DAY), url)).toBe(`《一字成军》第三章 · 平顶山：两星通关，击杀 87 只妖怪！ ${url}`);
-    expect(shareText(chapterShareInfo(lostRun(), DAY), '')).toBe('《一字成军》第五章 · 黑风山：守住 3/6 波，击杀 31 只妖怪！');
-    expect(shareText(ENDLESS, '')).toBe('《一字成军》无尽模式：撑过第 23 波，击杀 410 只妖怪！');
+    expect(shareText(chapterShareInfo(wonRun(), DAY), url)).toBe(`《一字成军》第三章 · 平顶山：两星通关，击败 87 只妖怪！ ${url}`);
+    expect(shareText(chapterShareInfo(lostRun(), DAY), '')).toBe('《一字成军》第五章 · 黑风山：守住 3/6 波，击败 31 只妖怪！');
+    expect(shareText(ENDLESS, '')).toBe('《一字成军》无尽模式：撑过第 23 波，击败 410 只妖怪！');
   });
 });
 
@@ -289,7 +289,7 @@ describe('the card layout', () => {
   it('names the outcome', () => {
     const won = chapterShareInfo(wonRun(), DAY);
     expect(shareHeadline(won)).toBe('章节通关！');
-    expect(shareHeadline({ ...won, chapter: CHAPTERS.length })).toBe('取得真经！');
+    expect(shareHeadline({ ...won, chapter: CHAPTERS.length })).toBe('大功告成！');
     expect(shareHeadline(chapterShareInfo(lostRun(), DAY))).toBe('阵地失守');
     expect(shareHeadline(ENDLESS)).toBe('撑过第 23 波');
     expect(shareHeadline({ ...ENDLESS, mode: 'daily', waves: 0 })).toBe('阵地失守');
@@ -299,7 +299,7 @@ describe('the card layout', () => {
     expect(shareStats(chapterShareInfo(wonRun(), DAY))).toEqual([
       { label: '守住波数', value: '6/6' },
       { label: '剩余阵地', value: '102/168' },
-      { label: '击杀妖怪', value: '87' },
+      { label: '击败妖怪', value: '87' },
     ]);
     expect(shareStats(ENDLESS)[0].value).toBe('23');
   });

@@ -1,5 +1,6 @@
 // The 奇遇 modal: three event cards to pick from between waves.
-import { ENCOUNTERS, KIND_LABEL, type EncounterKind } from '../core/encounters.ts';
+import { TRIAL } from '../config/terms.ts';
+import { encounterName, ENCOUNTERS, KIND_LABEL, type EncounterKind } from '../core/encounters.ts';
 import type { EncounterId } from '../core/types.ts';
 import { fitPx, roundRect, text } from './draw.ts';
 import { brush, sans } from './fonts.ts';
@@ -28,7 +29,7 @@ export function drawEncounterPanel(ctx: CanvasRenderingContext2D, options: reado
   const p = encounterPanel();
   drawPanel(ctx, p);
   text(ctx, '奇  遇', W / 2, p.y + 40, brush(30), '#8a3a22');
-  text(ctx, '三选一 · 福缘立刻生效，劫难下一波生效', W / 2, p.y + 68, sans(11, 600), '#7a6248');
+  text(ctx, `三选一 · 福缘立刻生效，${TRIAL}下一波生效`, W / 2, p.y + 68, sans(11, 600), '#7a6248');
   const rects = encounterCardRects();
   options.forEach((id, i) => {
     const def = ENCOUNTERS[id];
@@ -48,7 +49,7 @@ export function drawEncounterPanel(ctx: CanvasRenderingContext2D, options: reado
     ctx.fillStyle = st.chip;
     ctx.fill();
     text(ctx, KIND_LABEL[def.kind], r.x + 30, r.y + dy + 22.5, sans(10, 800), '#fff8e8');
-    text(ctx, id, r.x + 58, r.y + dy + 23, brush(21), '#3b2a1e', 'left');
+    text(ctx, encounterName(id), r.x + 58, r.y + dy + 23, brush(21), '#3b2a1e', 'left');
     const px = fitPx(ctx, def.desc, r.w - 22, 11, (n) => sans(n, 600), 8);
     text(ctx, def.desc, r.x + 11, r.y + dy + 52, sans(px, 600), '#5a4028', 'left');
   });

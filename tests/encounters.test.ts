@@ -54,31 +54,31 @@ describe('encounter timing', () => {
 });
 
 describe('boons and trades', () => {
-  it('观音赐福 heals and raises the cap, 财神到 pays, 天降神字 drops a 神', () => {
+  it('renewal (枯木逢春) heals and raises the cap, fortune (招财进宝) pays, goldDrop (天降金字) drops a 金 card', () => {
     const g = emptyGame();
     g.campHp = 30;
-    applyEncounter(g, '观音赐福');
+    applyEncounter(g, 'renewal');
     expect(g.campMax).toBe(CAMP_HP + 10);
     expect(g.campHp).toBe(g.campMax);
     const before = g.gongde;
-    applyEncounter(g, '财神到');
+    applyEncounter(g, 'fortune');
     expect(g.gongde).toBe(before + 50);
-    applyEncounter(g, '天降神字');
+    applyEncounter(g, 'goldDrop');
     expect(g.slots.filter((t) => t?.id === '神')).toHaveLength(1);
   });
 
-  it('天降神字 pays 功德 instead when the camp is full', () => {
+  it('goldDrop pays 铜钱 instead when the camp is full', () => {
     const g = emptyGame();
     for (let i = 0; i < g.slots.length; i++) if (g.unlocked[i]) put(g, i, '箭');
     const before = g.gongde;
-    applyEncounter(g, '天降神字');
+    applyEncounter(g, 'goldDrop');
     expect(g.gongde).toBe(before + 40);
   });
 
-  it('土地公摆摊 halves prices and makes refreshing free for one build phase', () => {
+  it('peddler (货郎摆摊) halves prices and makes refreshing free for one build phase', () => {
     const g = emptyGame();
     g.shop = [{ id: '雷', price: 16, sold: false }];
-    applyEncounter(g, '土地公摆摊');
+    applyEncounter(g, 'peddler');
     expect(offerPrice(g, g.shop[0])).toBe(8);
     expect(currentRefreshCost(g)).toBe(0);
     const before = g.gongde;

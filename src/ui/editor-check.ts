@@ -15,7 +15,7 @@ const SAMPLE_STEP = 6;
 export interface PadStats {
   /** Open from the start (upper case letters). */
   open: number;
-  /** Bought with 功德 (lower case letters). */
+  /** Bought with 铜钱 (lower case letters). */
   locked: number;
   /** 法阵, 高台 and 泥沼, open or not. */
   special: number;

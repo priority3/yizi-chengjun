@@ -2,10 +2,10 @@
 //
 //   1-4  monster entrance (start of a road; one road per digit)
 //   #    road                        E   the camp (end of every road, exactly one)
-//   O    build slot, open at start   o   build slot, bought with 功德
+//   O    build slot, open at start   o   build slot, bought with 铜钱
 //   A/a  法阵 altar: a fighter on it deals more damage        (upper case open, lower case bought)
 //   H/h  高台 high ground: a fighter on it reaches further    (upper case open, lower case bought)
-//   M/m  泥沼 mire: fighters can't stand on it; supports, fragments and 神 can
+//   M/m  泥沼 mire: fighters can't stand on it; supports, fragments and the 金 card can
 //   ~    water (lava on fire maps)   ^   rock      T   tree      .   plain ground
 //
 // Each character is one TILE x TILE square of world space. Roads must be simple corridors from each

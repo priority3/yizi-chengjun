@@ -22,7 +22,7 @@ export const POISON_SHARE = 0.5;
 
 /**
  * Whether the bot would buy the 网 `id`: one net, and only with a boss or the elite coming next.
- * Reason: in `pnpm sim` every net the bot kept on the board cost it wins (a cell and 功德 that a fighter would have
+ * Reason: in `pnpm sim` every net the bot kept on the board cost it wins (a cell and 铜钱 that a fighter would have
  * used better); the one thing a net does that nothing else does is hold a boss for its full time.
  */
 export function wantsNet(g: GameState, id: UnitId): boolean {

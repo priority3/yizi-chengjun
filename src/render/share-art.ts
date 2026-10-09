@@ -4,7 +4,7 @@
 import { hash01, roundRect, text } from './draw.ts';
 import { brush } from './fonts.ts';
 
-/** Seal red, the same as the 神 stamp on cards. */
+/** Seal red, the same as the 金 seal on gilded cards. */
 export const SEAL_RED = '#c8001f';
 const SEAL_TEXT = '#fff4ec';
 

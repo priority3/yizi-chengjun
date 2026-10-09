@@ -29,7 +29,7 @@ export function rollOffer(g: GameState): UnitId {
   const r3 = rand(g);
   const r4 = rand(g);
   // Reason: only cards the shop really sells qualify — a hero is awakened, never bought (its price is 0, which
-  // used to put a 1-功德 copy on the shelf that merged straight into the hero).
+  // used to put a 1-铜钱 copy on the shelf that merged straight into the hero).
   const owned = g.slots
     .filter((t) => t !== null && t.level === 1 && isStackable(t.id) && UNITS[t.id].price > 0)
     .map((t) => t!.id);
@@ -61,12 +61,12 @@ export function restock(g: GameState, minAttackers = SHOP_ATTACKERS): void {
   g.shop = ids.map((id): ShopOffer => ({ id, price: UNITS[id].price, sold: false }));
 }
 
-/** What an offer costs right now (土地公摆摊 halves prices for one build phase). */
+/** What an offer costs right now (货郎摆摊 halves prices for one build phase). */
 export function offerPrice(g: GameState, o: ShopOffer): number {
   return Math.max(1, Math.round(o.price * g.shopDiscount));
 }
 
-/** What the next refresh costs right now (0 while 土地公摆摊 is active). */
+/** What the next refresh costs right now (0 while 货郎摆摊 is active). */
 export function currentRefreshCost(g: GameState): number {
   return g.freeRefresh ? 0 : refreshCost(g.refreshes);
 }

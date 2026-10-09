@@ -40,8 +40,8 @@ group('descriptions on special pads', () => {
   it('never promises 白龙 more than the whole field, and only names the pad under the rest', () => {
     expect(describe(card('白龙'), mods, 'high')).not.toContain('高台');
     expect(describe(card('白龙'), mods, 'altar')).toContain('伤害 7，法阵 +20%');
-    expect(describe(card('钱'), mods, 'mire')).toBe('钱 · 战斗时每 4 秒产出功德（泥沼）');
-    expect(describe(card('钱'), mods)).toBe('钱 · 战斗时每 4 秒产出功德');
+    expect(describe(card('钱'), mods, 'mire')).toBe('钱 · 战斗时每 4 秒产出铜钱（泥沼）');
+    expect(describe(card('钱'), mods)).toBe('钱 · 战斗时每 4 秒产出铜钱');
   });
 
   it('labels the three 瞄准 modes', () => {
@@ -55,7 +55,7 @@ group('pad labels while dragging', () => {
     expect(padLabel('altar', '箭')).toBe('法阵：伤害 +20%');
     expect(padLabel('high', '悟空')).toBe('高台：射程 +30');
     expect(padLabel('mire', '雷')).toBe('泥沼：放不了兵字和英雄');
-    expect(padLabel('mire', '钱')).toBe('泥沼：只能放辅助、碎片和神');
+    expect(padLabel('mire', '钱')).toBe('泥沼：只能放辅助、碎片和金');
     expect(padLabel('altar', '速')).toBe('法阵：兵字和英雄伤害 +20%');
   });
 });
@@ -80,7 +80,7 @@ group('the drag preview over special pads', () => {
     const fighter = hover(g, PLAIN, MIRE);
     expect([fighter.hoverCell, fighter.hoverValid, fighter.hoverHint, fighter.hoverPad]).toEqual([MIRE, false, null, '泥沼：放不了兵字和英雄']);
     const support = hover(g, PLAIN2, MIRE);
-    expect([support.hoverValid, support.hoverPad]).toEqual([true, '泥沼：只能放辅助、碎片和神']);
+    expect([support.hoverValid, support.hoverPad]).toEqual([true, '泥沼：只能放辅助、碎片和金']);
     const altar = hover(g, PLAIN, ALTAR);
     expect([altar.hoverValid, altar.hoverPad]).toEqual([true, '法阵：伤害 +20%']);
     const high = hover(g, PLAIN, HIGH);

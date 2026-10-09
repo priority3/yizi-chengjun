@@ -8,7 +8,7 @@ import { battle, emptyGame, enemy, put } from './helpers.ts';
 // Test map (helpers.ts): a straight road down x = 216 from y = 72; slot 1 is at (120, 120), 96 px beside it.
 
 describe('rage', () => {
-  it('builds by a tenth per normal attack, faster for 神 and with 紧箍咒', () => {
+  it('builds by a tenth per normal attack, faster when gilded (金X) and with 紧箍咒', () => {
     const g = battle(emptyGame());
     const hero = put(g, 1, '悟空');
     enemy(g, '妖', 48);

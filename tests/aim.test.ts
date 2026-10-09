@@ -92,13 +92,13 @@ describe('switching modes', () => {
     expect(hero.target).toBe('strong');
     const h = emptyGame();
     const arrow = put(h, 3, '箭');
-    h.encounter = ['财神到', '宝箱', '盗宝妖'];
+    h.encounter = ['fortune', '宝箱', '盗宝妖'];
     expect(act(h, { t: 'mode', cell: 3 })).toBe('ok');
     expect(arrow.target).toBe('strong');
     expect(act(h, { t: 'start' })).toBe('phase');
   });
 
-  it('refuses supports, fragments and 神, ignores empty cells, and stops once the run is over', () => {
+  it('refuses supports, fragments and the 金 card, ignores empty cells, and stops once the run is over', () => {
     const g = emptyGame();
     for (const [cell, id] of [
       [1, '速'],
@@ -135,7 +135,7 @@ describe('what keeps a mode', () => {
     expect(g.slots[1]).toMatchObject({ level: 2, target: 'strong' });
   });
 
-  it('moving and swapping keep each tile its mode; 神 keeps the fighter its mode', () => {
+  it('moving and swapping keep each tile its mode; 鎏金 keeps the fighter its mode', () => {
     const g = emptyGame();
     const a = put(g, 1, '雷');
     a.target = 'weak';

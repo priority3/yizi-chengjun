@@ -2,6 +2,7 @@
 // and moving the camera (drag empty ground to pan, pinch or wheel to zoom). Pure state machines; the scene
 // owns them and turns their results into actions and toasts.
 import { heroFor } from '../config/combos.ts';
+import { CURRENCY, GILDING } from '../config/terms.ts';
 import { previewDrop } from '../core/board.ts';
 import { offerPrice } from '../core/shop.ts';
 import type { Action, GameState } from '../core/types.ts';
@@ -29,7 +30,7 @@ export class CardDrag {
   /** Whether dropping on hoverCell would do something. */
   hoverValid = false;
   hoverTrash = false;
-  /** What letting go does when the two cards combine (merge / awaken / 神). */
+  /** What letting go does when the two cards combine (merge / awaken / 鎏金). */
   hoverHint: string | null = null;
   /** What the special pad under the card does for what would stand there (法阵 / 高台 / 泥沼), or null. */
   hoverPad: string | null = null;
@@ -73,8 +74,8 @@ export class CardDrag {
       if (cell < 0) return null;
       const o = g.shop[d.index];
       const price = o ? offerPrice(g, o) : 0;
-      if (!g.unlocked[cell]) return { toast: '这个石台还没解锁：点它花功德解锁' };
-      if (o && g.gongde < price) return { toast: `功德不够：这张卡要 ${price}` };
+      if (!g.unlocked[cell]) return { toast: `这个石台还没解锁：点它花${CURRENCY}解锁` };
+      if (o && g.gongde < price) return { toast: `${CURRENCY}不够：这张卡要 ${price}` };
       return { action: { t: 'buy', offer: d.index, cell } };
     }
     if (trash) return { action: { t: 'drop', from: d.index, to: 'sell' } };
@@ -109,7 +110,7 @@ export class CardDrag {
     const kinds = g.map.slotKind;
     // Reason: the pads matter — nothing may leave a fighter in a 泥沼, here or (after a swap) where the card came from.
     const outcome = previewDrop({ id: d.unit, level: d.level, divine: d.divine }, target, kinds[cell], d.kind === 'cell' ? kinds[d.index] : null);
-    // What would stand on this pad afterwards: an awakened hero, the fighter a 神 lands on, or the card itself.
+    // What would stand on this pad afterwards: an awakened hero, the fighter the 金 card lands on, or the card itself.
     const lands = (target && heroFor(d.unit, target.id)) ?? (d.unit === '神' && target ? target.id : d.unit);
     this.hoverPad = padLabel(kinds[cell], lands);
     if (d.kind === 'shop') {
@@ -123,7 +124,7 @@ export class CardDrag {
     if (target && this.hoverValid) {
       if (outcome === 'merge') this.hoverHint = `松开合成 ${target.level + 1} 级`;
       else if (outcome === 'hero') this.hoverHint = `松开觉醒 ${heroFor(d.unit, target.id) ?? '英雄'}`;
-      else if (outcome === 'divine') this.hoverHint = '松开附神';
+      else if (outcome === 'divine') this.hoverHint = `松开${GILDING}`;
     }
   }
 }

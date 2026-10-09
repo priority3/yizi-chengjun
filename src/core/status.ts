@@ -7,7 +7,7 @@ import type { Enemy, GameState, UnitId } from './types.ts';
 
 /**
  * Poison per stack per second that a hit of `dmg` from `unit` leaves (0 for units without poison).
- * Reason: scaled by the hit itself, so level, 神, 法宝, a 法阵 and 鼓 raise the poison exactly as they raise the needle.
+ * Reason: scaled by the hit itself, so level, 鎏金, 法宝, a 法阵 and 鼓 raise the poison exactly as they raise the needle.
  */
 export function poisonDps(unit: UnitId, dmg: number): number {
   const def = UNITS[unit];

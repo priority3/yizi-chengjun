@@ -1,4 +1,4 @@
-// Paints a chapter map: themed ground, scenery, the dirt roads, the monster entrances, 唐僧's camp and the
+// Paints a chapter map: themed ground, scenery, the dirt roads, the monster entrances, 师父's camp and the
 // stone pads cards stand on. Painted once per zoom level into an offscreen canvas.
 import { MAPS, TILE, type SlotKind } from '../config/maps.ts';
 import { buildMap, pathPoint, ROAD_W, type MapData, type Pt } from '../core/map.ts';
@@ -144,7 +144,7 @@ function entrance(ctx: CanvasRenderingContext2D, p: Pt): void {
   text(ctx, '妖', p.x, p.y + 7, brush(16), 'rgba(255,120,80,0.85)');
 }
 
-/** 唐僧's camp: a stone platform, a tent with red trim, and the monk himself. */
+/** 师父's camp: a stone platform, a tent with red trim, and 师父 himself. */
 function camp(ctx: CanvasRenderingContext2D, p: Pt): void {
   roundRect(ctx, p.x - 40, p.y - 30, 80, 62, 12);
   ctx.fillStyle = 'rgba(60,35,15,0.3)';
@@ -175,7 +175,7 @@ function camp(ctx: CanvasRenderingContext2D, p: Pt): void {
   ctx.closePath();
   ctx.fillStyle = '#5a2a18';
   ctx.fill();
-  drawPortrait(ctx, '唐僧', p.x, p.y - 4, 10);
+  drawPortrait(ctx, 'master', p.x, p.y - 4, 10);
   ctx.fillStyle = '#5a3a24';
   ctx.fillRect(p.x + 26, p.y - 40, 2, 34);
   ctx.beginPath();

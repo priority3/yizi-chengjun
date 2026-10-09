@@ -1,7 +1,8 @@
-// HUD and bottom panels: chapter title, 功德, camp HP with 唐僧, wave nodes, the shop, the battle bar, banners.
+// HUD and bottom panels: chapter title, 铜钱, camp HP with 师父, wave nodes, the shop, the battle bar, banners.
 // Endless and daily runs show their mode and wave as the title and a wave counter instead of the nodes.
 import { CHAPTERS } from '../config/chapters.ts';
 import { ENDLESS } from '../config/endless.ts';
+import { CURRENCY } from '../config/terms.ts';
 import { UNITS } from '../config/units.ts';
 import { modsLabel } from '../core/encounters.ts';
 import { dayLabel, enraged, UNLIMITED } from '../core/modes.ts';
@@ -138,9 +139,9 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: GameState, ui: PanelUi
   drawCoin(ctx, W - 74, 20, 9);
   text(ctx, String(g.gongde), W - 60, 21, sans(16, 800), COLORS.gold, 'left');
 
-  // Camp HP with 唐僧's portrait.
+  // Camp HP with 师父's portrait.
   const flash = vfx.campFlash > 0;
-  drawPortrait(ctx, '唐僧', 22, 44, 11);
+  drawPortrait(ctx, 'master', 22, 44, 11);
   drawBar(ctx, 38, 39, 132, 11, g.campHp / g.campMax, flash ? '#ff9a8a' : g.campHp / g.campMax > 0.35 ? '#e0453c' : '#ff2a1a');
   text(ctx, `阵地 ${Math.ceil(g.campHp)}/${g.campMax}`, 104, 45, sans(9, 700), '#ffffff');
 
@@ -199,7 +200,7 @@ function drawOffer(ctx: CanvasRenderingContext2D, g: GameState, i: number, ui: P
   drawCoin(ctx, cx - 14, r.y + 87, 6);
   text(ctx, String(price), cx - 5, r.y + 87.5, sans(13, 800), !afford ? '#c8322a' : discounted ? '#1b7a5a' : '#7a4a08', 'left');
   if (discounted) {
-    // 土地公摆摊: a little "半价" tag on every card.
+    // 货郎摆摊: a little "半价" tag on every card.
     roundRect(ctx, r.x + r.w - 30, r.y + 4, 26, 14, 4);
     ctx.fillStyle = '#2f9c86';
     ctx.fill();
@@ -234,7 +235,7 @@ export function drawShop(ctx: CanvasRenderingContext2D, g: GameState, ui: PanelU
   ctx.restore();
   for (let i = 0; i < L.shopCards.length; i++) drawOffer(ctx, g, i, ui);
   const cost = currentRefreshCost(g);
-  drawButton(ctx, L.btnRefresh, '刷新', g.gongde >= cost ? 'jade' : 'disabled', cost === 0 ? '免费' : `${cost} 功德`, ui.pressed === 'refresh');
+  drawButton(ctx, L.btnRefresh, '刷新', g.gongde >= cost ? 'jade' : 'disabled', cost === 0 ? '免费' : `${cost} ${CURRENCY}`, ui.pressed === 'refresh');
   drawButton(ctx, L.btnStart, '出战', 'primary', `迎战第 ${g.wave + 1} 波`, ui.pressed === 'start');
   drawTrash(ctx, L.trash, ui.hoverTrash);
   // One line under the ribbon: drag help, or what the chosen encounter queued for the next wave.

@@ -4,7 +4,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { pngBlob, SHARE_FILE, SHARE_TITLE, shareImage, type PngSource, type ShareDeps } from '../src/platform/share.ts';
 
-const TEXT = '《一字成军》第三章 · 平顶山：三星通关，击杀 87 只妖怪！';
+const TEXT = '《一字成军》第三章 · 平顶山：三星通关，击败 87 只妖怪！';
 /** What the fake canvas encodes to: a PNG data URL whose payload is the bytes of "encoded". */
 const ENCODED = 'data:image/png;base64,ZW5jb2RlZA==';
 

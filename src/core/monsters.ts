@@ -66,7 +66,7 @@ export function spawnMinions(g: GameState, def: string, count: number, near: Ene
   }
 }
 
-/** The monster reached the camp: a thief runs off with 功德, anyone else hurts the camp. Either way it leaves the field. */
+/** The monster reached the camp: a thief runs off with 铜钱, anyone else hurts the camp. Either way it leaves the field. */
 function arrive(g: GameState, e: Enemy): void {
   e.gone = true;
   const tr = ENEMIES[e.def].trait;

@@ -1,8 +1,10 @@
-// Chibi portraits for the heroes (and 唐僧 for the HUD), drawn with simple vector shapes in an ink-outline style.
+// Chibi portraits for the heroes (and 师父 for the HUD and the camp), drawn with simple vector shapes in an
+// ink-outline style.
 import type { HeroId } from '../core/types.ts';
 import { COLORS } from './draw.ts';
 
-export type PortraitId = HeroId | '唐僧';
+/** A hero, or 'master': 师父, whom the camp shelters (config/terms.ts MASTER). */
+export type PortraitId = HeroId | 'master';
 
 function circle(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, fill: string, outline = 0): void {
   ctx.beginPath();
@@ -187,7 +189,8 @@ function bailong(ctx: CanvasRenderingContext2D, x: number, y: number, r: number)
   eyes(ctx, x, y - r * 0.2, r * 0.13, r * 0.28, '#1f5fa8');
 }
 
-function tangseng(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+/** 师父: a calm monk in a golden five-petal crown. */
+function master(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
   const lw = Math.max(1, r * 0.08);
   circle(ctx, x, y + r * 0.08, r * 0.8, '#f6d7b5', lw);
   // 毗卢帽: a golden crown of five petals on a red band.
@@ -222,7 +225,7 @@ const PAINTERS: Record<PortraitId, (ctx: CanvasRenderingContext2D, x: number, y:
   八戒: bajie,
   沙僧: shaseng,
   白龙: bailong,
-  唐僧: tangseng,
+  master,
 };
 
 /** Draws a portrait filling a circle of radius r centred at (x, y). */

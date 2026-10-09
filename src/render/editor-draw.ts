@@ -101,7 +101,7 @@ export function drawSwatch(ctx: CanvasRenderingContext2D, ch: string, x: number,
   }
 }
 
-/** A pad as a disc of its kind with its letter on it; a pad bought with 功德 (lower case) is darkened. */
+/** A pad as a disc of its kind with its letter on it; a pad bought with 铜钱 (lower case) is darkened. */
 function padSwatch(ctx: CanvasRenderingContext2D, ch: string, cx: number, cy: number, s: number): void {
   const { kind, open } = PAD_LETTERS[ch];
   const r = s * 0.38;
@@ -170,7 +170,7 @@ export function drawGridLines(ctx: CanvasRenderingContext2D, cols: number, rows:
 
 /**
  * The live marks a run draws over its pads, minus the prices: the turning rune ring on every open 法阵, and each pad
- * bought with 功德 darkened with its "+" (or, for a special pad, its name). `time` turns the rings.
+ * bought with 铜钱 darkened with its "+" (or, for a special pad, its name). `time` turns the rings.
  */
 export function drawPadMarks(ctx: CanvasRenderingContext2D, map: MapData, time: number, k: number): void {
   drawRuneRings(ctx, { map, unlocked: map.open }, PAD_R + 4, time);

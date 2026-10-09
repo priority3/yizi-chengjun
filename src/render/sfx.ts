@@ -33,7 +33,7 @@ export class Sfx {
     this.start(ids);
   }
 
-  /** Feedback that has no simulation event, e.g. an action refused for lack of 功德. */
+  /** Feedback that has no simulation event, e.g. an action refused for lack of 铜钱. */
   play(id: SoundId): void {
     this.start([id]);
   }

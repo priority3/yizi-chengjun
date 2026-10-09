@@ -1,8 +1,9 @@
 // One-line descriptions of cards for toasts (tapping a shop card or a tile on the map), the label of a special
 // pad while a card is dragged over it, and how each 瞄准 reads.
 import { SLOT_BONUS, SLOT_NAME, type SlotKind } from '../config/maps.ts';
+import { gilded, GOLD_GLYPH } from '../config/terms.ts';
 import { ULTIMATES } from '../config/ultimates.ts';
-import { DRUM_DMG_CAP, UNITS } from '../config/units.ts';
+import { DRUM_DMG_CAP, glyphOf, UNITS } from '../config/units.ts';
 import { drumMul } from '../core/buffs.ts';
 import { mirrorRate } from '../core/mirror.ts';
 import { isFighter, padDamage, padRange } from '../core/slots.ts';
@@ -59,7 +60,8 @@ function supportNote(t: Tile, spot?: BoardSpot): string | null {
  */
 export function describe(t: Pick<Tile, 'id' | 'level' | 'divine'>, mods: RunMods, pad: SlotKind = 'plain', spot?: BoardSpot): string {
   const def = UNITS[t.id];
-  const name = `${t.divine ? '神' : ''}${t.id}${t.level > 1 ? ` ${t.level}级` : ''}`;
+  const glyph = glyphOf(t.id);
+  const name = `${t.divine ? gilded(glyph) : glyph}${t.level > 1 ? ` ${t.level}级` : ''}`;
   const tile: Tile = { uid: 0, cd: 0, invested: 0, rage: 0, ...t };
   const drum = spot && spot.cell >= 0 && isFighter(t.id) ? drumMul(spot.g, spot.cell) : 1;
   const dmg = padDamage(tile, pad, mods) * drum;
@@ -90,6 +92,6 @@ export function padLabel(kind: SlotKind, id: UnitId): string | null {
     case 'high':
       return fighter ? `高台：射程 +${SLOT_BONUS.high.range}` : `高台：兵字和英雄射程 +${SLOT_BONUS.high.range}`;
     case 'mire':
-      return fighter ? '泥沼：放不了兵字和英雄' : '泥沼：只能放辅助、碎片和神';
+      return fighter ? '泥沼：放不了兵字和英雄' : `泥沼：只能放辅助、碎片和${GOLD_GLYPH}`;
   }
 }

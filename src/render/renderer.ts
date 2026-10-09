@@ -77,7 +77,7 @@ export interface GameUi extends PanelUi {
   hoverValid: boolean;
   /** Tapped tile whose range is shown, or -1. */
   selected: number;
-  /** What releasing on hoverCell does when it combines (merge / awaken / 神), shown next to the slot. */
+  /** What releasing on hoverCell does when it combines (merge / awaken / 鎏金), shown next to the slot. */
   hoverHint: string | null;
   /** What the special pad under the dragged card does (法阵 / 高台 / 泥沼); shown when there is no hoverHint. */
   hoverPad: string | null;
@@ -233,7 +233,7 @@ export class GameRenderer {
       }
       blit(ctx, img, x + shake, y, size, size, scale);
       if (hero) drawBar(ctx, x - 19, y + CARD / 2 - 5, 38, 4.5, t.rage, ready ? '#ffd166' : '#ff7a2a');
-      // 瞄准 other than 打最前: a badge on the bottom-right corner, clear of the level badge and the 神 seal up top.
+      // 瞄准 other than 打最前: a badge on the bottom-right corner, clear of the level badge and the 金 seal up top.
       if (t.target) drawAimBadge(ctx, t.target, x + shake + 23 * scale, y + 21 * scale, 7.5 * scale);
       ctx.restore();
     });

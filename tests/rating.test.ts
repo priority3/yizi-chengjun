@@ -36,7 +36,7 @@ describe('star rating', () => {
     // The plain camp: 96 of 120 is exactly 80 %, 48 exactly 40 %.
     expect(CAMP_HP).toBe(120);
     expect([96, 95, 48, 47].map((hp) => starRating(hp, CAMP_HP))).toEqual([3, 2, 2, 1]);
-    // 观音赐福 raises the max by 10 (104 = 80 % of 130); 金刚琢 tier 2 by 48 (134.4 of 168 = 80 %).
+    // 枯木逢春 raises the max by 10 (104 = 80 % of 130); 金刚琢 tier 2 by 48 (134.4 of 168 = 80 %).
     expect([104, 103, 52, 51].map((hp) => starRating(hp, 130))).toEqual([3, 2, 2, 1]);
     expect(starRating(134.4, 168)).toBe(3);
     expect(starRating(134, 168)).toBe(2);

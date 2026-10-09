@@ -199,7 +199,7 @@ export const SOUNDS: Record<SoundId, Voice[]> = {
   revive: [tone('sine', 220, 880, 0.4, 0.11, { attack: 0.06 }), tone('triangle', 330, 1320, 0.4, 0.04, { attack: 0.06 }), noise(0.4, 0.04, hp(3000, 8000), { attack: 0.1 })],
   // The camp is hit: a drum and two falling notes (G4 -> E-flat 4).
   leak: [...drum(80, 0, 0.4), tone('triangle', hz(67), hz(67), 0.16, 0.12, { delay: 0.04 }), tone('triangle', hz(63), hz(63), 0.3, 0.12, { delay: 0.2 })],
-  // The thief runs off with 功德: three quick clinks, falling.
+  // The thief runs off with 铜钱: three quick clinks, falling.
   steal: [clink(2600, 0), clink(2300, 0.05), clink(2000, 0.1)],
   ultWukong: ultimate(BEAM, 72),
   ultBajie: ultimate(SLAM, 67),

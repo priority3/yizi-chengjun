@@ -1,4 +1,4 @@
-// Effective tile stats after level, 神 and (optionally) the run's 法宝 modifiers. Shared by combat, board and AI.
+// Effective tile stats after level, 鎏金 and (optionally) the run's 法宝 modifiers. Shared by combat, board and AI.
 import { DIVINE, HEAL_EVERY, LEVEL_FX, LEVEL_MUL, UNITS } from '../config/units.ts';
 import { poisonDps } from './status.ts';
 import type { RunMods, Tile } from './types.ts';

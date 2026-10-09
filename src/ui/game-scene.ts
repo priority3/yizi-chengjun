@@ -3,6 +3,7 @@
 import { CHAPTERS, unlockCost } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
 import type { MapDef } from '../config/maps.ts';
+import { CURRENCY, MASTER, TRIAL } from '../config/terms.ts';
 import { UNITS } from '../config/units.ts';
 import { DT } from '../core/clock.ts';
 import { act, createGame, step } from '../core/game.ts';
@@ -118,7 +119,7 @@ export class GameScene implements Scene {
     if (resumed) this.resumeView(resumed.camera);
     else if (test) this.showBanner(testBanner());
     else if (this.g.mode !== 'chapter') this.showBanner(openEndedBanner(this.g, gear));
-    else this.vfx.showBanner(`第${NUMERALS[chapter - 1]}章 · ${ch.name}`, `别让妖怪走到唐僧的营地，打败${ENEMIES[ch.boss].name}${gear}`, '#ffd166', null, 2.6);
+    else this.vfx.showBanner(`第${NUMERALS[chapter - 1]}章 · ${ch.name}`, `别让妖怪走到${MASTER}的营地，打败${ENEMIES[ch.boss].name}${gear}`, '#ffd166', null, 2.6);
   }
 
   private tip(key: string, msg: string): void {
@@ -266,7 +267,7 @@ export class GameScene implements Scene {
     if (button === 'pause') this.pause();
     else if (button === 'speed') this.speed = this.speed === 1 ? 2 : 1;
     else if (button === 'sound') this.toggleMute();
-    else if (button === 'refresh') this.doAct({ t: 'refresh' }, `功德不够：刷新要 ${currentRefreshCost(g)}`);
+    else if (button === 'refresh') this.doAct({ t: 'refresh' }, `${CURRENCY}不够：刷新要 ${currentRefreshCost(g)}`);
     else if (button === 'start') this.startWave();
     else if (g.phase === 'build' && L.shopCards.some((r) => inRect(p.x, p.y, r))) {
       const i = L.shopCards.findIndex((r) => inRect(p.x, p.y, r));
@@ -276,7 +277,7 @@ export class GameScene implements Scene {
       const cell = this.slotUnder(p.x, p.y);
       if (cell < 0) return;
       if (!g.unlocked[cell]) {
-        this.doAct({ t: 'unlock', cell }, `功德不够：解锁这个石台要 ${unlockCost(g.unlockCount)}`);
+        this.doAct({ t: 'unlock', cell }, `${CURRENCY}不够：解锁这个石台要 ${unlockCost(g.unlockCount)}`);
       } else if (g.slots[cell]) {
         const t = g.slots[cell] as Tile;
         // Tapping the fighter that is still selected switches its 瞄准 (the 'mode' event toasts the new one).
@@ -340,11 +341,11 @@ export class GameScene implements Scene {
 
   // ---- helpers -----------------------------------------------------------
 
-  private doAct(a: Action, poorMsg = '功德不够'): void {
+  private doAct(a: Action, poorMsg = `${CURRENCY}不够`): void {
     const before = this.g.events.length;
     const r = act(this.g, a);
     if (r === 'poor') this.toasts.push(poorMsg);
-    // A purchase refused for lack of 功德 has no sim event; it gets the same buzz as an invalid drop.
+    // A purchase refused for lack of 铜钱 has no sim event; it gets the same buzz as an invalid drop.
     if (r === 'poor') this.sfx.play('invalid');
     // Reason: g.events still holds the last step's events (already shown); only react to the new ones.
     this.handleEvents(this.g.events.slice(before));
@@ -375,7 +376,7 @@ export class GameScene implements Scene {
         if (e.wave === 2) this.tip('trash', '不要的字可以拖到垃圾桶卖掉');
       }
       else if (e.t === 'leak') this.tip('leak', '妖怪走到营地会伤到阵地：把火力摆在路的转弯处');
-      else if (e.t === 'encounterOffer') this.tip('enc', '奇遇三选一：福缘立刻生效，劫难下一波生效但赏金更多');
+      else if (e.t === 'encounterOffer') this.tip('enc', `奇遇三选一：福缘立刻生效，${TRIAL}下一波生效但赏金更多`);
       else if (e.t === 'hero') this.tip('rage', '英雄普攻十下攒满怒气，下一击就是大招');
       else if (e.t === 'mode') this.toasts.push(`瞄准：${AIM_LABEL[e.mode]}`);
     }

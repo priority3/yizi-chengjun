@@ -2,6 +2,7 @@
 // palette's brushes, painting (the camp and each entrance stay unique), resizing and the undo stack. Pure and
 // DOM-free. Every edit returns a new draft and never changes the old one, so the undo stack simply keeps old drafts.
 import { MAPS, PAD_LETTERS, SLOT_NAME, type MapDef, type MapTheme } from '../config/maps.ts';
+import { CURRENCY } from '../config/terms.ts';
 
 /** Fewest and most squares across or down. */
 export const MIN_SIDE = 8;
@@ -10,7 +11,7 @@ export const MAX_SIDE = 20;
 export const UNDO_STEPS = 20;
 /** Plain ground: what the eraser paints and what new squares start as. */
 export const GROUND = '.';
-/** 唐僧's camp, where every road ends. */
+/** 师父's camp, where every road ends. */
 export const CAMP = 'E';
 /** The monster entrances, one road each. */
 export const ENTRANCES: readonly string[] = ['1', '2', '3', '4'];
@@ -49,7 +50,7 @@ const PAD_BRUSHES: Brush[] = Object.entries(PAD_LETTERS).map(([ch, p]) => ({
   ch,
   kind: 'pad',
   label: SLOT_NAME[p.kind],
-  hint: `${SLOT_NAME[p.kind]} · ${p.open ? '开局可用' : '花功德解锁'}（${ch}）`,
+  hint: `${SLOT_NAME[p.kind]} · ${p.open ? '开局可用' : `花${CURRENCY}解锁`}（${ch}）`,
 }));
 
 /** Every legend character as a brush, in palette order. */

@@ -1,6 +1,7 @@
 // Tile table: every character that can appear on the board, with shop prices and attack styles.
 // Balance lives here — tweak numbers, re-run `pnpm sim`.
 import type { FragId, UnitDef, UnitId } from '../core/types.ts';
+import { CURRENCY, GILDING, gilded, GOLD_GLYPH, SUBDUE } from './terms.ts';
 
 export const MAX_LEVEL = 5;
 /**
@@ -10,7 +11,7 @@ export const MAX_LEVEL = 5;
 export const LEVEL_MUL: readonly number[] = [1, 2.2, 4.84, 10.65, 23.4];
 /** Effect magnitude bonus per level above 1 (slow %, stun time, splash %, ...). */
 export const LEVEL_FX = 0.1;
-/** Modifiers applied by 神. */
+/** Modifiers applied by 鎏金 (the 金 card dropped onto a fighter or hero). */
 export const DIVINE = { dmg: 2.5, interval: 0.8, range: 30, fx: 1.5 } as const;
 /** 速 and 鼓 together: total attack-speed bonus a single cell can receive. */
 export const HASTE_CAP = 1.5;
@@ -85,7 +86,7 @@ export const UNITS: Record<UnitId, UnitDef> = {
   毒: { id: '毒', kind: 'attack', label: '中毒', desc: `毒针叠毒，最多 ${POISON_FX.max} 层，Boss 也吃满`, price: 12, dmg: 5, range: 180, interval: 0.8, shot: 'needle', projSpeed: 480, knockback: 0, hitsAir: true, fx: POISON_FX, color: '#3f8f2a' },
   网: { id: '网', kind: 'attack', label: '定身', desc: '撒网定身，Boss 也网得住', price: 12, dmg: 2, range: 150, interval: 4, shot: 'net', projSpeed: 340, knockback: 0, hitsAir: true, fx: { t: 'root', dur: 1 }, color: '#8a5a24' },
   速: support('速', '加速', '周围 8 格的字攻速提高', 12, 0, { t: 'haste', pct: 0.2 }, '#0d7f73'),
-  钱: support('钱', '生财', '战斗时每 4 秒产出功德', 15, 4, { t: 'income', amount: 3 }, '#a87400'),
+  钱: support('钱', '生财', `战斗时每 4 秒产出${CURRENCY}`, 15, 4, { t: 'income', amount: 3 }, '#a87400'),
   疗: support('疗', '回血', '阵地受伤时慢慢回血', 12, HEAL_EVERY, { t: 'heal', amount: 6 }, '#c93f73'),
   鼓: support('鼓', '鼓舞', `周围 8 格的字每级伤害 +${pct(DRUM_FX.dmg)}%、攻速 +${pct(DRUM_FX.speed)}%`, 12, 0, DRUM_FX, '#b8321f'),
   // Reason for k 0.006 and cap 30 (`pnpm sim`): at k 0.02 with no cap the mirror dealt two thirds of chapter 10's damage
@@ -102,10 +103,15 @@ export const UNITS: Record<UnitId, UnitDef> = {
   龙: frag('龙'),
   悟空: { id: '悟空', kind: 'hero', label: '贯穿', desc: '金箍棒一伸，打穿一整排妖怪', price: 0, dmg: 55, range: 175, interval: 1.1, shot: 'beam', projSpeed: 0, knockback: 6, hitsAir: true, fx: { t: 'beam', width: 18, count: 4 }, color: '#b8321f' },
   八戒: { id: '八戒', kind: 'hero', label: '群晕', desc: '钉耙砸地，周围妖怪受伤并眩晕', price: 0, dmg: 24, range: 110, interval: 2, shot: 'slam', projSpeed: 0, knockback: 10, hitsAir: false, fx: { t: 'stun', radius: 58, dur: 0.9 }, color: '#7a4ea6' },
-  沙僧: { id: '沙僧', kind: 'hero', label: '斩杀', desc: '月牙铲飞出，残血妖怪直接斩杀', price: 0, dmg: 30, range: 180, interval: 1.2, shot: 'crescent', projSpeed: 400, knockback: 0, hitsAir: true, fx: { t: 'execute', pct: 0.15, bossPct: 0.05 }, color: '#2b6585' },
+  沙僧: { id: '沙僧', kind: 'hero', label: SUBDUE, desc: `月牙铲飞出，残血妖怪直接${SUBDUE}`, price: 0, dmg: 30, range: 180, interval: 1.2, shot: 'crescent', projSpeed: 400, knockback: 0, hitsAir: true, fx: { t: 'execute', pct: 0.15, bossPct: 0.05 }, color: '#2b6585' },
   白龙: { id: '白龙', kind: 'hero', label: '全屏', desc: '白龙横扫，每次攻击全场妖怪', price: 0, dmg: 6, range: Infinity, interval: 1, shot: 'dragon', projSpeed: 0, knockback: 0, hitsAir: true, fx: { t: 'global' }, color: '#2f6fc0' },
-  神: { id: '神', kind: 'divine', label: '神', desc: '拖到兵字或英雄上，变成神X', price: 30, dmg: 0, range: 0, interval: 0, shot: 'none', projSpeed: 0, knockback: 0, hitsAir: true, fx: { t: 'none' }, color: '#c8001f' },
+  神: { id: '神', glyph: GOLD_GLYPH, kind: 'divine', label: GILDING, desc: `拖到兵字或英雄上，变成${gilded('X')}`, price: 30, dmg: 0, range: 0, interval: 0, shot: 'none', projSpeed: 0, knockback: 0, hitsAir: true, fx: { t: 'none' }, color: '#c8001f' },
 };
+
+/** The character a card shows and its texts name it by: the id, except for a card with a glyph (the 金 card, id '神'). */
+export function glyphOf(id: UnitId): string {
+  return UNITS[id].glyph ?? id;
+}
 
 export const FRAGMENTS: readonly FragId[] = ['悟', '空', '八', '戒', '沙', '僧', '白', '龙'];
 
@@ -117,7 +123,7 @@ export const SHOP_WEIGHTS: ReadonlyArray<readonly [UnitId | 'frag', number]> = [
   ['棍', 11], ['箭', 12], ['火', 9], ['冰', 8], ['雷', 8], ['毒', 6], ['网', 4],
   ['速', 7], ['钱', 6], ['疗', 5], ['鼓', 3], ['镜', 3], ['frag', 15], ['神', 3],
 ];
-/** 神 only shows up in the shop from this wave on (0 = before wave 1). */
+/** The 金 card only shows up in the shop from this wave on (0 = before wave 1). */
 export const DIVINE_FROM_WAVE = 2;
 /** Chance that a fragment offer is the missing partner of one already on the board. */
 export const FRAG_PARTNER_CHANCE = 0.6;

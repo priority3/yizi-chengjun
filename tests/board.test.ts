@@ -30,7 +30,7 @@ describe('drag and drop between slots', () => {
     expect(g.slots[3]).not.toBeNull();
   });
 
-  it('keeps 神 through a merge from either tile', () => {
+  it('keeps 鎏金 through a merge from either tile', () => {
     const g = emptyGame();
     put(g, 5, '火', 1, true);
     put(g, 6, '火', 1, false);
@@ -55,7 +55,7 @@ describe('drag and drop between slots', () => {
     }
   });
 
-  it('applies 神 to fighters only', () => {
+  it('applies the 金 card to fighters only', () => {
     const g = emptyGame();
     put(g, 5, '神');
     put(g, 6, '雷');

@@ -102,7 +102,7 @@ function bestEmptyCell(g: GameState, t: Tile): number {
   return best;
 }
 
-/** Merges, awakenings and 神 that are already possible on the board. */
+/** Merges, awakenings and gildings (鎏金) that are already possible on the board. */
 function boardCombo(g: GameState): Action | null {
   const s = g.slots;
   for (let i = 0; i < s.length; i++) {
@@ -216,28 +216,28 @@ function bestLockedSlot(g: GameState): number {
 
 /** Encounter cards the bot likes, best first: free value, then trades, then the mildest challenges. */
 const ENCOUNTER_PRIORITY: EncounterId[] = [
-  '天降神字', '财神到', '观音赐福', '土地公摆摊', '宝箱', '妖风大作', '盗宝妖', '狼群来袭', '月圆之夜', '妖王亲临',
+  'goldDrop', 'fortune', 'renewal', 'peddler', '宝箱', '妖风大作', '盗宝妖', '狼群来袭', '月圆之夜', '妖王亲临',
 ];
 
 /**
- * The long game of endless and daily runs: from this much 功德 on, a bot whose board is full keeps one cell for
+ * The long game of endless and daily runs: from this much 铜钱 on, a bot whose board is full keeps one cell for
  * building merges — it sells its weakest tile to free one, then refreshes (up to `refreshes` times per build phase)
  * for copies of the level-1 card it bought there.
- * Reason: otherwise a full board never changes again and 功德 piles up unspent (2000+ by wave 10), so the bot
+ * Reason: otherwise a full board never changes again and 铜钱 piles up unspent (2000+ by wave 10), so the bot
  * stalled a couple of waves after its board filled, whatever the endless numbers were — a measure of the bot's
  * shopping rules rather than of the mode.
  */
 const LONG_GAME = { gongde: 100, refreshes: 10 } as const;
 
-/** Whether the bot plays the long game: an endless or daily run, with 功德 to spare. */
+/** Whether the bot plays the long game: an endless or daily run, with 铜钱 to spare. */
 function longGame(g: GameState): boolean {
   return isOpenEnded(g.mode) && g.gongde >= LONG_GAME.gongde;
 }
 
 /**
  * Long game only, once no cell is left for a fighter and no level-1 fighter is waiting for a copy to merge with:
- * the cell of the weakest tile, to sell for room (-1 when there is nothing to do). Heroes, 神 tiles and the one 网
- * (see wantsNet) are never sold.
+ * the cell of the weakest tile, to sell for room (-1 when there is nothing to do). Heroes, the 金 card, gilded tiles
+ * and the one 网 (see wantsNet) are never sold.
  */
 function cellToFree(g: GameState): number {
   if (!longGame(g) || emptyCellsFor(g, '箭').length > 0) return -1;
@@ -263,8 +263,8 @@ export function botChoice(g: GameState): number {
   let best = 0;
   let bestRank = Infinity;
   (g.encounter ?? []).forEach((id, i) => {
-    // A full camp makes 观音赐福 worthless; push it behind the trades.
-    const rank = id === '观音赐福' && g.campHp >= g.campMax ? 5.5 : ENCOUNTER_PRIORITY.indexOf(id);
+    // A full camp makes the renewal (枯木逢春) worthless; push it behind the trades.
+    const rank = id === 'renewal' && g.campHp >= g.campMax ? 5.5 : ENCOUNTER_PRIORITY.indexOf(id);
     if (rank < bestRank) {
       bestRank = rank;
       best = i;

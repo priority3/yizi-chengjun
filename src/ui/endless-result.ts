@@ -1,5 +1,6 @@
 // The result panel of an endless or daily run: the waves it survived, kills, the record (a 新纪录！ seal when beaten)
 // and the 灵石 earned. game-overlays.ts sizes the panel and stacks its buttons under this content.
+import { DEFEAT } from '../config/terms.ts';
 import { dayLabel } from '../core/modes.ts';
 import type { EndlessAward } from '../core/records.ts';
 import type { GameState } from '../core/types.ts';
@@ -24,7 +25,7 @@ export function drawEndlessResult(ctx: CanvasRenderingContext2D, r: Rect, g: Gam
   text(ctx, `撑过 ${a.waves} 波`, W / 2, r.y + 118, brush(34), '#8a3a22');
   if (a.record) drawSeal(ctx, W / 2 + 100, r.y + 104, t);
   const best = `${a.mode === 'daily' ? '今日最佳' : '最佳'} 撑过 ${a.best} 波`;
-  text(ctx, `击杀 ${a.kills} · ${best}`, W / 2, r.y + 156, sans(12, 600), '#6a4a26');
+  text(ctx, `${DEFEAT} ${a.kills} · ${best}`, W / 2, r.y + 156, sans(12, 600), '#6a4a26');
   // The 灵石 line, like a chapter clear's.
   drawStone(ctx, W / 2 - 44, r.y + 188, 9);
   text(ctx, `灵石 +${a.stones}`, W / 2 - 30, r.y + 189, sans(14, 800), '#1b7a5a', 'left');
