@@ -6,6 +6,7 @@ import { UNITS } from '../config/units.ts';
 import { DT } from '../core/clock.ts';
 import { act, createGame, step } from '../core/game.ts';
 import { slotAt } from '../core/map.ts';
+import { awardStars, starRating, type StarAward } from '../core/rating.ts';
 import { currentRefreshCost } from '../core/shop.ts';
 import { buildMods, clearRewards, type ClearRewards } from '../core/treasures.ts';
 import type { Action, ActionResult, GameState, SimEvent, Tile } from '../core/types.ts';
@@ -58,6 +59,8 @@ export class GameScene implements Scene {
   private endT = -1;
   /** Rewards banked when the chapter was cleared. */
   private rewards: ClearRewards | null = null;
+  /** Stars earned when the chapter was cleared, and the three-star bonus if this was the first time. */
+  private award: StarAward | null = null;
   private readonly cards = new CardDrag();
   private readonly camCtl = new CameraControls();
   private readonly slotUnderFn = (x: number, y: number) => this.slotUnder(x, y);
@@ -350,6 +353,7 @@ export class GameScene implements Scene {
     p.unlocked = Math.max(p.unlocked, Math.min(CHAPTERS.length, this.chapter + 1));
     p.wins[this.chapter - 1] = (p.wins[this.chapter - 1] ?? 0) + 1;
     this.rewards = clearRewards(p.vault, this.chapter, firstClear);
+    this.award = awardStars(p, p.vault, this.chapter, starRating(this.g.campHp, this.g.campMax));
     this.nav.save();
   }
 
@@ -380,7 +384,7 @@ export class GameScene implements Scene {
   // ---- overlays ----------------------------------------------------------
 
   private resultInfo(): ResultInfo {
-    return { g: this.g, chapter: this.chapter, rewards: this.rewards };
+    return { g: this.g, chapter: this.chapter, rewards: this.rewards, award: this.award, t: this.endT - RESULT_DELAY };
   }
 
   /** Background music for the moment: calm while building, faster in battle, darker for the boss wave. */

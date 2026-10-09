@@ -268,16 +268,45 @@ export function drawMap(ctx: CanvasRenderingContext2D, map: MapData, zoom: numbe
   ctx.drawImage(mapImage(map, zoom, pixelRatio), 0, 0, map.w, map.h);
 }
 
-let menuMap: MapData | null = null;
+// ---- Menu backdrop: the map of the day behind the title, chapter and 法宝 screens -------------------------------
 
-/** The first chapter's map, scaled to cover the screen and dimmed, behind menus. */
+/** Day of the year in local time, 1 on 1 January. */
+export function dayOfYear(d: Date): number {
+  // Reason: count whole calendar days through the UTC midnights of the local dates, so a daylight-saving change
+  // can't leave a fraction of a day.
+  return (Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(d.getFullYear(), 0, 1)) / 86_400_000 + 1;
+}
+
+/** Index into MAPS of the menu backdrop on day `d`: the ten maps take turns, one per day. */
+export function menuMapIndex(d: Date): number {
+  return dayOfYear(d) % MAPS.length;
+}
+
+/** The one cached backdrop: today's map, painted at backing-store resolution `res`. */
+let menu: { index: number; res: number; map: MapData; img: HTMLCanvasElement } | null = null;
+
+/** Today's chapter map, scaled to cover the screen and dimmed, behind menus. */
 export function menuBackdrop(ctx: CanvasRenderingContext2D, stage: Stage, dim: number): void {
-  if (!menuMap) menuMap = buildMap(MAPS[0]);
-  const scale = Math.max(W / menuMap.w, L.H / menuMap.h);
-  const img = mapImage(menuMap, scale, stage.pixelRatio);
-  const dw = menuMap.w * scale;
-  const dh = menuMap.h * scale;
-  ctx.drawImage(img, (W - dw) / 2, (L.H - dh) / 2, dw, dh);
+  const index = menuMapIndex(new Date());
+  const map = menu?.index === index ? menu.map : buildMap(MAPS[index]);
+  const scale = Math.max(W / map.w, L.H / map.h);
+  // Reason: quarter steps so small resizes don't repaint; capped at 3x, the most mapImage paints a map at.
+  const res = Math.min(3, Math.ceil(stage.pixelRatio * scale * 4) / 4);
+  if (!menu || menu.index !== index || menu.res !== res) {
+    // Reason: painted here rather than through mapImage, whose per-map cache would keep up to three copies;
+    // replacing `menu` keeps exactly one image, and yesterday's map is dropped at midnight.
+    const img = document.createElement('canvas');
+    img.width = Math.ceil(map.w * res);
+    img.height = Math.ceil(map.h * res);
+    const g = img.getContext('2d');
+    if (!g) throw new Error('Canvas 2D is not supported in this browser');
+    g.setTransform(res, 0, 0, res, 0, 0);
+    paintMap(g, map);
+    menu = { index, res, map, img };
+  }
+  const dw = map.w * scale;
+  const dh = map.h * scale;
+  ctx.drawImage(menu.img, (W - dw) / 2, (L.H - dh) / 2, dw, dh);
   ctx.fillStyle = `rgba(28,14,6,${dim})`;
   ctx.fillRect(0, 0, W, L.H);
 }

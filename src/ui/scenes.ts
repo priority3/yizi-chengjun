@@ -1,15 +1,15 @@
 // Scene manager plus the title screen and the chapter select screen.
 import { CHAPTERS } from '../config/chapters.ts';
-import { ENEMIES } from '../config/enemies.ts';
+import { STAR_BONUS, THREE_STAR_PCT, TWO_STAR_PCT } from '../core/rating.ts';
 import { clearRun, loadRun, peekRun, type RunInfo } from '../platform/save.ts';
 import { loadProgress, saveProgress, type Progress, type Stage } from '../platform/web.ts';
-import { fitPx, outlined, roundRect, text } from '../render/draw.ts';
+import { ChapterCards, thumbRect, type ChapterCard } from '../render/chapter-card.ts';
+import { fitPx, outlined, text } from '../render/draw.ts';
 import { brush, sans } from '../render/fonts.ts';
 import { drawPortrait, type PortraitId } from '../render/heroes-art.ts';
 import { inRect, L, W, type Rect } from '../render/layout.ts';
-import { monsterSprite } from '../render/monsters-art.ts';
+import { peekThumb, warmThumbs } from '../render/map-thumb.ts';
 import { NUMERALS } from '../render/panels.ts';
-import { blit } from '../render/sprites.ts';
 import { BACK, backdrop, drawButton, drawPanel } from '../render/widgets.ts';
 import { GameScene } from './game-scene.ts';
 import type { GestureHandlers, Pointer } from './input.ts';
@@ -156,12 +156,23 @@ class TitleScene implements Scene {
 
 /** 法宝 button, top right of the chapter screen. */
 const TREASURES: Rect = { x: W - 84, y: 12, w: 72, h: 40 };
+/** Every chapter number in grid order, the order the map thumbnails are painted in. */
+const CHAPTER_IDS = CHAPTERS.map((c) => c.id);
+/** Seconds a freshly painted thumbnail takes to fade in over its placeholder. */
+const THUMB_FADE = 0.25;
 
+/**
+ * Card `i` of the 2 x 5 grid.
+ * Reason: 92 high at the shortest design height (the grid keeps its old size there) and up to 112 on tall phones,
+ * so the map thumbnails get the room; the grid always ends above the two hint lines at the bottom.
+ */
 function chapterRect(i: number): Rect {
   const col = i % 2;
   const row = Math.floor(i / 2);
-  const top = 72 + Math.max(0, (L.H - 640) * 0.35);
-  return { x: 14 + col * 172, y: top + row * 102, w: 160, h: 92 };
+  const extra = Math.max(0, L.H - 640);
+  const h = Math.round(92 + extra * 0.125);
+  const top = Math.round(72 + extra * 0.2);
+  return { x: 14 + col * 172, y: top + row * (h + 10), w: 160, h };
 }
 
 /** The 有一局没打完 prompt, shown when a chapter is tapped while an unfinished run is saved. */
@@ -182,6 +193,12 @@ class ChapterScene implements Scene {
   private run: RunInfo | null;
   /** Chapter tapped while a run is saved: the prompt is open for it (0 = closed). */
   private asking = 0;
+  /** Animation clock (seconds): thumbnail fade-in, placeholder sheen, the next chapter's glow. */
+  private t = 0;
+  /** When each thumbnail painted during this visit became ready (chapter -> t), for its fade-in. */
+  private readonly paintedAt = new Map<number, number>();
+  /** Draws the cards, caching the settled ones (the cache goes with this screen). */
+  private readonly cards = new ChapterCards();
 
   constructor(nav: Nav, stage: Stage) {
     this.nav = nav;
@@ -189,35 +206,40 @@ class ChapterScene implements Scene {
     this.run = peekRun();
   }
 
-  update(): void {}
+  update(dt: number): void {
+    this.t += dt;
+    // Thumbnails still missing at the current size get painted a couple per frame; placeholders show meanwhile.
+    const tr = thumbRect(chapterRect(0));
+    for (const ch of warmThumbs(CHAPTER_IDS, tr.w, tr.h, this.stage.pixelRatio)) this.paintedAt.set(ch, this.t);
+  }
 
   render(ctx: CanvasRenderingContext2D): void {
     backdrop(ctx, this.stage, 0.62);
     drawButton(ctx, BACK, '返回', 'ghost');
     outlined(ctx, '选择章节', W / 2, 33, brush(26), '#ffd66b', 'rgba(40,14,4,0.9)', 4);
-    const { unlocked, wins, vault } = this.nav.progress;
+    const { unlocked, wins, stars, vault } = this.nav.progress;
     drawButton(ctx, TREASURES, '法宝', 'jade', `${vault.stones} 灵石`);
-    CHAPTERS.forEach((ch, i) => {
+    // The first open chapter without a clear is the one to play next.
+    const next = CHAPTER_IDS.find((id) => id <= unlocked && !(wins[id - 1] > 0)) ?? 0;
+    const cards = CHAPTERS.map((ch, i) => {
       const r = chapterRect(i);
-      const open = ch.id <= unlocked;
-      roundRect(ctx, r.x, r.y, r.w, r.h, 14);
-      ctx.fillStyle = open ? '#f6ead0' : '#6a6058';
-      ctx.fill();
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = open ? '#b8862c' : '#4a4440';
-      ctx.stroke();
-      const { img, box } = monsterSprite(ch.boss);
-      ctx.save();
-      if (!open) ctx.globalAlpha = 0.35;
-      blit(ctx, img, r.x + 36, r.y + 48, box, box, 60 / box);
-      ctx.restore();
-      const ink = open ? '#3b2a1e' : '#b0a698';
-      text(ctx, `第${NUMERALS[i]}章`, r.x + 72, r.y + 22, brush(15), open ? '#8a3a22' : ink, 'left');
-      // Reason: four-character names (小雷音寺) would overflow the card at the default size.
-      text(ctx, ch.name, r.x + 72, r.y + 48, brush(fitPx(ctx, ch.name, r.w - 80, 22, brush)), ink, 'left');
-      const state = !open ? '未解锁' : wins[i] > 0 ? '已通关' : `Boss ${ENEMIES[ch.boss].name}`;
-      text(ctx, state, r.x + 72, r.y + 73, sans(10, 700), !open ? '#b0a698' : wins[i] > 0 ? '#2f7d32' : '#b3261e', 'left');
+      const tr = thumbRect(r);
+      const at = this.paintedAt.get(ch.id);
+      const c: ChapterCard = {
+        chapter: ch.id,
+        open: ch.id <= unlocked,
+        cleared: wins[i] > 0,
+        stars: stars[i] ?? 0,
+        next: ch.id === next,
+        thumb: peekThumb(ch.id, tr.w, tr.h, this.stage.pixelRatio),
+        fade: at === undefined ? 1 : Math.min(1, (this.t - at) / THUMB_FADE),
+        t: this.t,
+      };
+      return { r, c };
     });
+    this.cards.draw(ctx, cards);
+    text(ctx, `通关时阵地血量剩 ${THREE_STAR_PCT}% 以上得三星，${TWO_STAR_PCT}% 以上得两星`, W / 2, L.H - 38, sans(10, 500), '#b9a585');
+    text(ctx, `每章第一次拿到三星，额外奖励 ${STAR_BONUS} 灵石`, W / 2, L.H - 22, sans(10, 500), '#b9a585');
     if (this.asking > 0 && this.run) this.drawPrompt(ctx, this.run);
   }
 

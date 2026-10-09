@@ -1,11 +1,13 @@
 // Pause and result panels of the chapter screen (kept apart from the scene so each file stays small).
 import { CHAPTERS } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
+import { MAX_STARS, THREE_STAR_PCT, type StarAward } from '../core/rating.ts';
 import { effectText, type ClearRewards } from '../core/treasures.ts';
 import type { GameState } from '../core/types.ts';
 import { text } from '../render/draw.ts';
 import { brush, sans } from '../render/fonts.ts';
 import { inRect, L, W, type Rect } from '../render/layout.ts';
+import { drawRatingStar } from '../render/rating-art.ts';
 import { drawStone, drawTreasureToken } from '../render/treasure-art.ts';
 import { drawButton, drawPanel } from '../render/widgets.ts';
 import type { Pointer } from './input.ts';
@@ -61,16 +63,86 @@ export interface ResultInfo {
   chapter: number;
   /** Rewards banked for this clear (null after a loss). */
   rewards: ClearRewards | null;
+  /** The stars this clear earned and its three-star bonus (null after a loss). */
+  award: StarAward | null;
+  /** Seconds since the panel appeared: the stars pop in one after another. */
+  t: number;
 }
+
+/** Result panel heights; a win's panel grows by one line when it pays the three-star bonus. */
+const WON_H = 464;
+const LOST_H = 330;
+const BONUS_LINE = 22;
 
 export function resultPanel(info: ResultInfo): Rect {
-  return panelRect(info.g.phase === 'won' ? 400 : 330);
+  if (info.g.phase !== 'won') return panelRect(LOST_H);
+  return panelRect(WON_H + ((info.award?.bonus ?? 0) > 0 ? BONUS_LINE : 0));
 }
 
-function drawRewards(ctx: CanvasRenderingContext2D, r: Rect, rw: ClearRewards): void {
-  const y = r.y + 150;
+/** Result stars: distance between their centres, and the timing of their pop-in (seconds). */
+const STAR_GAP = 50;
+/** The first star starts growing this long after the panel appears... */
+const STAR_FIRST = 0.25;
+/** ...each next one this much later... */
+const STAR_EVERY = 0.35;
+/** ...and each takes this long to reach full size. */
+const STAR_POP = 0.3;
+/** How long the ring of light around a landing star lasts. */
+const STAR_RING = 0.45;
+/** When the last of `earned` stars has landed. */
+const starsDone = (earned: number) => STAR_FIRST + (earned - 1) * STAR_EVERY + STAR_POP;
+
+/** Ease-out with a little overshoot (0 -> 1, peaking near 1.1), so a star pops rather than slides in. */
+function popScale(k: number): number {
+  if (k <= 0) return 0;
+  if (k >= 1) return 1;
+  const c = 1.70158;
+  const x = k - 1;
+  return 1 + (c + 1) * x * x * x + c * x * x;
+}
+
+/** The three star sockets, the earned ones popping in one after another with a ring of light as each lands. */
+function drawResultStars(ctx: CanvasRenderingContext2D, y: number, earned: number, t: number): void {
+  for (let i = 0; i < MAX_STARS; i++) {
+    const mid = i === 1;
+    const x = W / 2 + (i - 1) * STAR_GAP;
+    const sy = mid ? y - 6 : y;
+    const r = mid ? 23 : 19;
+    drawRatingStar(ctx, x, sy, r, false);
+    if (i >= earned) continue;
+    const start = STAR_FIRST + i * STAR_EVERY;
+    const ring = (t - start - STAR_POP * 0.6) / STAR_RING;
+    if (ring > 0 && ring < 1) {
+      ctx.beginPath();
+      ctx.arc(x, sy, r * (1 + ring), 0, Math.PI * 2);
+      ctx.lineWidth = 3 * (1 - ring) + 0.5;
+      ctx.strokeStyle = `rgba(255,196,64,${0.85 * (1 - ring)})`;
+      ctx.stroke();
+    }
+    drawRatingStar(ctx, x, sy, r, true, 'paper', popScale((t - start) / STAR_POP));
+  }
+}
+
+/** 三星奖励 with a small gold star in front, fading in once the third star has landed. */
+function drawStarBonus(ctx: CanvasRenderingContext2D, y: number, bonus: number, t: number): void {
+  const label = `三星奖励 +${bonus} 灵石`;
+  ctx.font = sans(12, 800);
+  const left = W / 2 - (ctx.measureText(label).width + 19) / 2;
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, (t - starsDone(MAX_STARS)) / 0.25));
+  drawRatingStar(ctx, left + 7, y, 7, true);
+  text(ctx, label, left + 19, y + 1, sans(12, 800), '#b86a06', 'left');
+  ctx.restore();
+}
+
+function drawRewards(ctx: CanvasRenderingContext2D, r: Rect, rw: ClearRewards, award: StarAward | null, t: number): void {
+  let y = r.y + 202;
   drawStone(ctx, W / 2 - 44, y, 9);
   text(ctx, `灵石 +${rw.stones}`, W / 2 - 30, y + 1, sans(14, 800), '#1b7a5a', 'left');
+  if (award && award.bonus > 0) {
+    y += BONUS_LINE;
+    drawStarBonus(ctx, y, award.bonus, t);
+  }
   if (rw.treasure) {
     drawTreasureToken(ctx, rw.treasure, 1, r.x + 50, y + 42, 20);
     text(ctx, `首通法宝 · ${rw.treasure}`, r.x + 80, y + 33, sans(12, 800), '#8a3a22', 'left');
@@ -88,10 +160,17 @@ export function drawResult(ctx: CanvasRenderingContext2D, info: ResultInfo, butt
   drawPanel(ctx, r);
   const title = won ? (chapter === CHAPTERS.length ? '取得真经！' : '章节通关！') : '阵地失守';
   text(ctx, title, W / 2, r.y + 46, brush(34), won ? '#b3261e' : '#4a3a2e');
-  const sub = won ? `打败了${ENEMIES[ch.boss].name}` : `坚持到第 ${g.wave}/${g.totalWaves} 波`;
-  text(ctx, sub, W / 2, r.y + 88, sans(14, 600), '#6a4a26');
-  const stats = won ? `击杀 ${g.kills} · 阵地剩余 ${Math.ceil(g.campHp)}/${g.campMax}` : '多合成、多解锁格子；法宝页能炼器变强';
-  text(ctx, stats, W / 2, r.y + 116, sans(won ? 12 : 11, 500), '#7a6248');
-  if (won && rewards) drawRewards(ctx, r, rewards);
+  if (won) {
+    // A win: the stars under the title push the rest down.
+    const stars = info.award?.stars ?? 0;
+    drawResultStars(ctx, r.y + 100, stars, info.t);
+    text(ctx, `打败了${ENEMIES[ch.boss].name}`, W / 2, r.y + 140, sans(14, 600), '#6a4a26');
+    text(ctx, `击杀 ${g.kills} · 阵地剩余 ${Math.ceil(g.campHp)}/${g.campMax}`, W / 2, r.y + 163, sans(12, 500), '#7a6248');
+    if (stars < MAX_STARS) text(ctx, `阵地剩 ${THREE_STAR_PCT}% 以上通关可得三星`, W / 2, r.y + 182, sans(10, 600), '#9a7a52');
+    if (rewards) drawRewards(ctx, r, rewards, info.award, info.t);
+  } else {
+    text(ctx, `坚持到第 ${g.wave}/${g.totalWaves} 波`, W / 2, r.y + 88, sans(14, 600), '#6a4a26');
+    text(ctx, '多合成、多解锁格子；法宝页能炼器变强', W / 2, r.y + 116, sans(11, 500), '#7a6248');
+  }
   drawButtons(ctx, r, buttons);
 }
