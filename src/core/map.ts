@@ -1,6 +1,6 @@
 // Maps: an ASCII layout becomes world geometry — the roads monsters follow, the build slots cards sit on,
 // and the camp at the end of every road. Pure data and pure functions, so runs stay deterministic.
-import { TILE, type MapDef, type MapTheme } from '../config/maps.ts';
+import { PAD_LETTERS, SLOT_BONUS, TILE, type MapDef, type MapTheme, type SlotKind } from '../config/maps.ts';
 
 export interface Pt {
   x: number;
@@ -34,6 +34,8 @@ export interface MapData {
   slots: Pt[];
   /** Slots open from the start; the rest are bought with 功德. */
   open: boolean[];
+  /** Kind of each slot's pad (法阵 / 高台 / 泥沼 or a plain stone), same index as `slots`. */
+  slotKind: SlotKind[];
   /** Slots within SUPPORT_RANGE of each slot (速 reaches these). */
   adj: number[][];
   decor: Decor[];
@@ -120,6 +122,7 @@ export function buildMap(def: MapDef): MapData {
   const road: boolean[] = [];
   const slots: Pt[] = [];
   const open: boolean[] = [];
+  const slotKind: SlotKind[] = [];
   const decor: Decor[] = [];
   const spawnCells: Array<{ n: number; i: number }> = [];
   let exit = -1;
@@ -132,9 +135,10 @@ export function buildMap(def: MapDef): MapData {
         if (exit >= 0) throw new Error('map: more than one camp (E)');
         exit = i;
       } else if (ch >= '1' && ch <= '4') spawnCells.push({ n: Number(ch), i });
-      else if (ch === 'O' || ch === 'o') {
+      else if (Object.hasOwn(PAD_LETTERS, ch)) {
         slots.push(centre(i));
-        open.push(ch === 'O');
+        open.push(PAD_LETTERS[ch].open);
+        slotKind.push(PAD_LETTERS[ch].kind);
       } else if (ch === '~') decor.push({ kind: 'water', ...centre(i) });
       else if (ch === '^') decor.push({ kind: 'rock', ...centre(i) });
       else if (ch === 'T') decor.push({ kind: 'tree', ...centre(i) });
@@ -161,6 +165,7 @@ export function buildMap(def: MapDef): MapData {
     spawns: spawnCells.map((s) => centre(s.i)),
     slots,
     open,
+    slotKind,
     adj,
     decor,
     road,
@@ -248,13 +253,17 @@ export function coverage(map: MapData, slot: number, range: number): number {
   return v;
 }
 
-/** The open slot that sees the most road — where the free starter card goes. */
+/**
+ * The open slot where a fighter sees the most road (a 高台 adds its reach) — where the free starter 箭 goes.
+ * Never a 泥沼: the starter is a fighter.
+ */
 export function bestOpenSlot(map: MapData, range = 200): number {
   let best = -1;
   let bestCov = -1;
   map.slots.forEach((_, i) => {
-    if (!map.open[i]) return;
-    const c = coverage(map, i, range);
+    const pad = SLOT_BONUS[map.slotKind[i]];
+    if (!map.open[i] || !pad.fighters) return;
+    const c = coverage(map, i, range + pad.range);
     if (c > bestCov) {
       bestCov = c;
       best = i;

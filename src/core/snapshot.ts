@@ -5,8 +5,10 @@ import { CHAPTERS } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
 import { MAPS, type MapDef } from '../config/maps.ts';
 import { MAX_LEVEL, UNITS } from '../config/units.ts';
+import { TARGET_MODES } from './board.ts';
 import { ENCOUNTERS } from './encounters.ts';
 import { buildMap } from './map.ts';
+import { padAllows } from './slots.ts';
 import type { GameState, RunMods, ShopOffer, Tile, WaveMods } from './types.ts';
 
 /**
@@ -66,7 +68,9 @@ function shape<T>(fields: Checks<T>): Check {
 }
 
 const unitId = keyOf(UNITS);
-const tile = shape<Tile>({ uid: count, id: unitId, level: intIn(1, MAX_LEVEL), divine: bool, cd: num, invested: num, rage: num });
+/** A fighter's target priority; older saves and never-switched tiles have none ('first'). */
+const targetMode: Check = (x) => x === undefined || TARGET_MODES.some((m) => m === x);
+const tile = shape<Tile>({ uid: count, id: unitId, level: intIn(1, MAX_LEVEL), divine: bool, cd: num, invested: num, rage: num, target: targetMode });
 const offer = shape<ShopOffer>({ id: unitId, price: num, sold: bool });
 const waveMods = shape<WaveMods>({
   speedMul: num,
@@ -164,5 +168,7 @@ export function restore(s: RunSnapshot, def?: MapDef): GameState | null {
   const cells = map.slots.length;
   // Reason: in the build phase `wave` counts cleared waves, so it is always below the total (clearing the last one wins).
   if (state.slots.length !== cells || state.unlocked.length !== cells || state.wave >= state.totalWaves) return null;
+  // No fighter can have been standing in a 泥沼.
+  if (state.slots.some((t, i) => t !== null && !padAllows(map.slotKind[i], t.id))) return null;
   return { ...state, map, events: [] };
 }

@@ -52,6 +52,7 @@ const SAMPLES: { [K in SimEvent['t']]: Array<Extract<SimEvent, { t: K }>> } = {
   income: [{ t: 'income', cell: 0, amount: 3 }],
   heal: [{ t: 'heal', cell: 0, amount: 6 }],
   unlock: [{ t: 'unlock', cell: 0 }],
+  mode: [{ t: 'mode', cell: 0, mode: 'strong' }],
   refresh: [{ t: 'refresh' }],
   ultimate: HEROES.map((hero) => ({ t: 'ultimate', hero, cell: 0, ...at, tx: 0, ty: 0, path: 0, dir: 0, targets: [] })),
   encounterOffer: [{ t: 'encounterOffer', options: ['财神到', '宝箱', '盗宝妖'] }],

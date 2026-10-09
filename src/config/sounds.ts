@@ -72,6 +72,7 @@ export type SoundId =
   | 'divine'
   | 'coin'
   | 'unlock'
+  | 'aim'
   | 'invalid'
   | 'offer'
   | 'encounter'
@@ -200,6 +201,8 @@ export const SOUNDS: Record<SoundId, Voice[]> = {
   coin: [clink(2200, 0), clink(2700, 0.07)],
   // A stone settling: dull low noise and a thump.
   unlock: [noise(0.12, 0.3, lp(900, 200), { freq: [1500, 500] }), tone('sine', 110, 60, 0.12, 0.2)],
+  // 瞄准 switched: a dry wooden click and a short rising blip, like a bow being turned.
+  aim: [noise(0.03, 0.08, bp(3000, 2200, 2)), tone('triangle', 900, 1500, 0.07, 0.07, { delay: 0.02 })],
   // A soft low buzz.
   invalid: [tone('square', 150, 140, 0.12, 0.1, { filter: lp(1400, 900) })],
   // An encounter is offered: a quiet chime after the wave-clear arpeggio (A5 C6 E6).
@@ -236,6 +239,7 @@ const PRIORITY: Partial<Record<SoundId, number>> = {
   buy: 1,
   coin: 1,
   unlock: 1,
+  aim: 1,
   invalid: 1,
   offer: 1,
   encounter: 1,
@@ -312,6 +316,8 @@ export function soundFor(e: SimEvent): SoundId | null {
       return 'invalid';
     case 'unlock':
       return 'unlock';
+    case 'mode':
+      return 'aim';
     case 'ultimate':
       return ULT_SOUND[e.hero];
     case 'encounterOffer':

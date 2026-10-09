@@ -2,7 +2,7 @@
 import { partnerOf } from '../config/combos.ts';
 import { refreshCost, SHOP_ATTACKERS, SHOP_SIZE, unlockCost } from '../config/chapters.ts';
 import { DIVINE_FROM_WAVE, FRAG_PARTNER_CHANCE, FRAGMENTS, OWNED_BIAS, SHOP_WEIGHTS, UNITS } from '../config/units.ts';
-import { combineInto, isStackable, makeTile } from './board.ts';
+import { canPlace, combineInto, isStackable, makeTile, MIRE_MSG } from './board.ts';
 import { pickWeighted, rand } from './rng.ts';
 import type { ActionResult, FragId, GameState, ShopOffer, UnitId } from './types.ts';
 
@@ -70,13 +70,20 @@ export function currentRefreshCost(g: GameState): number {
   return g.freeRefresh ? 0 : refreshCost(g.refreshes);
 }
 
-/** Buys shop card `offer` and puts it on `cell` — an empty cell, or a tile it combines with. */
+/**
+ * Buys shop card `offer` and puts it on `cell` — an empty cell, or a tile it combines with. Whatever ends up on
+ * the cell must be allowed on its pad (combineInto checks a combined result; a fighter never lands in a 泥沼).
+ */
 export function buy(g: GameState, offer: number, cell: number): ActionResult {
   const o = g.shop[offer];
   if (!o || o.sold) return 'none';
   if (!g.unlocked[cell]) return 'locked';
   const price = offerPrice(g, o);
   if (g.gongde < price) return 'poor';
+  if (!g.slots[cell] && !canPlace(g, cell, o.id)) {
+    g.events.push({ t: 'invalid', cell, msg: MIRE_MSG });
+    return 'invalid';
+  }
   const card = makeTile(g, o.id, price);
   if (g.slots[cell]) {
     const r = combineInto(g, card, cell, -1);
