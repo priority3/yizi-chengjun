@@ -13,8 +13,8 @@ export const SHARE_FILE = 'zidou-xiyou.png';
 /** How a share ended: sent through the share sheet, the sheet closed by the player, or the picture shown to save by hand. */
 export type ShareOutcome = 'shared' | 'cancelled' | 'saved';
 
-/** The canvas methods shareImage uses (tests pass a fake). */
-export type PngSource = Pick<HTMLCanvasElement, 'toBlob' | 'toDataURL'>;
+/** The canvas method shareImage uses (tests pass a fake). */
+export type PngSource = Pick<HTMLCanvasElement, 'toDataURL'>;
 
 /** The browser features shareImage relies on; the defaults are the real ones, tests pass fakes. */
 export interface ShareDeps {
@@ -24,8 +24,6 @@ export interface ShareDeps {
   share?: (data: ShareData) => Promise<void>;
   /** Shows the picture (a PNG data URL) for saving by hand; `alt` describes it. */
   overlay: (src: string, alt: string) => void;
-  /** Reads a PNG blob back as a data URL without encoding it again (FileReader), where available. */
-  dataUrl?: (blob: Blob) => Promise<string>;
 }
 
 /** The real browser features (whatever of them exist here). */
@@ -35,17 +33,20 @@ function browserDeps(): ShareDeps {
     canShare: typeof nav.canShare === 'function' ? (d) => navigator.canShare(d) : undefined,
     share: typeof nav.share === 'function' ? (d) => navigator.share(d) : undefined,
     overlay: showShareOverlay,
-    dataUrl: typeof FileReader === 'undefined' ? undefined : readAsDataUrl,
   };
 }
 
 /**
- * Shares the canvas as a PNG: canvas.toBlob, then navigator.share({ files, title, text }) where navigator.canShare
- * accepts the file; otherwise, or when sharing fails for any reason but the player closing the sheet (AbortError),
- * shows the picture full screen with SAVE_HINT. Resolves once the sheet has closed or the overlay is up.
+ * Shares the canvas as a PNG: navigator.share({ files, title, text }) where navigator.canShare accepts the file;
+ * otherwise, or when sharing fails for any reason but the player closing the sheet (AbortError), shows the picture
+ * full screen with SAVE_HINT. Resolves once the sheet has closed or the overlay is up.
  */
 export async function shareImage(canvas: PngSource, text: string, deps: ShareDeps = browserDeps()): Promise<ShareOutcome> {
-  const blob = await pngBlob(canvas);
+  // Reason: encode synchronously, in the task of the tap, and reach navigator.share before the first await. The
+  // sheet needs the tap's user activation, which browsers drop after a few seconds, and canvas.toBlob is scheduled
+  // in idle time: on a page that animates every frame it took 1 to 7 seconds, long enough to lose the sheet.
+  const url = canvas.toDataURL('image/png');
+  const blob = pngBlob(url);
   if (blob && deps.share && typeof File === 'function') {
     const file = new File([blob], SHARE_FILE, { type: 'image/png' });
     if (canShareFiles(deps, file)) {
@@ -59,19 +60,25 @@ export async function shareImage(canvas: PngSource, text: string, deps: ShareDep
       }
     }
   }
-  deps.overlay(await pictureUrl(canvas, blob, deps), text);
+  // Reason: the overlay shows the data URL itself rather than a blob: URL, because in-app browsers (WeChat) only offer
+  // 保存图片 on long-press for images they can read back.
+  deps.overlay(url, text);
   return 'saved';
 }
 
-/** The canvas encoded as PNG, or null when the browser can't (out of memory, a tainted canvas). */
-function pngBlob(canvas: PngSource): Promise<Blob | null> {
-  return new Promise((resolve) => {
-    try {
-      canvas.toBlob(resolve, 'image/png');
-    } catch {
-      resolve(null);
-    }
-  });
+const PNG_DATA_URL = 'data:image/png;base64,';
+
+/** The PNG behind a base64 PNG data URL, decoded synchronously; null for anything else (an empty canvas gives "data:,"). */
+export function pngBlob(url: string): Blob | null {
+  if (!url.startsWith(PNG_DATA_URL)) return null;
+  try {
+    const bin = atob(url.slice(PNG_DATA_URL.length));
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: 'image/png' });
+  } catch {
+    return null;
+  }
 }
 
 /** Whether the share sheet takes this file. Reason: some browsers throw instead of answering false. */
@@ -85,31 +92,6 @@ function canShareFiles(deps: ShareDeps, file: File): boolean {
 
 function isAbort(err: unknown): boolean {
   return typeof err === 'object' && err !== null && (err as { name?: unknown }).name === 'AbortError';
-}
-
-/**
- * The picture as a data URL for the overlay.
- * Reason: a data URL rather than a blob: URL, because in-app browsers (WeChat) only offer 保存图片 on long-press for
- * images they can read back; reading the blob is cheaper than encoding the canvas a second time.
- */
-async function pictureUrl(canvas: PngSource, blob: Blob | null, deps: ShareDeps): Promise<string> {
-  if (blob && deps.dataUrl) {
-    try {
-      return await deps.dataUrl(blob);
-    } catch {
-      // Fall through and encode again.
-    }
-  }
-  return canvas.toDataURL('image/png');
-}
-
-function readAsDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => (typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('not a data URL')));
-    reader.onerror = () => reject(reader.error ?? new Error('could not read the picture'));
-    reader.readAsDataURL(blob);
-  });
 }
 
 /** Closes the overlay that is open, if any (one at a time). */
