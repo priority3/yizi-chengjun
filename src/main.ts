@@ -13,9 +13,9 @@ import { SceneManager } from './ui/scenes.ts';
 declare global {
   interface Window {
     /** Dev-only handle for inspecting game state from the console. */
-    __zdxy?: SceneManager;
+    __yzcj?: SceneManager;
     /** Dev-only: the app icon as a PNG data URL (`maskable` = full-bleed, emblem inside the safe zone). */
-    __zdxyIcon?: (size: number, maskable?: boolean) => string;
+    __yzcjIcon?: (size: number, maskable?: boolean) => string;
   }
 }
 
@@ -28,7 +28,7 @@ stage.ctx.setTransform(stage.pixelRatio, 0, 0, stage.pixelRatio, 0, 0);
 stage.ctx.fillStyle = '#1d1714';
 stage.ctx.fillRect(0, 0, W, L.H);
 
-if (!(await loadFonts())) console.warn('[字斗西游] brush font not loaded; falling back to the system font');
+if (!(await loadFonts())) console.warn('[一字成军] brush font not loaded; falling back to the system font');
 // Reason: anything painted before the font arrived used the fallback font.
 sprites.clear();
 
@@ -53,9 +53,9 @@ function armAudioUnlock(): void {
   for (const t of UNLOCK_EVENTS) window.addEventListener(t, unlockAudio, true);
 }
 armAudioUnlock();
-if (import.meta.env.DEV) window.__zdxy = scenes;
+if (import.meta.env.DEV) window.__yzcj = scenes;
 // Exports public/icons/*.png from the browser console (the project has no image assets or Node canvas).
-if (import.meta.env.DEV) window.__zdxyIcon = appIconDataUrl;
+if (import.meta.env.DEV) window.__yzcjIcon = appIconDataUrl;
 // Offline play and the 有新版本 banner; a no-op in dev and wherever service workers are unavailable.
 registerServiceWorker();
 

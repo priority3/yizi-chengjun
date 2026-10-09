@@ -4,11 +4,11 @@
 import { SANS_STACK } from '../render/fonts.ts';
 
 /** Title of the shared picture and of the save-image overlay. */
-export const SHARE_TITLE = '字斗西游战报';
+export const SHARE_TITLE = '一字成军战报';
 /** The overlay's instructions. */
 export const SAVE_HINT = '长按图片保存，或右键另存为';
 /** File name the share sheet shows for the picture. */
-export const SHARE_FILE = 'zidou-xiyou.png';
+export const SHARE_FILE = 'yizi-chengjun.png';
 
 /** How a share ended: sent through the share sheet, the sheet closed by the player, or the picture shown to save by hand. */
 export type ShareOutcome = 'shared' | 'cancelled' | 'saved';
@@ -104,7 +104,7 @@ let closeOpen: (() => void) | null = null;
 export function showShareOverlay(src: string, alt: string): void {
   closeOpen?.();
   const doc = document;
-  const hintId = 'zdxy-share-hint';
+  const hintId = 'yzcj-share-hint';
   const root = doc.createElement('div');
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-modal', 'true');

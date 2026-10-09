@@ -1,7 +1,7 @@
 {
-  "name": "字斗西游",
-  "short_name": "字斗西游",
-  "description": "西游题材的文字合成塔防",
+  "name": "一字成军",
+  "short_name": "一字成军",
+  "description": "以字为兵的汉字合成塔防",
   "lang": "zh-CN",
   "start_url": "./",
   "scope": "./",

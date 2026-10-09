@@ -439,7 +439,7 @@ export class GameScene implements Scene {
     return { g, chapter, rewards, award, endless, buttons: this.resultButtons().length, t: this.endT - RESULT_DELAY, share: !this.test };
   }
 
-  /** What the 战报 card shows for this run (分享战报; the dev console's `__zdxyShare()` reads it too). */
+  /** What the 战报 card shows for this run (分享战报; the dev console's `__yzcjShare()` reads it too). */
   shareInfo(): ShareInfo {
     return runShareInfo(this.g, new Date());
   }

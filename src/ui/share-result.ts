@@ -117,7 +117,7 @@ export function shareText(info: ShareInfo, url: string): string {
   if (info.mode !== 'chapter') result = `撑过第 ${info.waves} 波`;
   else if (info.won) result = `${info.stars ? `${STAR_WORDS[info.stars]}星` : ''}通关`;
   else result = `守住 ${info.waves}/${info.totalWaves ?? info.waves} 波`;
-  return `《字斗西游》${info.title}：${result}，击杀 ${info.kills} 只妖怪！${url ? ` ${url}` : ''}`;
+  return `《一字成军》${info.title}：${result}，击杀 ${info.kills} 只妖怪！${url ? ` ${url}` : ''}`;
 }
 
 /** The game's address for the share text: this page without query or hash; '' off the web (a file opened from disk). */
@@ -145,7 +145,7 @@ export async function shareResult(info: ShareInfo): Promise<ShareOutcome | null>
     await brushReady();
     return await shareImage(renderShareCard(info), shareText(info, siteUrl()));
   } catch (err) {
-    console.warn('[字斗西游] 战报分享失败', err);
+    console.warn('[一字成军] 战报分享失败', err);
     return null;
   } finally {
     busy = false;
@@ -184,17 +184,17 @@ export function sampleShareInfo(chapter: number, now: Date): ShareInfo {
 declare global {
   interface Window {
     /** Dev only: paints a result card and shows it in the save-image overlay; returns the PNG as a data URL. */
-    __zdxyShare?: (patch?: Partial<ShareInfo>) => string;
+    __yzcjShare?: (patch?: Partial<ShareInfo>) => string;
   }
 }
 
 /**
- * Dev console hook. `__zdxyShare()` paints the card of the run on screen (in any phase) or, away from a run, a sample
- * chapter-1 win; `__zdxyShare({ chapter: 8 })` paints a sample of chapter 8; any other fields patch the card, e.g.
- * `__zdxyShare({ won: false, waves: 3, stars: undefined })`. Shows it in the overlay (never the share sheet).
+ * Dev console hook. `__yzcjShare()` paints the card of the run on screen (in any phase) or, away from a run, a sample
+ * chapter-1 win; `__yzcjShare({ chapter: 8 })` paints a sample of chapter 8; any other fields patch the card, e.g.
+ * `__yzcjShare({ won: false, waves: 3, stars: undefined })`. Shows it in the overlay (never the share sheet).
  */
 function devShare(patch: Partial<ShareInfo> = {}): string {
-  const scene = (window as unknown as { __zdxy?: { current?: { shareInfo?: () => ShareInfo } } }).__zdxy?.current;
+  const scene = (window as unknown as { __yzcj?: { current?: { shareInfo?: () => ShareInfo } } }).__yzcj?.current;
   const base = patch.chapter === undefined && scene?.shareInfo ? scene.shareInfo() : sampleShareInfo(patch.chapter ?? 1, new Date());
   const info: ShareInfo = { ...base, ...patch };
   const url = renderShareCard(info).toDataURL('image/png');
@@ -202,4 +202,4 @@ function devShare(patch: Partial<ShareInfo> = {}): string {
   return url;
 }
 
-if (import.meta.env.DEV && typeof window !== 'undefined') window.__zdxyShare = devShare;
+if (import.meta.env.DEV && typeof window !== 'undefined') window.__yzcjShare = devShare;

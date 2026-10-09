@@ -5,12 +5,12 @@ import { buildPrecache, renderServiceWorker } from '../build/precache.ts';
 
 const ORIGIN = 'https://game.test';
 /** Served from a sub-path, like any static host may do: every URL must resolve against the worker's own. */
-const at = (path: string) => `${ORIGIN}/zdxy/${path}`;
+const at = (path: string) => `${ORIGIN}/yzcj/${path}`;
 const PRECACHE = buildPrecache(
   [
     { name: 'index.html', source: 'html' },
     { name: 'assets/index-abc.js', source: 'js' },
-    { name: 'fonts/zdxy-brush.woff2', source: 'font' },
+    { name: 'fonts/yzcj-brush.woff2', source: 'font' },
   ],
   '0.6.0',
 );
@@ -97,9 +97,10 @@ describe('service worker lifecycle', () => {
     expect(sw.self.skipWaiting).not.toHaveBeenCalled();
   });
 
-  it('on activation drops older zdxy caches, keeps other apps\' caches and takes over open pages', async () => {
+  it('on activation drops older caches of the game, under its old name too, keeps other apps\' caches and takes over open pages', async () => {
     const sw = boot();
-    for (const name of ['zdxy-0.5.0-0123456789', PRECACHE.cacheName, 'other-app']) await sw.caches.open(name);
+    // zdxy-: the game's caches from before it was renamed 一字成军.
+    for (const name of ['yzcj-0.8.0-0123456789', 'zdxy-0.8.0-0123456789', PRECACHE.cacheName, 'other-app']) await sw.caches.open(name);
     await sw.extendable('activate');
     expect(await sw.caches.keys()).toEqual([PRECACHE.cacheName, 'other-app']);
     expect(sw.self.clients.claim).toHaveBeenCalledOnce();
@@ -119,7 +120,7 @@ describe('service worker fetch', () => {
   it('leaves non-GET, cross-origin and unlisted requests to the network', () => {
     const sw = boot();
     expect(sw.request(at('assets/index-abc.js'), 'cors', 'POST')).toBeUndefined();
-    expect(sw.request('https://cdn.example.com/zdxy/assets/index-abc.js')).toBeUndefined();
+    expect(sw.request('https://cdn.example.com/yzcj/assets/index-abc.js')).toBeUndefined();
     expect(sw.request(at('assets/index-old.js'))).toBeUndefined();
     expect(sw.request(`${ORIGIN}/assets/index-abc.js`)).toBeUndefined();
   });
@@ -127,7 +128,7 @@ describe('service worker fetch', () => {
   it('serves precached files from the cache, and from the network if the cache lost them', async () => {
     const sw = boot();
     await sw.extendable('install');
-    expect(await (await sw.request(at('fonts/zdxy-brush.woff2')))?.text()).toBe(`cached ${at('fonts/zdxy-brush.woff2')}`);
+    expect(await (await sw.request(at('fonts/yzcj-brush.woff2')))?.text()).toBe(`cached ${at('fonts/yzcj-brush.woff2')}`);
     expect(sw.network).not.toHaveBeenCalled();
     sw.caches.stores.get(PRECACHE.cacheName)?.delete(at('assets/index-abc.js'));
     expect(await (await sw.request(at('assets/index-abc.js')))?.text()).toBe(`network ${at('assets/index-abc.js')}`);
@@ -144,7 +145,7 @@ describe('service worker fetch', () => {
     await sw.extendable('install');
     sw.network.mockRejectedValue(new TypeError('Failed to fetch'));
     expect(await (await sw.request(at('?from=homescreen'), 'navigate'))?.text()).toBe(`cached ${at('index.html')}`);
-    await sw.request(at('fonts/zdxy-brush.woff2'));
+    await sw.request(at('fonts/yzcj-brush.woff2'));
     // Reason: a Vary header from the host (Accept, ...) must never make a precached file miss offline.
     expect(sw.caches.matchOptions).toEqual([{ ignoreVary: true }, { ignoreVary: true }]);
   });

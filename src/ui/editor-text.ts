@@ -68,7 +68,9 @@ export function importDraft(text: string, current: Draft): Draft | { error: stri
 // ---- 草稿 (localStorage) -------------------------------------------------------------------------------------------
 
 /** Where the draft is kept. */
-export const DRAFT_KEY = 'zdxy:editor';
+export const DRAFT_KEY = 'yzcj:editor';
+/** Where the draft was kept before the game was renamed 一字成军 (zdxy = 字斗西游); read when DRAFT_KEY is empty. */
+export const LEGACY_DRAFT_KEY = 'zdxy:editor';
 
 /** The slice of the Web Storage API the draft uses (tests pass an in-memory one). */
 export interface DraftStore {
@@ -90,7 +92,7 @@ export function saveDraft(d: Draft, store: DraftStore | null): boolean {
 /** The kept draft, or null when there is none or it doesn't read back as one. Never throws. */
 export function loadDraft(store: DraftStore | null): Draft | null {
   try {
-    return parseDraft(store?.getItem(DRAFT_KEY) ?? null);
+    return parseDraft(store?.getItem(DRAFT_KEY) ?? store?.getItem(LEGACY_DRAFT_KEY) ?? null);
   } catch {
     return null;
   }

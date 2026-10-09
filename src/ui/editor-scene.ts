@@ -1,7 +1,7 @@
 // The map editor (plan.md D1), opened from the address …/#editor (no button leads there). Pick a brush in the palette,
 // then tap or drag on the map to paint; the camp and each entrance move when placed again. Every edit is checked live:
 // the map is painted exactly as a run paints it, or shown as raw squares under a red banner while it doesn't build.
-// 撤销 / 清空 / 尺寸 / 载入 / 导出 / 导入 / 试玩 sit at the bottom; the draft is kept in localStorage ('zdxy:editor')
+// 撤销 / 清空 / 尺寸 / 载入 / 导出 / 导入 / 试玩 sit at the bottom; the draft is kept in localStorage ('yzcj:editor')
 // and comes back the next time the editor opens.
 import { MAPS, TILE } from '../config/maps.ts';
 import { askText, copyText, leaveEditorAddress } from '../platform/editor-io.ts';

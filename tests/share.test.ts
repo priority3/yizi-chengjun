@@ -191,7 +191,7 @@ describe('share card data from an endless or daily run', () => {
     expect(info.chapter).toBeUndefined();
     expect(info.treasures).toEqual([{ id: '金刚琢', tier: 2 }]);
     expect(shareHeadline(info)).toBe('撑过第 12 波');
-    expect(shareText(info, '')).toBe('《字斗西游》无尽模式：撑过第 12 波，击杀 240 只妖怪！');
+    expect(shareText(info, '')).toBe('《一字成军》无尽模式：撑过第 12 波，击杀 240 只妖怪！');
   });
 
   it('names the day and its map for a daily run, which plays without 法宝', () => {
@@ -279,9 +279,9 @@ describe('share text and date', () => {
 
   it('sums the run up in one line, with the address when there is one', () => {
     const url = 'https://zidou-xiyou.vercel.app/';
-    expect(shareText(chapterShareInfo(wonRun(), DAY), url)).toBe(`《字斗西游》第三章 · 平顶山：两星通关，击杀 87 只妖怪！ ${url}`);
-    expect(shareText(chapterShareInfo(lostRun(), DAY), '')).toBe('《字斗西游》第五章 · 黑风山：守住 3/6 波，击杀 31 只妖怪！');
-    expect(shareText(ENDLESS, '')).toBe('《字斗西游》无尽模式：撑过第 23 波，击杀 410 只妖怪！');
+    expect(shareText(chapterShareInfo(wonRun(), DAY), url)).toBe(`《一字成军》第三章 · 平顶山：两星通关，击杀 87 只妖怪！ ${url}`);
+    expect(shareText(chapterShareInfo(lostRun(), DAY), '')).toBe('《一字成军》第五章 · 黑风山：守住 3/6 波，击杀 31 只妖怪！');
+    expect(shareText(ENDLESS, '')).toBe('《一字成军》无尽模式：撑过第 23 波，击杀 410 只妖怪！');
   });
 });
 

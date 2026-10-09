@@ -9,9 +9,9 @@ const BUILD: BuildFile[] = [
   { name: 'assets/index-abc.js', source: 'console.log("game")' },
   { name: 'assets/index-abc.js.map', source: '{"version":3}' },
   { name: 'sw.js', source: 'self.addEventListener("fetch", () => {})' },
-  { name: 'fonts/zdxy-brush.woff2', source: new Uint8Array([0x77, 0x4f, 0x46, 0x32, 1, 2, 3]) },
+  { name: 'fonts/yzcj-brush.woff2', source: new Uint8Array([0x77, 0x4f, 0x46, 0x32, 1, 2, 3]) },
   { name: 'fonts/OFL.txt', source: 'SIL Open Font License' },
-  { name: 'manifest.webmanifest', source: '{"name":"字斗西游"}' },
+  { name: 'manifest.webmanifest', source: '{"name":"一字成军"}' },
   { name: 'icons/icon-192.png', source: new Uint8Array([0x89, 0x50, 0x4e, 0x47]) },
   { name: '.DS_Store', source: 'junk' },
 ];
@@ -26,7 +26,7 @@ describe('precache list', () => {
     expect(buildPrecache(BUILD, '0.6.0').urls).toEqual([
       'assets/index-abc.js',
       'fonts/OFL.txt',
-      'fonts/zdxy-brush.woff2',
+      'fonts/yzcj-brush.woff2',
       'index.html',
       'manifest.webmanifest',
     ]);
@@ -39,7 +39,7 @@ describe('precache list', () => {
     expect(isPrecached('.vite/manifest.json')).toBe(false);
     expect(isPrecached('icons/icon-192.png')).toBe(false);
     expect(isPrecached('icons/maskable-512.png')).toBe(false);
-    expect(isPrecached('fonts/zdxy-brush.woff2')).toBe(true);
+    expect(isPrecached('fonts/yzcj-brush.woff2')).toBe(true);
     expect(isPrecached('assets/sw.js.png')).toBe(true);
   });
 
@@ -53,14 +53,14 @@ describe('precache list', () => {
 describe('cache name', () => {
   const base = buildPrecache(BUILD, '0.6.0');
 
-  it('is zdxy-<version>-<hash> and deterministic, whatever order the files come in', () => {
-    expect(base.cacheName).toMatch(/^zdxy-0\.6\.0-[0-9a-f]{10}$/);
+  it('is yzcj-<version>-<hash> and deterministic, whatever order the files come in', () => {
+    expect(base.cacheName).toMatch(/^yzcj-0\.6\.0-[0-9a-f]{10}$/);
     expect(buildPrecache([...BUILD].reverse(), '0.6.0')).toEqual(base);
   });
 
   it('changes when any precached file changes, even one whose name stays the same', () => {
     expect(buildPrecache(edited('index.html', '<!doctype html><p>new</p>'), '0.6.0').cacheName).not.toBe(base.cacheName);
-    expect(buildPrecache(edited('fonts/zdxy-brush.woff2', new Uint8Array([9])), '0.6.0').cacheName).not.toBe(base.cacheName);
+    expect(buildPrecache(edited('fonts/yzcj-brush.woff2', new Uint8Array([9])), '0.6.0').cacheName).not.toBe(base.cacheName);
     expect(buildPrecache(edited('manifest.webmanifest', '{}'), '0.6.0').cacheName).not.toBe(base.cacheName);
   });
 
@@ -87,15 +87,15 @@ describe('worker template', () => {
     const precache = buildPrecache(BUILD, '0.6.0');
     const sw = renderServiceWorker(template, precache);
     expect(sw).toContain(`const CACHE = ${JSON.stringify(precache.cacheName)};`);
-    expect(sw).toContain('"fonts/zdxy-brush.woff2"');
+    expect(sw).toContain('"fonts/yzcj-brush.woff2"');
     expect(sw).not.toMatch(/__CACHE_NAME__|__PRECACHE__/);
     // It still parses as a script.
     expect(() => new Function(sw)).not.toThrow();
   });
 
   it('copes with $ in file names and refuses a template without its placeholders', () => {
-    const sw = renderServiceWorker('const CACHE = __CACHE_NAME__;\nconst PRECACHE = __PRECACHE__;', { cacheName: 'zdxy-1', urls: ["a$'b.js"] });
+    const sw = renderServiceWorker('const CACHE = __CACHE_NAME__;\nconst PRECACHE = __PRECACHE__;', { cacheName: 'yzcj-1', urls: ["a$'b.js"] });
     expect(sw).toContain(`"a$'b.js"`);
-    expect(() => renderServiceWorker('const PRECACHE = __PRECACHE__;', { cacheName: 'zdxy-1', urls: [] })).toThrow(/__CACHE_NAME__/);
+    expect(() => renderServiceWorker('const PRECACHE = __PRECACHE__;', { cacheName: 'yzcj-1', urls: [] })).toThrow(/__CACHE_NAME__/);
   });
 });

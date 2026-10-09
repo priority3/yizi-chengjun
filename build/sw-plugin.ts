@@ -21,7 +21,7 @@ function listFiles(dir: string, prefix = ''): string[] {
 export function serviceWorker(version: string): Plugin {
   let publicDir = '';
   return {
-    name: 'zdxy:service-worker',
+    name: 'yzcj:service-worker',
     apply: 'build',
     configResolved(config) {
       // Reason: only files Vite actually copies into the output may be precached (a 404 fails the whole install).

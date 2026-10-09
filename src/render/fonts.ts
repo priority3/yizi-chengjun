@@ -1,7 +1,7 @@
 // Fonts: a subset of the OFL brush font 马善政 for card glyphs and titles,
 // plus the system CJK sans for small UI text and numbers.
 
-export const BRUSH_FAMILY = 'ZdxyBrush';
+export const BRUSH_FAMILY = 'YzcjBrush';
 export const SANS_STACK = '"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC","Source Han Sans SC",sans-serif';
 
 export function brush(px: number): string {
@@ -20,7 +20,7 @@ export async function loadFonts(timeoutMs = 2500): Promise<boolean> {
   if (!('fonts' in document)) return false;
   try {
     await Promise.race([
-      document.fonts.load(`40px ${BRUSH_FAMILY}`, '字斗西游'),
+      document.fonts.load(`40px ${BRUSH_FAMILY}`, '一字成军'),
       new Promise((resolve) => setTimeout(resolve, timeoutMs)),
     ]);
     return document.fonts.check(`40px ${BRUSH_FAMILY}`, '字');

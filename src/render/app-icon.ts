@@ -1,5 +1,5 @@
 // The app icon (home screen, install prompt, task switcher): a deep red seal stamped on rice paper, with 悟空 on a
-// paper disc inside a gold ring (his 金箍), painted by code at any size. In dev, window.__zdxyIcon(size, maskable)
+// paper disc inside a gold ring (his 金箍), painted by code at any size. In dev, window.__yzcjIcon(size, maskable)
 // exports it as a PNG data URL (see main.ts); the PNGs in public/icons/ are made that way.
 import { hash01, roundRect } from './draw.ts';
 import { drawPortrait } from './heroes-art.ts';
@@ -164,7 +164,7 @@ export function paintAppIcon(ctx: CanvasRenderingContext2D, size: number, maskab
   paintIconEmblem(ctx, l);
 }
 
-/** The icon as a PNG data URL, `size` pixels square (16..2048); the dev hook window.__zdxyIcon. */
+/** The icon as a PNG data URL, `size` pixels square (16..2048); the dev hook window.__yzcjIcon. */
 export function appIconDataUrl(size: number, maskable = false): string {
   const px = Math.round(size);
   if (!(px >= 16 && px <= 2048)) throw new RangeError(`icon size must be 16..2048 pixels, got ${size}`);

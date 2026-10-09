@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 /** File name of the worker in the build output (next to index.html). */
 export const SW_FILE = 'sw.js';
 /** Every cache the game creates starts with this; the worker deletes the other ones it finds on activation. */
-export const CACHE_PREFIX = 'zdxy-';
+export const CACHE_PREFIX = 'yzcj-';
 /** The page the worker answers navigations with when the network is down or too slow. */
 export const INDEX_FILE = 'index.html';
 
@@ -18,7 +18,7 @@ export interface BuildFile {
 }
 
 export interface Precache {
-  /** Cache Storage name: `zdxy-<version>-<hash of every precached path and its contents>`. */
+  /** Cache Storage name: `yzcj-<version>-<hash of every precached path and its contents>`. */
   cacheName: string;
   /** Precached paths, relative to sw.js (so the game works under any sub-path), sorted. */
   urls: string[];

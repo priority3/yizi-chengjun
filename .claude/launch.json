@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "zidou-xiyou",
+      "name": "yizi-chengjun",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": [
         "dev",
@@ -13,7 +13,7 @@
       "port": 5173
     },
     {
-      "name": "zidou-xiyou-preview",
+      "name": "yizi-chengjun-preview",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": [
         "preview",

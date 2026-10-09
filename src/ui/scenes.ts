@@ -173,9 +173,9 @@ class TitleScene implements Scene {
     ctx.save();
     ctx.shadowColor = 'rgba(255,170,60,0.6)';
     ctx.shadowBlur = 22;
-    outlined(ctx, '字斗西游', W / 2, ty, brush(66), '#ffd66b', 'rgba(40,14,4,0.95)', 6);
+    outlined(ctx, '一字成军', W / 2, ty, brush(66), '#ffd66b', 'rgba(40,14,4,0.95)', 6);
     ctx.restore();
-    outlined(ctx, '西游文字塔防', W / 2, ty + 54, brush(22), '#fbeed2', 'rgba(40,14,4,0.9)', 4);
+    outlined(ctx, '汉字合成塔防', W / 2, ty + 54, brush(22), '#fbeed2', 'rgba(40,14,4,0.9)', 4);
     HEROES.forEach((h, i) => {
       const x = 60 + i * 80;
       const y = L.H * 0.47 + Math.sin(this.t * 3 + i) * 4;

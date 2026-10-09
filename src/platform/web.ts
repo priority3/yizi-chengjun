@@ -94,9 +94,12 @@ export interface Progress {
   daily: DailyRecord;
 }
 
-const STORAGE_KEY = 'zdxy:v3';
-/** The v2 save had no vault; it is upgraded on first load. */
-const LEGACY_KEY = 'zdxy:v2';
+const STORAGE_KEY = 'yzcj:v3';
+/**
+ * Older keys, read when STORAGE_KEY is empty, newest first: the save from before the game was renamed 一字成军
+ * (zdxy = 字斗西游), then the v2 save that had no vault yet (upgraded on first load).
+ */
+const LEGACY_KEYS = ['zdxy:v3', 'zdxy:v2'];
 let memoryCopy: Progress | null = null;
 
 function parseVault(raw: unknown): Vault {
@@ -183,8 +186,11 @@ export function loadProgress(chapters: number): Progress {
   try {
     const current = parseProgress(localStorage.getItem(STORAGE_KEY), chapters);
     if (current) return current;
-    const legacy = parseProgress(localStorage.getItem(LEGACY_KEY), chapters);
-    if (legacy) return legacy;
+    // Reason: a player from before the rename keeps their progress; the next save writes it under the new key.
+    for (const key of LEGACY_KEYS) {
+      const legacy = parseProgress(localStorage.getItem(key), chapters);
+      if (legacy) return legacy;
+    }
   } catch {
     // Storage blocked (private mode / some in-app browsers): fall back to the in-memory copy below.
   }

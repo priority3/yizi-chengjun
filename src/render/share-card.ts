@@ -180,9 +180,9 @@ export function renderShareCard(info: ShareInfo): HTMLCanvasElement {
   return canvas;
 }
 
-/** 字斗西游 in big brush strokes with the red 战报 seal beside it, the tagline, and an ink rule. */
+/** 一字成军 in big brush strokes with the red 战报 seal beside it, the tagline, and an ink rule. */
 function drawHeader(ctx: CanvasRenderingContext2D): void {
-  const title = '字斗西游';
+  const title = '一字成军';
   ctx.font = brush(TITLE_PX);
   const { titleX, sealX } = headerLayout(ctx.measureText(title).width);
   ctx.save();
@@ -192,7 +192,7 @@ function drawHeader(ctx: CanvasRenderingContext2D): void {
   text(ctx, title, titleX, CARD_LAYOUT.titleY, brush(TITLE_PX), INK);
   ctx.restore();
   drawSeal(ctx, sealX, CARD_LAYOUT.titleY - 4, SEAL_W, SEAL_H, ['战', '报'], -0.07);
-  text(ctx, '西游文字塔防', CARD_W / 2, CARD_LAYOUT.taglineY, brush(44), '#8a6a44');
+  text(ctx, '汉字合成塔防', CARD_W / 2, CARD_LAYOUT.taglineY, brush(44), '#8a6a44');
   inkRule(ctx, CARD_W / 2, CARD_LAYOUT.ruleY, 330);
 }
 

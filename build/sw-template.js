@@ -1,12 +1,15 @@
-// 字斗西游 service worker: written by build/sw-plugin.ts from build/sw-template.js at build time; edit the template.
-// install: precache the whole game. activate: drop older zdxy-* caches, take over open pages.
+// 一字成军 service worker: written by build/sw-plugin.ts from build/sw-template.js at build time; edit the template.
+// install: precache the whole game. activate: drop older yzcj-* caches (and zdxy-* ones from before the rename),
+// take over open pages.
 // fetch (GET, same origin): page loads network first (3 s, then the cached index.html), precached files cache first,
 // anything else straight to the network. A new build waits until the page posts {type: 'SKIP_WAITING'}.
 const CACHE = __CACHE_NAME__;
 const PRECACHE = __PRECACHE__;
 
 /** Every cache the game creates starts with this. */
-const PREFIX = 'zdxy-';
+const PREFIX = 'yzcj-';
+// Caches from before the game was renamed 一字成军 (zdxy = 字斗西游): dropped like older versions of this one.
+const LEGACY_PREFIXES = ['zdxy-'];
 /** How long a page load waits for the network before answering with the cached index.html. */
 const NAVIGATION_TIMEOUT_MS = 3000;
 /** Reason: one entry per URL, so a host's Vary header (Accept, ...) must not make a precached file miss offline. */
@@ -27,7 +30,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key.startsWith(PREFIX) && key !== CACHE).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => (key.startsWith(PREFIX) || LEGACY_PREFIXES.some((p) => key.startsWith(p))) && key !== CACHE).map((key) => caches.delete(key))))
       .then(() => self.clients.claim()),
   );
 });

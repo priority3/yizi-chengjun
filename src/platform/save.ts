@@ -5,7 +5,9 @@ import { restore, snapshot, type RunSnapshot } from '../core/snapshot.ts';
 import type { GameMode, GameState } from '../core/types.ts';
 import { todayKey } from './today.ts';
 
-export const RUN_KEY = 'zdxy:run';
+export const RUN_KEY = 'yzcj:run';
+/** Where the run was saved before the game was renamed 一字成军 (zdxy = 字斗西游); still read, and cleared with it. */
+export const LEGACY_RUN_KEY = 'zdxy:run';
 
 /** The slice of the Web Storage API the run save uses (tests pass an in-memory fake). */
 export interface RunStorage {
@@ -78,7 +80,7 @@ export function saveRun(g: GameState, camera: CameraPos, store: RunStorage | nul
  */
 export function loadRun(store: RunStorage | null = browserStorage(), today = todayKey()): SavedRun | null {
   try {
-    const raw = store?.getItem(RUN_KEY);
+    const raw = store?.getItem(RUN_KEY) ?? store?.getItem(LEGACY_RUN_KEY);
     if (!raw) return null;
     const data = JSON.parse(raw) as Partial<StoredRun> | null;
     const cam = data?.camera;
@@ -110,6 +112,8 @@ export function peekRun(store: RunStorage | null = browserStorage(), today = tod
 export function clearRun(store: RunStorage | null = browserStorage()): void {
   try {
     store?.removeItem(RUN_KEY);
+    // Reason: loadRun falls back to the old key, so a run saved before the rename would otherwise come back.
+    store?.removeItem(LEGACY_RUN_KEY);
   } catch {
     // Storage blocked: there is nothing to clear.
   }
