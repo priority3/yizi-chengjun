@@ -95,8 +95,8 @@ describe('stars in the progress save', () => {
   it('fill in defaults for a save from before stars existed', () => {
     const old = JSON.stringify({ unlocked: 3, wins: [2, 1], vault: { stones: 5, treasures: [], equipped: [] }, tutorialDone: true });
     const p = parseProgress(old, N);
-    // No ratings yet, even for the two chapters cleared before they existed.
-    expect(p?.stars).toEqual(new Array<number>(N).fill(0));
+    // The two chapters cleared before ratings existed get the one star every win earns; the rest have none.
+    expect(p?.stars).toEqual([1, 1, 0, 0, 0, 0, 0, 0, 0, 0]);
     expect(p?.wins.slice(0, 3)).toEqual([2, 1, 0]);
     expect(p?.starBonus).toEqual(new Array<boolean>(N).fill(false));
     expect(p?.unlocked).toBe(3);
@@ -111,8 +111,8 @@ describe('stars in the progress save', () => {
       starBonus: [true, 'yes', 1, true],
     });
     const p = parseProgress(saved, N);
-    // Stars are whole numbers 0..3, and a chapter without a clear has none.
-    expect(p?.stars).toEqual([3, 0, 0, 0, 3, 2, 0, 0, 0, 0]);
+    // A cleared chapter has a whole number of stars 1..3, and a chapter without a clear has none.
+    expect(p?.stars).toEqual([3, 0, 1, 1, 3, 2, 0, 0, 0, 0]);
     expect(p?.starBonus).toEqual([true, false, false, true, false, false, false, false, false, false]);
     const junk = JSON.stringify({ unlocked: 1, wins: [], stars: 'lots', starBonus: { 0: true } });
     expect(parseProgress(junk, N)?.stars).toEqual(new Array<number>(N).fill(0));

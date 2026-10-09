@@ -117,12 +117,14 @@ export function parseSound(raw: unknown): SoundSettings {
 }
 
 /**
- * Best stars of one chapter, 0..3. Saves from before ratings existed have none (0), even for cleared chapters.
- * Reason: a chapter without a clear can't carry stars, so junk in a hand-edited save can't rate it.
+ * Best stars of one chapter: 0 while it has no clear, else 1..3.
+ * Reason: every win earns at least one star, so a chapter cleared in a save from before ratings existed shows one
+ * (three empty outlines would read as "never cleared"); a chapter without a clear can't carry stars, so junk in a
+ * hand-edited save can't rate it.
  */
 function parseStars(raw: unknown, wins: number): number {
   if (wins <= 0) return 0;
-  return Math.min(MAX_STARS, Math.max(0, Math.floor(Number(raw) || 0)));
+  return Math.min(MAX_STARS, Math.max(1, Math.floor(Number(raw) || 0)));
 }
 
 /** Parses a saved progress string (null when it isn't one); missing fields get their defaults. Pure. */
