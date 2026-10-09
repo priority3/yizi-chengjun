@@ -21,11 +21,15 @@ import { drawModeCard, type ModeCard } from '../render/mode-card.ts';
 import { NUMERALS } from '../render/panels.ts';
 import { drawUpdateBanner, updateBannerHit } from '../render/update-banner.ts';
 import { BACK, backdrop, drawButton, drawPanel } from '../render/widgets.ts';
+import { AboutScene } from './about-scene.ts';
 import { chapterRect, entryRect } from './chapter-layout.ts';
 import { EditorScene } from './editor-scene.ts';
 import { GameScene } from './game-scene.ts';
 import type { GestureHandlers, Pointer } from './input.ts';
+import { SplashScene } from './splash-scene.ts';
+import { ABOUT_BUTTON, continueButton, hintRows, startButton, versionAnchor } from './title-layout.ts';
 import { TreasureScene } from './treasure-scene.ts';
+import { versionLabel } from './version-label.ts';
 
 export interface Scene extends GestureHandlers {
   update(dt: number): void;
@@ -58,6 +62,15 @@ export interface Nav {
   tryMap(def: MapDef): void;
 }
 
+/** How the game opens. */
+export interface SceneOptions {
+  /**
+   * The launch splash (健康游戏忠告 and the 12+ 适龄提示) shows before the title screen, on every launch (plan.md
+   * v0.9); main.ts leaves it out when the page opens the map editor. Default true.
+   */
+  splash?: boolean;
+}
+
 export class SceneManager implements Nav {
   readonly progress: Progress;
   current: Scene;
@@ -65,10 +78,23 @@ export class SceneManager implements Nav {
   /** The map editor, made the first time it opens. */
   private editorScene: EditorScene | null = null;
 
-  constructor(stage: Stage) {
+  constructor(stage: Stage, options: SceneOptions = {}) {
     this.stage = stage;
     this.progress = loadProgress(CHAPTERS.length);
-    this.current = new TitleScene(this, stage);
+    const title = new TitleScene(this, stage);
+    this.current = options.splash === false ? title : this.splash(title);
+  }
+
+  /**
+   * The launch splash in front of `title`, handing that same title screen over once it has faded into it.
+   * Reason: title(), chapters(), play(n) or editor() (the console handle, external screenshot scripts) may replace
+   * the splash at any moment; a replaced splash is no longer updated, so it never takes the screen back.
+   */
+  private splash(title: Scene): Scene {
+    const splash: Scene = new SplashScene(title, () => {
+      if (this.current === splash) this.current = title;
+    });
+    return splash;
   }
 
   title(): void {
@@ -110,6 +136,11 @@ export class SceneManager implements Nav {
     this.current = new TreasureScene(this, this.stage);
   }
 
+  /** The 关于 screen (隐私政策, 用户协议, 适龄提示, 健康游戏忠告, version and contact), opened from the title screen. */
+  about(): void {
+    this.current = new AboutScene(this, this.stage);
+  }
+
   save(): void {
     saveProgress(this.progress);
   }
@@ -139,29 +170,31 @@ function runLabel(run: RunInfo): string {
   return `${where} · 第 ${run.wave} 波`;
 }
 
+/** What the title screen opens besides the screens every menu reaches: the 关于 screen. */
+interface TitleNav extends Nav {
+  about(): void;
+}
+
 class TitleScene implements Scene {
-  private readonly nav: Nav;
+  private readonly nav: TitleNav;
   private readonly stage: Stage;
   private t = 0;
   /** The unfinished run 继续上次 offers, read once when the screen opens. */
   private run: RunInfo | null;
 
-  constructor(nav: Nav, stage: Stage) {
+  constructor(nav: TitleNav, stage: Stage) {
     this.nav = nav;
     this.stage = stage;
     this.run = peekRun();
   }
 
-  /**
-   * Reason: with a saved run, 继续上次 sits on top and a smaller 开始游戏 just below it; both stay between the
-   * hero portraits and the two hint lines at every design height (640..800).
-   */
+  /** 开始游戏: smaller, under 继续上次, while a run is saved (title-layout.ts). */
   private startRect(): Rect {
-    return this.run ? { x: 90, y: L.H * 0.66 + 14, w: 180, h: 44 } : { x: 90, y: L.H * 0.66, w: 180, h: 56 };
+    return startButton(this.run !== null);
   }
 
   private continueRect(): Rect {
-    return { x: 90, y: L.H * 0.66 - 52, w: 180, h: 56 };
+    return continueButton();
   }
 
   update(dt: number): void {
@@ -193,11 +226,13 @@ class TitleScene implements Scene {
     } else {
       drawButton(ctx, this.startRect(), '开始游戏', 'primary');
     }
-    text(ctx, '商店买字拖上阵地 · 同字合成升级 · 凑齐名字觉醒英雄', W / 2, L.H * 0.66 + 82, sans(11, 500), '#e8d5b0');
-    text(ctx, '英雄攒满怒气放大招 · 波间奇遇三选一 · 通关得灵石炼法宝', W / 2, L.H * 0.66 + 100, sans(11, 500), '#e8d5b0');
-    // Faint version label for telling deployments apart when something needs debugging.
-    // Reason: the host tells apart the entry points (vercel.app, a custom domain, localhost) when a player reports a bug.
-    text(ctx, `v${__APP_VERSION__} · ${__APP_BUILD__} · ${location.host}`, W - 8, L.H - 9, sans(9, 500), 'rgba(255,240,210,0.45)', 'right');
+    const [hint1, hint2] = hintRows();
+    text(ctx, '商店买字拖上阵地 · 同字合成升级 · 凑齐名字觉醒英雄', W / 2, hint1, sans(11, 500), '#e8d5b0');
+    text(ctx, '英雄攒满怒气放大招 · 波间奇遇三选一 · 通关得灵石炼法宝', W / 2, hint2, sans(11, 500), '#e8d5b0');
+    // Faint version label for telling deployments apart when something needs debugging (version-label.ts).
+    const v = versionAnchor();
+    text(ctx, versionLabel(), v.x, v.y, sans(9, 500), 'rgba(255,240,210,0.45)', 'right');
+    drawButton(ctx, ABOUT_BUTTON, '关于', 'ghost');
     // A newer build is installed and waiting (production only, see platform/pwa.ts).
     if (pwaUpdateReady()) drawUpdateBanner(ctx, this.t, pwaUpdating());
   }
@@ -205,6 +240,10 @@ class TitleScene implements Scene {
   tap(p: Pointer): void {
     if (pwaUpdateReady() && inRect(p.x, p.y, updateBannerHit())) {
       applyPwaUpdate();
+      return;
+    }
+    if (inRect(p.x, p.y, ABOUT_BUTTON)) {
+      this.nav.about();
       return;
     }
     if (this.run && inRect(p.x, p.y, this.continueRect())) {
