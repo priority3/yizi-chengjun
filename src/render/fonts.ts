@@ -1,4 +1,4 @@
-// Fonts: a subset of the OFL brush font 马善政 (public/fonts) for card glyphs and titles,
+// Fonts: a subset of the OFL brush font 马善政 for card glyphs and titles,
 // plus the system CJK sans for small UI text and numbers.
 
 export const BRUSH_FAMILY = 'ZdxyBrush';

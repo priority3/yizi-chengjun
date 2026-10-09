@@ -17,10 +17,12 @@
     <meta name="apple-mobile-web-app-title" content="字斗西游" />
     <title>字斗西游</title>
     <style>
-      /* 马善政楷书 (Ma Shan Zheng, SIL OFL 1.1 — see fonts/OFL.txt), subset by scripts/subset-font.py */
+      /* 马善政楷书 (Ma Shan Zheng, SIL OFL 1.1 — see fonts/OFL.txt), subset by scripts/subset-font.py.
+         Bundled from src/assets so Vite hashes its name: an offline cache from an older release never serves a
+         subset missing the characters the new code draws. */
       @font-face {
         font-family: 'ZdxyBrush';
-        src: url('./fonts/zdxy-brush.woff2') format('woff2');
+        src: url('./src/assets/fonts/zdxy-brush.woff2') format('woff2');
         font-display: block;
       }
       html,

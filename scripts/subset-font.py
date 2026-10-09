@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds public/fonts/zdxy-brush.woff2: the Ma Shan Zheng brush font (SIL OFL 1.1), subset to the
+"""Builds src/assets/fonts/zdxy-brush.woff2: the Ma Shan Zheng brush font (SIL OFL 1.1), subset to the
 characters the game actually draws, so the web font stays tiny. Re-run after adding new Chinese text:
 
     pnpm font /path/to/MaShanZheng-Regular.ttf
@@ -12,7 +12,7 @@ import sys
 from fontTools import subset
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-OUT = ROOT / "public" / "fonts" / "zdxy-brush.woff2"
+OUT = ROOT / "src" / "assets" / "fonts" / "zdxy-brush.woff2"
 # Digits and punctuation brush text may use, besides the CJK characters found in the source files.
 EXTRA = "0123456789·：！？，。「」（）+-× "
 
