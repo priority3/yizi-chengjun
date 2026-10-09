@@ -7,13 +7,16 @@ import { DT } from '../core/clock.ts';
 import { act, createGame, step } from '../core/game.ts';
 import { slotAt } from '../core/map.ts';
 import { awardStars, starRating, type StarAward } from '../core/rating.ts';
+import { settleEndless, type EndlessAward } from '../core/records.ts';
 import { currentRefreshCost } from '../core/shop.ts';
 import { isFighter, slotKindOf } from '../core/slots.ts';
 import { buildMods, clearRewards, type ClearRewards } from '../core/treasures.ts';
-import type { Action, ActionResult, GameState, SimEvent, Tile } from '../core/types.ts';
+import type { Action, ActionResult, GameMode, GameState, SimEvent, Tile } from '../core/types.ts';
+import { isBossWave } from '../core/waves.ts';
 import { audio } from '../platform/audio.ts';
 import { music, type MusicMode } from '../platform/music.ts';
 import { clearRun, saveRun, type CameraPos, type SavedRun } from '../platform/save.ts';
+import { todayKey } from '../platform/today.ts';
 import type { Stage } from '../platform/web.ts';
 import { Camera } from '../render/camera.ts';
 import { encounterCardRects } from '../render/encounter-panel.ts';
@@ -27,6 +30,7 @@ import { drawPause, drawResult, pausePanel, resultPanel, tapButtons, type Overla
 import { Toasts } from './hud.ts';
 import type { Pointer } from './input.ts';
 import { CameraControls, CardDrag } from './map-controls.ts';
+import { openEndedBanner, resumeBanner, type BannerText } from './run-banners.ts';
 import type { Nav, Scene } from './scenes.ts';
 import { Tutorial } from './tutorial.ts';
 
@@ -62,6 +66,8 @@ export class GameScene implements Scene {
   private rewards: ClearRewards | null = null;
   /** Stars earned when the chapter was cleared, and the three-star bonus if this was the first time. */
   private award: StarAward | null = null;
+  /** What an ended endless or daily run earned: waves survived, the record, 灵石 (null in chapter runs). */
+  private endless: EndlessAward | null = null;
   private readonly cards = new CardDrag();
   private readonly camCtl = new CameraControls();
   private readonly slotUnderFn = (x: number, y: number) => this.slotUnder(x, y);
@@ -72,14 +78,19 @@ export class GameScene implements Scene {
   private readonly tips: boolean;
   private told = new Set<string>();
 
-  /** `resumed`: a saved unfinished run of `chapter` to continue instead of starting a fresh one. */
-  constructor(stage: Stage, chapter: number, nav: Nav, resumed?: SavedRun) {
+  /**
+   * `resumed`: a saved unfinished run of `chapter` to continue instead of starting a fresh one. `mode`: what a fresh
+   * run is — endless and daily runs are passed chapter 10, whose rules they play by.
+   */
+  constructor(stage: Stage, chapter: number, nav: Nav, resumed?: SavedRun, mode: GameMode = 'chapter') {
     this.nav = nav;
     this.chapter = chapter;
     const vault = nav.progress.vault;
-    // Reason: Math.random is fine here — only the seed is random; the run itself stays deterministic.
+    // Reason: Math.random is fine here — only the seed is random; the run itself stays deterministic. The daily
+    // challenge's seed is today's date instead, so everyone plays the same run that day (createGame drops its 法宝).
     // A resumed run is used as saved: its 法宝 modifiers stay what they were, whatever the vault holds now.
-    this.g = resumed?.g ?? createGame({ seed: (Math.random() * 0x7fffffff) | 0, chapter, mods: buildMods(vault) });
+    const seed = mode === 'daily' ? todayKey() : (Math.random() * 0x7fffffff) | 0;
+    this.g = resumed?.g ?? createGame({ seed, chapter, mods: buildMods(vault), mode });
     this.renderer = new GameRenderer(stage);
     this.vfx = new Vfx(this.g.map);
     this.cam = new Camera(this.g.map);
@@ -87,11 +98,14 @@ export class GameScene implements Scene {
     const starter = this.g.slots.findIndex((t) => t !== null);
     const focus = starter >= 0 ? this.g.map.slots[starter] : { x: this.g.map.w / 2, y: this.g.map.h / 2 };
     this.cam.lookAt(focus.x, focus.y, START_ZOOM, this.view());
-    this.tips = chapter === 1;
-    this.tutorial = new Tutorial(!resumed && chapter === 1 && !nav.progress.tutorialDone);
+    // Tips and the first-run guide belong to chapter 1 (endless and daily runs play chapter 10 anyway).
+    const first = chapter === 1 && this.g.mode === 'chapter';
+    this.tips = first;
+    this.tutorial = new Tutorial(!resumed && first && !nav.progress.tutorialDone);
     const ch = CHAPTERS[chapter - 1];
     const gear = vault.equipped.length > 0 ? ` · 带了 ${vault.equipped.length} 件法宝` : '';
     if (resumed) this.resumeView(resumed.camera);
+    else if (this.g.mode !== 'chapter') this.showBanner(openEndedBanner(this.g, gear));
     else this.vfx.showBanner(`第${NUMERALS[chapter - 1]}章 · ${ch.name}`, `别让妖怪走到唐僧的营地，打败${ENEMIES[ch.boss].name}${gear}`, '#ffd166', null, 2.6);
   }
 
@@ -361,6 +375,12 @@ export class GameScene implements Scene {
     this.camCtl.reset();
     // Won or lost, the run is over: nothing left to resume.
     clearRun();
+    if (this.g.mode !== 'chapter') {
+      // An endless or daily run always ends with the camp falling: it pays its 灵石 and may set a record.
+      this.endless = settleEndless(this.nav.progress, this.nav.progress.vault, this.g);
+      this.nav.save();
+      return;
+    }
     if (this.g.phase !== 'won') return;
     const p = this.nav.progress;
     p.tutorialDone = true;
@@ -386,8 +406,19 @@ export class GameScene implements Scene {
     this.cam.zoom = camera.zoom;
     // Reason: the screen may be another height than when the run was saved; keep the view on the map.
     this.cam.clamp(this.view());
-    const title = `继续 · 第${NUMERALS[this.chapter - 1]}章 第 ${this.g.wave + 1} 波`;
-    this.vfx.showBanner(title, `${CHAPTERS[this.chapter - 1].name} · 回到这一波开打前，摆好的字都在`, '#ffd166', null, 2.6);
+    this.showBanner(resumeBanner(this.g));
+  }
+
+  /** The banner a run opens with: an endless or daily run's, or where a resumed run stands. */
+  private showBanner(b: BannerText): void {
+    this.vfx.showBanner(b.title, b.sub, '#ffd166', null, 2.6);
+  }
+
+  /** Starts this run's kind afresh: the same chapter, a new endless run, or today's daily challenge. */
+  private restart(): void {
+    if (this.g.mode === 'endless') this.nav.endless();
+    else if (this.g.mode === 'daily') this.nav.daily();
+    else this.nav.play(this.chapter);
   }
 
   /** 返回选章 from the pause menu gives the run up, so its save goes too (重新开始 clears it through nav.play). */
@@ -399,13 +430,14 @@ export class GameScene implements Scene {
   // ---- overlays ----------------------------------------------------------
 
   private resultInfo(): ResultInfo {
-    return { g: this.g, chapter: this.chapter, rewards: this.rewards, award: this.award, t: this.endT - RESULT_DELAY };
+    const { g, chapter, rewards, award, endless } = this;
+    return { g, chapter, rewards, award, endless, buttons: this.resultButtons().length, t: this.endT - RESULT_DELAY };
   }
 
-  /** Background music for the moment: calm while building, faster in battle, darker for the boss wave. */
+  /** Background music for the moment: calm while building, faster in battle, darker for a boss wave. */
   private musicMode(): MusicMode {
     if (this.g.phase !== 'battle') return 'build';
-    return this.g.wave === this.g.totalWaves ? 'boss' : 'battle';
+    return isBossWave(this.g, this.g.wave) ? 'boss' : 'battle';
   }
 
   private toggleMute(): void {
@@ -427,14 +459,16 @@ export class GameScene implements Scene {
     return [
       { label: '继续', go: () => (this.paused = false) },
       { label: this.nav.progress.sound.music ? '音乐：开' : '音乐：关', go: () => this.toggleMusic() },
-      { label: '重新开始', go: () => this.nav.play(this.chapter) },
+      { label: '重新开始', go: () => this.restart() },
       { label: '返回选章', go: () => this.abandon() },
     ];
   }
 
   private resultButtons(): OverlayButton[] {
     const out: OverlayButton[] = [];
-    if (this.g.phase === 'won') {
+    // An endless or daily run: 再来一次 and 返回选章 (below).
+    if (this.g.mode !== 'chapter') out.push({ label: '再来一次', go: () => this.restart() });
+    else if (this.g.phase === 'won') {
       if (this.chapter < CHAPTERS.length) out.push({ label: '下一章', go: () => this.nav.play(this.chapter + 1) });
       out.push({ label: '再来一次', go: () => this.nav.play(this.chapter) });
     } else {

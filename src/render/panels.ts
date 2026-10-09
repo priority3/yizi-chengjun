@@ -1,7 +1,11 @@
 // HUD and bottom panels: chapter title, 功德, camp HP with 唐僧, wave nodes, the shop, the battle bar, banners.
+// Endless and daily runs show their mode and wave as the title and a wave counter instead of the nodes.
 import { CHAPTERS } from '../config/chapters.ts';
+import { ENDLESS } from '../config/endless.ts';
 import { UNITS } from '../config/units.ts';
 import { modsLabel } from '../core/encounters.ts';
+import { dayLabel, UNLIMITED } from '../core/modes.ts';
+import { wavesSurvived } from '../core/records.ts';
 import { currentRefreshCost, offerPrice } from '../core/shop.ts';
 import type { GameState } from '../core/types.ts';
 import { cardSprite } from './cards.ts';
@@ -72,6 +76,51 @@ function drawSoundButton(ctx: CanvasRenderingContext2D, r: Rect, muted: boolean,
   ctx.restore();
 }
 
+/** The wave an endless or daily run is on: the one being fought, or the next one while building. */
+function currentWave(g: GameState): number {
+  return g.phase === 'build' ? g.wave + 1 : g.wave;
+}
+
+/** The HUD title: the chapter, or an endless / daily run's mode and wave (无尽 · 第 12 波, 每日 · 10月8日 · 第 3 波). */
+function hudTitle(g: GameState): string {
+  if (g.mode === 'endless') return `无尽 · 第 ${currentWave(g)} 波`;
+  if (g.mode === 'daily') return `每日 · ${dayLabel(g.seed)} · 第 ${currentWave(g)} 波`;
+  return `第${NUMERALS[g.chapter - 1]}章 · ${CHAPTERS[g.chapter - 1].name}`;
+}
+
+/**
+ * Endless and daily runs, in place of the wave nodes: the waves survived so far, then the five waves of the current
+ * boss cycle in the nodes' style (done gold, the one being fought white, the boss red with 王).
+ */
+function drawWaveCounter(ctx: CanvasRenderingContext2D, g: GameState): void {
+  text(ctx, `撑过 ${wavesSurvived(g)} 波`, 196, 45.5, sans(11, 800), COLORS.gold, 'left');
+  const n = ENDLESS.bossEvery;
+  const first = Math.floor((currentWave(g) - 1) / n) * n + 1;
+  const x1 = W - 16;
+  const step = 15;
+  const x0 = x1 - step * (n - 1);
+  ctx.strokeStyle = 'rgba(255,235,200,0.35)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x0, 45);
+  ctx.lineTo(x1, 45);
+  ctx.stroke();
+  for (let i = 0; i < n; i++) {
+    const w = first + i;
+    const x = x0 + step * i;
+    const done = w < g.wave || (w === g.wave && g.phase !== 'battle');
+    const current = w === g.wave && g.phase === 'battle';
+    const boss = i === n - 1;
+    const r = boss ? 7 : 5;
+    ctx.beginPath();
+    ctx.arc(x, 45, current ? r + 1.5 : r, 0, Math.PI * 2);
+    ctx.fillStyle = done ? COLORS.gold : current ? '#ffffff' : 'rgba(255,235,200,0.25)';
+    if (boss && !done) ctx.fillStyle = current ? '#ff5a4a' : 'rgba(224,69,60,0.7)';
+    ctx.fill();
+    if (boss) text(ctx, '王', x, 45.5, brush(9), '#2a1a10');
+  }
+}
+
 export function drawHud(ctx: CanvasRenderingContext2D, g: GameState, ui: PanelUi, vfx: Vfx): void {
   const hud = L.hud;
   const bg = ctx.createLinearGradient(0, 0, 0, hud.h + 8);
@@ -82,8 +131,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: GameState, ui: PanelUi
   drawIconButton(ctx, L.btnPause, 'pause', ui.pressed === 'pause');
   drawIconButton(ctx, L.btnSpeed, ui.speed === 2 ? 'x2' : 'x1', ui.pressed === 'speed');
   drawSoundButton(ctx, L.btnSound, ui.muted, ui.pressed === 'sound');
-  const ch = CHAPTERS[g.chapter - 1];
-  const title = `第${NUMERALS[g.chapter - 1]}章 · ${ch.name}`;
+  const title = hudTitle(g);
   // Reason: the title stays centred, so it must clear the sound button on the left (and as much on the right).
   const titleW = W - 2 * (L.btnSound.x + L.btnSound.w + 6);
   outlined(ctx, title, W / 2, 20, brush(fitPx(ctx, title, titleW, 18, brush, 12)), '#fbeed2', 'rgba(20,10,4,0.9)', 3);
@@ -96,6 +144,10 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: GameState, ui: PanelUi
   drawBar(ctx, 38, 39, 132, 11, g.campHp / g.campMax, flash ? '#ff9a8a' : g.campHp / g.campMax > 0.35 ? '#e0453c' : '#ff2a1a');
   text(ctx, `阵地 ${Math.ceil(g.campHp)}/${g.campMax}`, 104, 45, sans(9, 700), '#ffffff');
 
+  if (g.totalWaves === UNLIMITED) {
+    drawWaveCounter(ctx, g);
+    return;
+  }
   // Wave progress nodes; the last is the boss.
   const n = g.totalWaves;
   const x0 = 196;
@@ -202,7 +254,8 @@ export function drawBattleBar(ctx: CanvasRenderingContext2D, g: GameState, ui: P
   ctx.fillStyle = bg;
   ctx.fillRect(b.x, b.y, b.w, b.h);
   const left = g.enemies.length + g.spawns.length;
-  outlined(ctx, `第 ${g.wave}/${g.totalWaves} 波`, 16, b.y + 17, brush(17), '#fbeed2', 'rgba(20,10,4,0.9)', 3, 'left');
+  const wave = g.totalWaves === UNLIMITED ? `第 ${g.wave} 波` : `第 ${g.wave}/${g.totalWaves} 波`;
+  outlined(ctx, wave, 16, b.y + 17, brush(17), '#fbeed2', 'rgba(20,10,4,0.9)', 3, 'left');
   const active = modsLabel(g.activeMods);
   const info = active ? `剩余妖怪 ${left} · ${active}` : `剩余妖怪 ${left}`;
   const px = fitPx(ctx, info, W - 160, 11, (n) => sans(n, 600), 8);

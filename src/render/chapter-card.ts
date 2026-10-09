@@ -154,8 +154,11 @@ function drawChapterCard(ctx: CanvasRenderingContext2D, r: Rect, c: ChapterCard)
   drawStarRow(ctx, x + sr, r.y + r.h * 0.85, sr, sr * 2.5, c.stars, c.open ? 'paper' : 'locked');
 }
 
-/** The thumbnail (fading in over its placeholder), greyed out with a padlock when the chapter is locked. */
-function drawThumb(ctx: CanvasRenderingContext2D, r: Rect, c: ChapterCard): void {
+/**
+ * The thumbnail (fading in over its placeholder), greyed out with a padlock when the chapter is locked. Also draws the
+ * thumbnails of the chapter screen's 每日挑战 and 无尽 entries (render/mode-card.ts).
+ */
+export function drawThumb(ctx: CanvasRenderingContext2D, r: Rect, c: Pick<ChapterCard, 'chapter' | 'open' | 'thumb' | 'fade' | 't'>): void {
   ctx.save();
   roundRect(ctx, r.x, r.y, r.w, r.h, THUMB_R);
   ctx.clip();
