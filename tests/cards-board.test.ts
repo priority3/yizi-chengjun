@@ -1,11 +1,11 @@
 // B5 support cards and the cards in the run: 鼓 buffs the pads within reach (capped, alongside 速), 镜 reflects what
 // the camp lost every 6 s, the shop sells all four, snapshots keep a 镜's charge, and runs with them replay exactly.
 import { describe, expect, it } from 'vitest';
-import { LEAK_MUL } from '../src/config/chapters.ts';
+import { CHAPTERS, LEAK_MUL } from '../src/config/chapters.ts';
 import { ENEMIES } from '../src/config/enemies.ts';
 import type { MapDef } from '../src/config/maps.ts';
 import { ULTIMATES } from '../src/config/ultimates.ts';
-import { DRUM_DMG_CAP, HASTE_CAP, MIRROR_EVERY, SHOP_WEIGHTS, UNITS } from '../src/config/units.ts';
+import { DRUM_DMG_CAP, HASTE_CAP, MIRROR_EVERY, MIRROR_TOP_WAVE, SHOP_WEIGHTS, UNITS } from '../src/config/units.ts';
 import { botBuildAction, tileValue } from '../src/core/bot.ts';
 import { NET_VALUE, POISON_SHARE } from '../src/core/bot-cards.ts';
 import { computeBuffs, drumMul } from '../src/core/buffs.ts';
@@ -138,6 +138,22 @@ describe('镜 mirrors', () => {
     expect(mirror.charge).toBe(0);
   });
 
+  it('stop growing with the waves after MIRROR_TOP_WAVE, which only endless and daily runs reach', () => {
+    expect(Math.max(...CHAPTERS.map((c) => c.waves))).toBeLessThan(MIRROR_TOP_WAVE);
+    const g = battle(createGame({ seed: 1, chapter: 10, mode: 'endless', map: TEST_MAP }));
+    g.wave = MIRROR_TOP_WAVE - 1;
+    const below = minionHp(g);
+    g.wave = MIRROR_TOP_WAVE;
+    const top = minionHp(g);
+    expect(top).toBeGreaterThan(below);
+    g.wave = MIRROR_TOP_WAVE + 6;
+    expect(minionHp(g)).toBe(top);
+    // Between waves, the description quotes the wave coming next.
+    g.phase = 'build';
+    g.wave = MIRROR_TOP_WAVE - 1;
+    expect(minionHp(g)).toBe(top);
+  });
+
   it('keep the charge while nobody is on the field, and the clock running', () => {
     const { g, mirror } = leaking();
     for (let i = 0; i < 6.1 * TICKS_PER_SEC; i++) stepCombat(g);
@@ -245,6 +261,19 @@ describe('the bot and the new cards', () => {
     h.gongde = 100;
     h.shop = [{ id: '鼓', price: 12, sold: false }];
     expect(botBuildAction(h, knobs, { rng: 1 }).t).not.toBe('buy');
+  });
+
+  it('keeps its one 网 in the endless long game, and never lets that level-1 net hold up the selling', () => {
+    const g = createGame({ seed: 1, chapter: 10, mode: 'endless', map: TEST_MAP });
+    g.slots.fill(null);
+    // A full board, every fighter but the net past level 1: the long game frees its weakest cell.
+    const board: Array<[UnitId, number]> = [['棍', 2], ['网', 1], ['箭', 2], ['火', 2], ['冰', 2], ['雷', 2], ['疗', 1], ['毒', 2], ['钱', 2]];
+    board.forEach(([id, level], cell) => put(g, cell, id, level));
+    g.shop = [];
+    g.gongde = 500;
+    // The 冰 (8.8 a second) goes, not the 网 below it (NET_VALUE 8).
+    expect(tileValue(tile('冰', 2), 10)).toBeGreaterThan(tileValue(tile('网'), 10));
+    expect(botBuildAction(g, knobs, { rng: 1 })).toEqual({ t: 'drop', from: 4, to: 'sell' });
   });
 
   it('buys one 网 for the boss and elite waves only, and never a second', () => {

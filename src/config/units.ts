@@ -22,6 +22,15 @@ export const DRUM_DMG_CAP = 0.45;
 /** Seconds between 镜 pulses. */
 export const MIRROR_EVERY = 6;
 /**
+ * 镜 measures its reflection in a 小妖 of the wave being fought, but stops growing after this wave (no chapter has as
+ * many, so only endless and daily runs reach it).
+ * Reason: every other card's damage is fixed by its level, which is why every endless run ends; a few mirrors growing
+ * with the waves forever, fed by a trickle of leaks that 疗 heals back, could hold an endless run for good. Monster HP
+ * grows x1.55 a wave, so past this one such an engine fades out within a few waves. At 15 the bot's endless runs
+ * (`pnpm sim --endless`), most of which end by then, lose 0.3 waves on average; at 12 they lost 0.7.
+ */
+export const MIRROR_TOP_WAVE = 15;
+/**
  * 网: once a net lets go, the monster spends this many seconds shaking it off, and no net can catch it meanwhile.
  * Reason: a net holds a boss for its whole time (a stun only half); without this pause a few nets taking turns could
  * hold one for good, and a chapter wave never goes berserk to end that. Now however many nets wait, everyone gets
@@ -79,6 +88,9 @@ export const UNITS: Record<UnitId, UnitDef> = {
   钱: support('钱', '生财', '战斗时每 4 秒产出功德', 15, 4, { t: 'income', amount: 3 }, '#a87400'),
   疗: support('疗', '回血', '阵地受伤时慢慢回血', 12, HEAL_EVERY, { t: 'heal', amount: 6 }, '#c93f73'),
   鼓: support('鼓', '鼓舞', `周围 8 格的字每级伤害 +${pct(DRUM_FX.dmg)}%、攻速 +${pct(DRUM_FX.speed)}%`, 12, 0, DRUM_FX, '#b8321f'),
+  // Reason for k 0.006 and cap 30 (`pnpm sim`): at k 0.02 with no cap the mirror dealt two thirds of chapter 10's damage
+  // and carried an endless run to wave 46; now a level-1 mirror sends 5-18 % of a 小妖's HP at everyone per pulse
+  // when the camp bleeds, adding about 6 points on chapter 10 and nearly nothing where the bot rarely leaks.
   镜: support('镜', '反弹', `每 ${MIRROR_EVERY} 秒把阵地受的伤反弹全场`, 14, MIRROR_EVERY, { t: 'mirror', k: 0.006, cap: 30 }, '#6f86a6'),
   悟: frag('悟'),
   空: frag('空'),

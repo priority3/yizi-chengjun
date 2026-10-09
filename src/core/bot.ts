@@ -236,7 +236,8 @@ function longGame(g: GameState): boolean {
 
 /**
  * Long game only, once no cell is left for a fighter and no level-1 fighter is waiting for a copy to merge with:
- * the cell of the weakest tile, to sell for room (-1 when there is nothing to do). Heroes and 神 tiles are never sold.
+ * the cell of the weakest tile, to sell for room (-1 when there is nothing to do). Heroes, 神 tiles and the one 网
+ * (see wantsNet) are never sold.
  */
 function cellToFree(g: GameState): number {
   if (!longGame(g) || emptyCellsFor(g, '箭').length > 0) return -1;
@@ -246,7 +247,8 @@ function cellToFree(g: GameState): number {
   let low = Infinity;
   g.slots.forEach((t, i) => {
     // A 泥沼 could not take the fighter that comes next anyway.
-    if (!t || t.divine || t.id === '神' || UNITS[t.id].kind === 'hero' || !canPlace(g, i, '箭')) return;
+    // Reason: nor its 网, its weakest tile by value: sold, it would be bought again before the next boss wave.
+    if (!t || t.divine || t.id === '神' || UNITS[t.id].kind === 'hero' || UNITS[t.id].fx.t === 'root' || !canPlace(g, i, '箭')) return;
     const v = tileValue(t, g.chapter);
     if (v < low) {
       low = v;

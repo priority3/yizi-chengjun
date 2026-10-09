@@ -1,18 +1,20 @@
 // 镜: every MIRROR_EVERY seconds of battle a mirror throws the camp damage it caught since its last pulse back at every
 // monster on the field. The charge comes from leaks (chargeMirrors in core/status.ts); combat.ts times the pulses.
-import { UNITS } from '../config/units.ts';
+import { MIRROR_TOP_WAVE, UNITS } from '../config/units.ts';
 import { damage } from './effects.ts';
 import { runWaveHp } from './waves.ts';
 import type { GameState, Tile } from './types.ts';
 
 /**
- * HP of a 小妖 of the wave being fought (or the next one, in the build phase) on this map: the yardstick of the
- * reflection.
- * Reason: a leak costs the camp the same few points in chapter 1 and in endless wave 30, while monster HP grows a
- * hundredfold and more; measured in a 小妖's HP, a mirror hits as hard against its wave everywhere.
+ * HP of a 小妖 of the wave being fought (in the build phase: the one coming next) on this map, up to wave
+ * MIRROR_TOP_WAVE: the yardstick of the reflection.
+ * Reason: a leak costs the camp the same few points in chapter 1 and in chapter 10's last wave, while monster HP grows
+ * twentyfold and more; measured in a 小妖's HP, a mirror hits as hard against its wave in every chapter.
  */
 export function minionHp(g: GameState): number {
-  return runWaveHp(g, '妖', Math.max(1, g.wave)) * g.map.hpScale;
+  // In the build phase `wave` counts the waves cleared, so the mirror's next foes come from the one after.
+  const wave = g.phase === 'battle' ? g.wave : g.wave + 1;
+  return runWaveHp(g, '妖', Math.min(MIRROR_TOP_WAVE, Math.max(1, wave))) * g.map.hpScale;
 }
 
 /** Damage a 镜 like `t` sends at every monster for each point of camp damage it caught (0 for any other tile). */
