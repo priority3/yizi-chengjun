@@ -21,9 +21,16 @@ def is_cjk(ch: str) -> bool:
     return "㐀" <= ch <= "鿿" or "　" <= ch <= "〿" or "＀" <= ch <= "￯"
 
 
+# Files whose Chinese is only ever drawn in the system sans font: their characters don't need brush glyphs.
+# Reason: the privacy policy and user agreement alone would add ~200 characters (~80 KB) to the brush subset.
+SANS_ONLY = {ROOT / "src" / "config" / "legal.ts"}
+
+
 def collect() -> str:
     chars = set(EXTRA)
     for path in [*(ROOT / "src").rglob("*.ts"), ROOT / "index.html"]:
+        if path in SANS_ONLY:
+            continue
         chars.update(ch for ch in path.read_text(encoding="utf-8") if is_cjk(ch))
     return "".join(sorted(chars))
 
