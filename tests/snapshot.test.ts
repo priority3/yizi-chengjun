@@ -21,8 +21,9 @@ const viaJson = (s: RunSnapshot | null): RunSnapshot => JSON.parse(JSON.stringif
 /**
  * The bot loop of core/sim.ts runChapter, on an existing run. `atBuild` runs at the start of every build phase,
  * before the bot shops: it may hand back another GameState to continue with (a restored copy), or null to stop there.
+ * `onStep` (optional) watches the run after every tick.
  */
-function play(g: GameState, luck: RngHolder, atBuild: (g: GameState) => GameState | null = (x) => x): GameState {
+function play(g: GameState, luck: RngHolder, atBuild: (g: GameState) => GameState | null = (x) => x, onStep?: (g: GameState) => void): GameState {
   while (g.phase !== 'won' && g.phase !== 'lost' && g.tick < MAX_TICKS) {
     if (g.phase === 'build') {
       const next = atBuild(g);
@@ -38,6 +39,7 @@ function play(g: GameState, luck: RngHolder, atBuild: (g: GameState) => GameStat
       }
     }
     step(g);
+    onStep?.(g);
   }
   return g;
 }
@@ -258,5 +260,33 @@ describe('resumed runs play on identically', () => {
       expect(hopped.tick, `chapter ${chapter}`).toBe(plain.tick);
       expect(hashState(hopped), `chapter ${chapter}`).toBe(hashState(plain));
     }
+  });
+
+  it('resumes runs with air raids identically: flyers only exist mid-battle, so there is nothing of theirs to save', () => {
+    const chapter = 6;
+    // The first seed whose chapter-6 run meets an air raid before its last build phase (seed 2 with today's numbers).
+    let seed = 0;
+    let plain: GameState | null = null;
+    for (let s = 1; s <= 30 && !plain; s++) {
+      let raidWave = 0;
+      const run = play(createGame({ seed: s, chapter }), { rng: mixSeed(s, 99) }, (x) => x, (g) => {
+        if (!raidWave && g.enemies.some((e) => e.air)) raidWave = g.wave;
+      });
+      if (raidWave > 0 && raidWave < run.wave) {
+        seed = s;
+        plain = run;
+      }
+    }
+    expect(plain).not.toBeNull();
+    if (!plain) return;
+    const hopped = play(createGame({ seed, chapter }), { rng: mixSeed(seed, 99) }, (x) => {
+      expect(x.enemies).toEqual([]);
+      const r = restore(viaJson(snapshot(x)));
+      expect(r && stateText(r)).toBe(stateText(x));
+      return r;
+    });
+    expect(hopped.phase).toBe(plain.phase);
+    expect(hopped.tick).toBe(plain.tick);
+    expect(hashState(hopped)).toBe(hashState(plain));
   });
 });
