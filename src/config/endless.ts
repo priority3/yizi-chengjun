@@ -13,13 +13,14 @@ export const ENDLESS = {
   eliteAfter: 2,
   /**
    * Monster HP multiplier of wave 1; every later wave multiplies it by chapter 10's hpGrowth, with no end.
-   * Reason: 0.3 makes wave 5, the first boss, about as tough as chapter 10's first wave (1.8), so the first waves are
-   * a warm-up. Past that, where the bot falls hardly depends on it: from about wave 12 its board is maxed out (level 5)
-   * and the growth wins within a few waves. On `pnpm sim --endless 80`, 0.3 puts 96 % of the runs at waves 12-25
-   * (median 15) and 0.4 85 % (median 14), while 0.9 left a third dead before wave 12 and chapter 10's own 1.8 most of
-   * them by wave 5.
+   * Reason: low enough that the first waves are a warm-up (wave 5, the first boss, is about as tough as chapter 10's
+   * first wave), not so low that they bore. Past that, where the bot falls hardly depends on it: from about wave 12 its
+   * board is maxed out (level 5) and the growth wins within a few waves. v0.7 measured 0.3 at 96 % of the runs within
+   * waves 12-25 (median 15); with the v0.8 cards (more card kinds spread the bot's merges) and chapter 10's map at hp
+   * 1.75, `pnpm sim --endless 80` gives 0.3 → 80 % (mean 13.7), 0.25 → 89 % (mean 14.1), 0.2 → 92 % (mean 14.3).
+   * 0.9 left a third dead before wave 12 and chapter 10's own 1.8 most of them by wave 5.
    */
-  hpStart: 0.3,
+  hpStart: 0.25,
   /** 灵石 for every wave survived, paid all at once when the run ends. */
   stonesPerWave: 2,
   /**

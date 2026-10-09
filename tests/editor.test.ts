@@ -157,7 +157,8 @@ describe('editor 导出 / 导入', () => {
     const def = MAPS[7];
     const entry = `{\n    theme: '${def.theme}',\n    hp: ${def.hp},\n    rows: ${exportRows(draftOf(def))},\n  },`;
     const back = mustImport(entry, blankDraft(8, 8, 'ridge'));
-    expect([back.theme, back.hp]).toEqual(['flame', 1.86]);
+    // Reason: read from MAPS rather than written out, so retuning chapter 8's difficulty never breaks this test.
+    expect([back.theme, back.hp]).toEqual(['flame', def.hp]);
     expect(buildMap(back)).toEqual(buildMap(def));
   });
 

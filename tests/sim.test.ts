@@ -47,8 +47,9 @@ describe('headless chapter runs', () => {
  * - Chapter 10 ≤ 20: today 10; above 20 in 2 of the 40 families.
  * - Rise ≤ 30 points: today's biggest rises are +20 (3→4, 6→7). A +15 limit would trip on 40% of the families,
  *   +25 on 8%, +30 on none — so this flags real inversions without failing on noise. Finer checks: `pnpm sim 40`.
- * v0.6 (special pads, flyers, retuned maps) reads 95 70 60 50 70 35 55 60 25 10 here; on 200 seeds the curve is
- * 99 90 77 70 66 55 49 43 20 13. This family runs lucky on chapter 10: right after merging it read 35 while ten
+ * v0.6 (special pads, flyers, retuned maps) read 95 70 60 50 70 35 55 60 25 10 here; v0.8 (毒 网 鼓 镜, maps retuned
+ * again because more card kinds spread the bot's merges) reads 95 85 70 85 70 60 45 40 30 10, and on 200 seeds
+ * 98 90 77 72 66 54 50 43 19 14. This family runs lucky on chapter 10: right after merging it read 35 while ten
  * other 20-seed families averaged 11, so judge a failure here against a bigger sample before retuning for it.
  */
 const CHAPTER1_MIN = 85;
