@@ -3,6 +3,7 @@
 import { ENEMIES } from '../config/enemies.ts';
 import type { ShotKind } from '../core/types.ts';
 import { drawCoin, drawStar, hash01, outlined, roundRect, text } from './draw.ts';
+import { drawNeedleShot, drawNetShot } from './fx-cards.ts';
 import { brush, sans } from './fonts.ts';
 import { drawPortrait } from './heroes-art.ts';
 import { corpseHeight, corpsePose, FOOT, makeCorpsePose } from './monster-pose.ts';
@@ -384,6 +385,12 @@ export function drawProjectile(ctx: CanvasRenderingContext2D, kind: ShotKind, x:
       ctx.lineWidth = 1.2;
       ctx.strokeStyle = '#2b6585';
       ctx.stroke();
+      break;
+    case 'needle':
+      drawNeedleShot(ctx);
+      break;
+    case 'net':
+      drawNetShot(ctx, performance.now() / 90);
       break;
     default:
       break;

@@ -7,6 +7,7 @@ import { UNITS } from '../config/units.ts';
 import { pathDir, type Pt } from '../core/map.ts';
 import { routeOf } from '../core/monsters.ts';
 import { padAllows, padRange, slotRange } from '../core/slots.ts';
+import { isRooted } from '../core/status.ts';
 import type { Enemy, EnemyDef, GameState, Tile, UnitId } from '../core/types.ts';
 import type { Stage } from '../platform/web.ts';
 import type { Camera } from './camera.ts';
@@ -14,6 +15,7 @@ import { CARD, cardSprite } from './cards.ts';
 import { drawBar, drawCoin, drawStar, outlined, roundRect, text } from './draw.ts';
 import { drawEncounterPanel } from './encounter-panel.ts';
 import { brush, sans } from './fonts.ts';
+import { drawNetOver, drawPoisonBubbles } from './fx-cards.ts';
 import { L, viewRect, W, type Rect } from './layout.ts';
 import { drawMap, PAD_R } from './map-art.ts';
 import { FLY_LIFT, FOOT, makePose, monsterPose, type Gait, type MonsterPose } from './monster-pose.ts';
@@ -265,8 +267,9 @@ export class GameRenderer {
     }
     face.seen = this.frame;
     // Reason: nobody walks once the battle is over (a lost run freezes the field), a stun stops a dash too, and flyers
-    // beat their wings instead of stepping.
-    const gait: Gait = g.phase !== 'battle' ? 'idle' : e.stunT > 0 ? 'stun' : e.air ? 'fly' : e.dashT > 0 ? 'dash' : 'walk';
+    // beat their wings instead of stepping. A monster caught in a net sways in place like a stunned one, struggling.
+    const held = e.stunT > 0 || isRooted(e);
+    const gait: Gait = g.phase !== 'battle' ? 'idle' : held ? 'stun' : e.air ? 'fly' : e.dashT > 0 ? 'dash' : 'walk';
     monsterPose(this.pose, dir, face.left, gait, time, e.uid);
     face.left = this.pose.flip;
     return this.pose;
@@ -318,7 +321,10 @@ export class GameRenderer {
     ctx.restore();
   }
 
-  /** Status marks around the feet and over the head (of a flyer's lifted body): the slow ring with its snowflake, the stun stars. */
+  /**
+   * Status marks around the feet and over the head (of a flyer's lifted body): the slow ring with its snowflake, the
+   * stun stars, a 毒's bubbles and a 网's net.
+   */
   private drawStatus(ctx: CanvasRenderingContext2D, e: Enemy, def: EnemyDef, time: number, lift: number): void {
     const x = e.x;
     const y = e.y - lift;
@@ -336,6 +342,8 @@ export class GameRenderer {
         drawStar(ctx, x + Math.cos(a) * def.radius * 0.8, y - def.radius * 1.2 + Math.sin(a) * 3, 3.5, '#ffe45a');
       }
     }
+    if (isRooted(e)) drawNetOver(ctx, x, y, def.radius, time, e.uid);
+    if (e.poison) drawPoisonBubbles(ctx, x, y, def.radius, e.poison.stacks, time, e.uid);
   }
 
   /** HP bar above the monster (a flyer's lifted body), plus the name under bosses and elites. */

@@ -149,13 +149,15 @@ export function step(g: GameState): void {
   }
   moveEnemies(g);
   stepCombat(g);
-  // A berserk endless wave (enraged): whatever this tick's attacks stunned or slowed walks on next tick.
+  // A berserk endless wave (enraged): whatever this tick's attacks stunned, slowed or netted walks on next tick.
+  // Reason: nets too, though they hold bosses fully: the berserk exists to end waves a board could hold forever.
   if (enraged(g)) {
     if (enragedNow(g)) g.events.push({ t: 'enrage' });
     for (const e of g.enemies) {
       e.stunT = 0;
       e.slowT = 0;
       e.slowPct = 0;
+      e.rootT = 0;
     }
   }
   if (g.campHp <= 0) {
@@ -205,11 +207,20 @@ export function hashState(g: GameState): number {
     mix(t.divine ? 1 : 0);
     mix(Math.round(t.rage * 100));
     mix(TARGET_MODES.indexOf(t.target ?? 'first'));
+    // Reason: only once a 镜 has caught something, so every other board hashes as it always did.
+    if (t.charge) mix(Math.round(t.charge * 100));
   }
   for (const e of g.enemies) {
     mix(e.uid);
     mix(Math.round(e.hp * 100));
     mix(Math.round(e.dist * 100));
+    // Poison and nets only when present, likewise.
+    if (e.poison) {
+      mix(e.poison.stacks);
+      mix(Math.round(e.poison.t * 100));
+      mix(Math.round(e.poison.dps * 100));
+    }
+    if (e.rootT > 0) mix(Math.round(e.rootT * 100));
   }
   for (const o of g.shop) mixText(o.id);
   return h >>> 0;

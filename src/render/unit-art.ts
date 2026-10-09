@@ -2,6 +2,7 @@
 // (more arrows, taller flames, extra coins...), plus the shared level dressing (aura, sparkles, halo).
 import type { UnitId } from '../core/types.ts';
 import { drawCoin, drawStar } from './draw.ts';
+import { EXTRA_PAINTERS } from './unit-art-extra.ts';
 
 type Painter = (ctx: CanvasRenderingContext2D, x: number, y: number, s: number, level: number) => void;
 
@@ -288,7 +289,8 @@ function sun(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): vo
   stroke(ctx, '#a8740c', s * 0.035);
 }
 
-const PAINTERS: Partial<Record<UnitId, Painter>> = { 棍: staff, 箭: bow, 火: flame, 冰: ice, 雷: thunder, 速: wind, 钱: money, 疗: gourd, 神: sun };
+// The B5 cards (毒 网 鼓 镜) are painted in unit-art-extra.ts.
+const PAINTERS: Partial<Record<UnitId, Painter>> = { 棍: staff, 箭: bow, 火: flame, 冰: ice, 雷: thunder, 速: wind, 钱: money, 疗: gourd, 神: sun, ...EXTRA_PAINTERS };
 
 /** Draws the unit's illustration in a box of size `s` centred at (x, y). False when the unit has none (fragments, heroes). */
 export function drawUnitIcon(ctx: CanvasRenderingContext2D, id: UnitId, x: number, y: number, s: number, level: number): boolean {

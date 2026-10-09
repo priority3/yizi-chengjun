@@ -42,18 +42,19 @@ export function rollOffer(g: GameState): UnitId {
   return FRAGMENTS[Math.floor(r4 * FRAGMENTS.length)];
 }
 
-const ATTACK_WEIGHTS = SHOP_WEIGHTS.filter(
-  (e): e is readonly [UnitId, number] => e[0] !== 'frag' && UNITS[e[0]].kind === 'attack',
-);
+/** Attack cards that can hold a camp: every one but the 网, which only holds monsters and barely hurts them. */
+const defends = (id: UnitId): boolean => UNITS[id].kind === 'attack' && UNITS[id].fx.t !== 'root';
 
-/** Fills the shop with fresh offers, guaranteeing at least `minAttackers` attack cards. */
+const ATTACK_WEIGHTS = SHOP_WEIGHTS.filter((e): e is readonly [UnitId, number] => e[0] !== 'frag' && defends(e[0]));
+
+/** Fills the shop with fresh offers, guaranteeing at least `minAttackers` attack cards that deal damage. */
 export function restock(g: GameState, minAttackers = SHOP_ATTACKERS): void {
   const ids: UnitId[] = [];
   for (let i = 0; i < SHOP_SIZE; i++) ids.push(rollOffer(g));
-  // Reason: a shop with no attack card at all can leave a fresh camp defenceless.
-  let have = ids.filter((id) => UNITS[id].kind === 'attack').length;
+  // Reason: a shop with no attack card at all can leave a fresh camp defenceless (a lone 网 can't defend it either).
+  let have = ids.filter(defends).length;
   for (let i = ids.length - 1; i >= 0 && have < minAttackers; i--) {
-    if (UNITS[ids[i]].kind === 'attack') continue;
+    if (defends(ids[i])) continue;
     ids[i] = pickWeighted(rand(g), ATTACK_WEIGHTS);
     have++;
   }

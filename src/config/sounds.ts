@@ -55,6 +55,9 @@ export type SoundId =
   | 'slam'
   | 'crescent'
   | 'dragon'
+  | 'needle'
+  | 'net'
+  | 'mirror'
   | 'fireImpact'
   | 'kill'
   | 'bossKill'
@@ -154,6 +157,10 @@ const SLAM: Voice[] = [tone('sine', 90, 45, 0.25, 0.35), noise(0.18, 0.12, lp(18
 const CRESCENT: Voice[] = [tone('triangle', 1200, 400, 0.12, 0.11)];
 /** 白龙's sweep: three slightly detuned sines gliding up an octave. */
 const DRAGON: Voice[] = [300, 303.5, 296.5].map((f) => tone('sine', f, f * 2, 0.6, 0.045, { attack: 0.1 }));
+/** 毒: a thin hiss and a tiny falling tick, the quietest shot (it fires often). */
+const NEEDLE: Voice[] = [noise(0.045, 0.05, hp(6000, 4000)), tone('sine', 2600, 1700, 0.05, 0.045, { delay: 0.01 })];
+/** 网: a rope whooshing open (band-passed noise sweeping down) and a soft woody thud. */
+const NET: Voice[] = [noise(0.2, 0.1, bp(1800, 600, 1.2), { attack: 0.02 }), tone('triangle', 180, 110, 0.12, 0.08, { delay: 0.06 })];
 
 /** Ultimate = the hero's normal attack + a 0.4 s rising arpeggio from `root` + a cymbal. */
 function ultimate(shot: readonly Voice[], root: number): Voice[] {
@@ -172,6 +179,15 @@ export const SOUNDS: Record<SoundId, Voice[]> = {
   slam: SLAM,
   crescent: CRESCENT,
   dragon: DRAGON,
+  needle: NEEDLE,
+  net: NET,
+  // 镜 flashing back: a bright bronze chime (C6 with a bell partial), a glint gliding up an octave, and a breath of shimmer.
+  mirror: [
+    tone('sine', hz(84), hz(84), 0.7, 0.06),
+    tone('sine', hz(84) * 2.76, hz(84) * 2.76, 0.4, 0.025),
+    tone('triangle', 1200, 2400, 0.3, 0.04, { attack: 0.05 }),
+    noise(0.35, 0.03, hp(6000, 9000), { attack: 0.08 }),
+  ],
   // 火 landing: a muffled blast closing down from 3 kHz, then three crackles.
   fireImpact: [noise(0.2, 0.18, lp(3000, 300)), ...[0.035, 0.08, 0.13].map((d) => noise(0.025, 0.09, hp(2500, 2500), { delay: d }))],
   kill: [noise(0.12, 0.15, lp(2400, 400)), tone('sine', 320, 160, 0.08, 0.1)],
@@ -246,6 +262,7 @@ const PRIORITY: Partial<Record<SoundId, number>> = {
   revive: 1,
   execute: 1,
   fireImpact: 1,
+  mirror: 1,
 };
 
 export function soundPriority(id: SoundId): number {
@@ -262,6 +279,8 @@ const SHOT_SOUND: Record<ShotKind, SoundId | null> = {
   beam: 'beam',
   slam: 'slam',
   dragon: 'dragon',
+  needle: 'needle',
+  net: 'net',
   none: null,
 };
 
@@ -326,6 +345,8 @@ export function soundFor(e: SimEvent): SoundId | null {
       return 'encounter';
     case 'steal':
       return 'steal';
+    case 'mirror':
+      return 'mirror';
     case 'waveStart':
       return e.boss ? 'bossWave' : 'waveStart';
     // A berserk endless wave sounds the alarm of a boss entrance.

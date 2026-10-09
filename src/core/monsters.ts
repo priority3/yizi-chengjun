@@ -6,6 +6,7 @@ import { MAP_SPEED } from '../config/maps.ts';
 import { DT } from './clock.ts';
 import { pathPoint, type PathData } from './map.ts';
 import { rand } from './rng.ts';
+import { chargeMirrors, tickPoison, tickRoot } from './status.ts';
 import { runWaveHp } from './waves.ts';
 import type { Enemy, GameState } from './types.ts';
 
@@ -34,6 +35,8 @@ export function makeEnemy(g: GameState, def: string, path: number, hp: number, s
     slowPct: 0,
     slowT: 0,
     stunT: 0,
+    poison: null,
+    rootT: 0,
     atk: d.atk,
     revives: tr?.t === 'revive' ? tr.times : 0,
     traitT: tr?.t === 'dash' || tr?.t === 'summon' ? tr.every : 0,
@@ -76,9 +79,10 @@ function arrive(g: GameState, e: Enemy): void {
   const dmg = Math.round(e.atk * LEAK_MUL);
   g.campHp = Math.max(0, g.campHp - dmg);
   g.events.push({ t: 'leak', x: e.x, y: e.y, dmg });
+  chargeMirrors(g, dmg);
 }
 
-/** Advances every living enemy by one tick: traits, status timers, and walking the road. */
+/** Advances every living enemy by one tick: traits, status timers (poison and nets too), and walking the road. */
 export function moveEnemies(g: GameState): void {
   // Reason: summons append to the list mid-loop; only walk the enemies that existed at the start of the tick.
   const n = g.enemies.length;
@@ -99,14 +103,20 @@ export function moveEnemies(g: GameState): void {
         }
       }
     }
+    tickPoison(e);
+    // Died of poison this tick: it walks no further, and removeDead credits the kill (bounty and all) after combat.
+    if (e.hp <= 0) continue;
     if (e.slowT > 0) {
       e.slowT -= DT;
       if (e.slowT <= 0) e.slowPct = 0;
     }
+    // Reason: the net counts down even under a stun, so the two never stretch each other out.
+    const netted = tickRoot(e);
     if (e.stunT > 0) {
       e.stunT -= DT;
       continue;
     }
+    if (netted) continue;
     let v = e.speed * (1 - e.slowPct);
     if (e.dashT > 0 && tr?.t === 'dash') {
       v *= tr.mul;

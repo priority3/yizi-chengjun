@@ -158,6 +158,12 @@ export class Vfx {
       this.burst(e.x, y, 7, 'snow', '#e8f8ff', 90, 2.6, 0.45, 40);
     } else if (e.kind === 'crescent') {
       this.add('slash', e.x, y, 0, 0, '#e8f2fa', 16, 0.25);
+    } else if (e.kind === 'needle') {
+      this.burst(e.x, y, 4, 'dot', '#7be35a', 60, 1.8, 0.3);
+    } else if (e.kind === 'net') {
+      // The net opens over its catch.
+      this.add('ring', e.x, y, 0, 0, '#c9a066', 24, 0.3);
+      this.burst(e.x, y, 5, 'dot', 'rgba(150,105,50,0.85)', 70, 2, 0.3);
     } else {
       this.burst(e.x, y, 3, 'dot', '#fff1c8', 60, 1.8, 0.2);
     }
@@ -183,6 +189,16 @@ export class Vfx {
     this.shake = Math.max(this.shake, e.hero === '沙僧' ? 2 : 6);
   }
 
+  /** A 镜 flashes: a silver ring bursts from the camp and rings every monster it hit (up at a flyer's body); the card jolts. */
+  private onMirror(e: Extract<SimEvent, { t: 'mirror' }>): void {
+    this.recoil[e.cell] = 0.25;
+    this.add('ring', e.x, e.y, 0, 0, '#eef4fb', 72, 0.6);
+    this.add('ring', e.x, e.y, 0, 0, '#9fb3cc', 44, 0.45);
+    this.burst(e.x, e.y, 10, 'star', '#eef4fb', 140, 3, 0.6);
+    this.float(e.x, e.y - 40, '反弹', '#e8f0fa', 18, true, 1);
+    for (const q of e.targets) this.add('ring', q.x, this.air.has(q.uid) ? q.y - FLY_LIFT : q.y, 0, 0, '#e6eef8', 22, 0.4);
+  }
+
   consume(events: readonly SimEvent[]): void {
     for (let i = 0; i < events.length; i++) {
       const e = events[i];
@@ -195,6 +211,9 @@ export class Vfx {
           break;
         case 'ultimate':
           this.onUltimate(e);
+          break;
+        case 'mirror':
+          this.onMirror(e);
           break;
         case 'hit': {
           this.flash.set(e.uid, 0.12);
@@ -349,6 +368,9 @@ export class Vfx {
         this.particles.push({ x: p.x + rnd(-2, 2), y: y + rnd(-2, 2), vx: 0, vy: -10, gravity: 0, size: rnd(1.5, 2.6), color: '#ffb44a', shape: 'ember', t: 0, life: 0.3 });
       } else if (p.kind === 'ice' && Math.random() < 0.4) {
         this.particles.push({ x: p.x, y, vx: rnd(-10, 10), vy: rnd(-10, 10), gravity: 0, size: 1.8, color: '#e8f8ff', shape: 'snow', t: 0, life: 0.3 });
+      } else if (p.kind === 'needle' && Math.random() < 0.3) {
+        // Poison dripping off the needle.
+        this.particles.push({ x: p.x, y, vx: 0, vy: 0, gravity: 90, size: 1.3, color: '#7be35a', shape: 'dot', t: 0, life: 0.3 });
       }
     }
   }

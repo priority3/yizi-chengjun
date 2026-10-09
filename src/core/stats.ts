@@ -1,5 +1,6 @@
 // Effective tile stats after level, 神 and (optionally) the run's 法宝 modifiers. Shared by combat, board and AI.
 import { DIVINE, HEAL_EVERY, LEVEL_FX, LEVEL_MUL, UNITS } from '../config/units.ts';
+import { poisonDps } from './status.ts';
 import type { RunMods, Tile } from './types.ts';
 
 export function tileDamage(t: Tile, mods?: RunMods): number {
@@ -25,7 +26,16 @@ export function fxScale(t: Tile): number {
   return (1 + LEVEL_FX * (t.level - 1)) * (t.divine ? DIVINE.fx : 1);
 }
 
-/** Damage per second ignoring haste; 0 for tiles that don't attack. */
+/** Poison one hit of `t` leaves behind if its stack runs its full time; 0 for tiles without poison. */
+export function poisonPerHit(t: Tile, mods?: RunMods): number {
+  const fx = UNITS[t.id].fx;
+  return fx.t === 'poison' ? poisonDps(t.id, tileDamage(t, mods)) * fx.dur : 0;
+}
+
+/**
+ * Damage per second of the hits themselves, ignoring haste (a 毒's poison comes on top of it: poisonPerHit); 0 for
+ * tiles that don't attack.
+ */
 export function tileDps(t: Tile, mods?: RunMods): number {
   const iv = tileInterval(t);
   return iv > 0 ? tileDamage(t, mods) / iv : 0;

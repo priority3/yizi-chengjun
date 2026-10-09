@@ -1,34 +1,22 @@
 // Tiles fighting: targeting, instant attacks, travelling projectiles and their effects, supports, and deaths.
 // Projectiles deal damage only when they arrive, so what the player sees matches what happens.
 import { ENEMIES } from '../config/enemies.ts';
-import { DIVINE, HASTE_CAP, LEVEL_MUL, UNITS } from '../config/units.ts';
+import { DIVINE, LEVEL_MUL, UNITS } from '../config/units.ts';
+import { computeBuffs } from './buffs.ts';
 import { DT } from './clock.ts';
 import { applySlow, applyStun, damage, dist2, knock } from './effects.ts';
 import type { Pt } from './map.ts';
+import { pulseMirror } from './mirror.ts';
 import { routeOf, spawnMinions } from './monsters.ts';
 import { slotDamage, slotRange } from './slots.ts';
 import { fxScale, tileInterval } from './stats.ts';
+import { applyPoison, applyRoot, canRoot } from './status.ts';
 import type { Enemy, GameState, Projectile, TargetMode, Tile } from './types.ts';
 import { castUltimate, isUltimateReady, rageGain } from './ultimates.ts';
 
-// Reason: reused every step to avoid per-frame allocation; resized when a map has a different slot count.
-let haste = new Float64Array(0);
-
-/** Attack-speed bonus each slot receives from 速 tiles within SUPPORT_RANGE. */
+/** Attack-speed bonus each slot receives from the 速 and 鼓 within SUPPORT_RANGE, capped at HASTE_CAP (see core/buffs.ts). */
 export function computeHaste(g: GameState): Float64Array {
-  const n = g.slots.length;
-  if (haste.length !== n) haste = new Float64Array(n);
-  haste.fill(0);
-  const fx = UNITS['速'].fx;
-  const pct = fx.t === 'haste' ? fx.pct : 0;
-  for (let i = 0; i < n; i++) {
-    const t = g.slots[i];
-    if (!t || t.id !== '速') continue;
-    const bonus = pct * t.level * (t.divine ? DIVINE.fx : 1);
-    for (const j of g.map.adj[i]) haste[j] += bonus;
-  }
-  for (let i = 0; i < n; i++) haste[i] = Math.min(HASTE_CAP, haste[i]);
-  return haste;
+  return computeBuffs(g).haste;
 }
 
 /**
@@ -47,6 +35,7 @@ export function findTarget(g: GameState, t: Tile, cell: number): Enemy | null {
   const r = slotRange(g, t, cell);
   const r2 = r * r;
   const mode = t.target ?? 'first';
+  const net = UNITS[t.id].fx.t === 'root';
   let best: Enemy | null = null;
   let bestRank = Infinity;
   for (const e of g.enemies) {
@@ -54,6 +43,8 @@ export function findTarget(g: GameState, t: Tile, cell: number): Enemy | null {
     if (e.hp <= 0 || e.gone || dist2(e, p.x, p.y) > r2) continue;
     // Flyers are out of reach of ground fighters (see canHitAir).
     if (e.air && !canHitAir(t)) continue;
+    // A net goes for a monster it can still catch, not one already caught or shaking a net off.
+    if (net && !canRoot(e)) continue;
     // Ranking: the target priority picks among the candidates.
     const rank = targetRank(g, e, mode);
     if (rank < bestRank || (rank === bestRank && best !== null && e.uid < best.uid)) {
@@ -188,6 +179,8 @@ function impact(g: GameState, pr: Projectile, target: Enemy | null): void {
   if (!target) return;
   damage(g, target, pr.dmg, pr.unit);
   if (fx.t === 'slow') applySlow(target, fx.pct * pr.fxK, fx.dur * pr.fxK);
+  if (fx.t === 'poison') applyPoison(target, pr.unit, pr.dmg);
+  if (fx.t === 'root') applyRoot(target, fx.dur * pr.fxK);
   if (fx.t === 'execute') {
     const pct = (ENEMIES[target.def].boss ? fx.bossPct : fx.pct) * pr.fxK + g.mods.executeBonus;
     if (target.hp > 0 && target.hp < target.maxHp * pct) {
@@ -252,6 +245,13 @@ function supportTick(g: GameState, t: Tile, cell: number): void {
       t.cd = tileInterval(t);
       g.events.push({ t: 'heal', cell, amount });
     }
+  } else if (fx.t === 'mirror') {
+    // Reason: the clock runs on whether or not there is anything to reflect, so a pulse always covers the last 6 s.
+    t.cd -= DT;
+    if (t.cd <= 0) {
+      t.cd += tileInterval(t);
+      pulseMirror(g, t, cell);
+    }
   }
 }
 
@@ -272,6 +272,8 @@ function removeDead(g: GameState): void {
       e.hp = e.maxHp * tr.pct;
       e.slowPct = 0;
       e.slowT = 0;
+      // A fresh body: the poison that felled the old one doesn't eat at it.
+      e.poison = null;
       g.events.push({ t: 'revive', x: e.x, y: e.y });
       list[w++] = e;
       continue;
@@ -292,7 +294,7 @@ function removeDead(g: GameState): void {
 
 /** Advances all tiles, projectiles and deaths by one tick (battle phase only). */
 export function stepCombat(g: GameState): void {
-  const haste = computeHaste(g);
+  const haste = computeBuffs(g).haste;
   for (let i = 0; i < g.slots.length; i++) {
     const t = g.slots[i];
     if (!t) continue;
