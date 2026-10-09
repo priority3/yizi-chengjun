@@ -33,7 +33,8 @@ if (!(await loadFonts())) console.warn(`${LOG_TAG} brush font not loaded; fallin
 // Reason: anything painted before the font arrived used the fallback font.
 sprites.clear();
 
-const scenes = new SceneManager(stage);
+// Every launch opens on the 健康游戏忠告 splash, except a page opened on the map editor (#editor, see below).
+const scenes = new SceneManager(stage, { splash: !wantsEditor() });
 attachGestures(stage, () => scenes.current);
 // The saved sound settings apply before the first tap creates the AudioContext.
 audio.setMuted(scenes.progress.sound.muted);
