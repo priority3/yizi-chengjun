@@ -1,5 +1,5 @@
 // Endless mode and the daily challenge (plan.md B4): open-ended runs on chapter 10's rules that never win, a random
-// chapter boss every 5th wave, the elite 2 waves before, HP that keeps growing, and a daily run that replays exactly.
+// chapter boss every 5th wave, the elite 2 waves after, HP that keeps growing, and a daily run that replays exactly.
 import { describe, expect, it } from 'vitest';
 import { CHAPTERS, startGongde } from '../src/config/chapters.ts';
 import { AIR_RAID, ENEMIES, SPEED_GROWTH_CAP } from '../src/config/enemies.ts';
@@ -7,7 +7,7 @@ import { ENDLESS, ENDLESS_CHAPTER } from '../src/config/endless.ts';
 import { MAPS } from '../src/config/maps.ts';
 import { encounterDue } from '../src/core/encounters.ts';
 import { act, createGame, hashState, step } from '../src/core/game.ts';
-import { dailyMapIndex, dayLabel, modeMap, UNLIMITED } from '../src/core/modes.ts';
+import { dailyMapIndex, dayLabel, enraged, modeMap, UNLIMITED } from '../src/core/modes.ts';
 import { spawnMinions } from '../src/core/monsters.ts';
 import { rand } from '../src/core/rng.ts';
 import { mapKey } from '../src/core/snapshot.ts';
@@ -16,7 +16,7 @@ import { defaultMods } from '../src/core/treasures.ts';
 import type { GameState, Spawn } from '../src/core/types.ts';
 import { airRaidPossible, buildWave, endlessHp, isBossWave, isEliteWave, runWaveHp } from '../src/core/waves.ts';
 import { dayKey } from '../src/platform/today.ts';
-import { enemy } from './helpers.ts';
+import { enemy, put, TEST_MAP } from './helpers.ts';
 
 const BOSSES = new Set(CHAPTERS.map((c) => c.boss));
 const isFlyer = (s: Spawn) => ENEMIES[s.def].flying === true;
@@ -92,14 +92,15 @@ describe('endless waves', () => {
     expect(encounterDue(41, UNLIMITED)).toBe(false);
   });
 
-  it('end every 5th wave with a random chapter boss at full HP, and the elite 2 waves before each', () => {
+  it('end every 5th wave with a random chapter boss at full HP, and the elite 2 waves after each', () => {
     const seen = new Set<string>();
+    const elites = [7, 12, 17, 22, 27];
     for (let seed = 1; seed <= 12; seed++) {
       const g = createGame({ seed, chapter: ENDLESS_CHAPTER, mode: 'endless' });
       for (let w = 1; w <= 30; w++) {
         const plan = buildWave(g, w);
         expect(plan.boss !== null, `wave ${w}`).toBe(w % ENDLESS.bossEvery === 0);
-        expect(plan.elite, `wave ${w}`).toBe(w % ENDLESS.bossEvery === ENDLESS.bossEvery - ENDLESS.eliteBefore);
+        expect(plan.elite, `wave ${w}`).toBe(elites.includes(w));
         expect(isBossWave(g, w)).toBe(plan.boss !== null);
         expect(isEliteWave(g, w)).toBe(plan.elite);
         if (!plan.boss) continue;
@@ -161,6 +162,64 @@ describe('endless waves', () => {
       }
     }
     expect(raids).toBeGreaterThan(0);
+  });
+});
+
+describe('berserk waves', () => {
+  /** A bear held next to a level-5 神八戒, whose slams stun it for longer than they take to come round. */
+  function pinned(mode: 'chapter' | 'endless') {
+    const g = createGame({ seed: 2, chapter: ENDLESS_CHAPTER, mode, map: TEST_MAP });
+    g.slots.fill(null);
+    put(g, 1, '八戒', 5, true);
+    act(g, { t: 'start' });
+    g.spawns = [];
+    const bear = enemy(g, '熊', 48, 1e9);
+    return { g, bear };
+  }
+  /** Steps `seconds` of the battle; returns how many 'enrage' events came. */
+  const run = (g: GameState, seconds: number) => {
+    let n = 0;
+    for (let i = 0; i < seconds * 60 && g.phase === 'battle'; i++) {
+      step(g);
+      n += g.events.filter((e) => e.t === 'enrage').length;
+    }
+    return n;
+  };
+
+  it('hold a stunned crowd until the wave has lasted ENDLESS.enrageAfter seconds, then let it walk on', () => {
+    const { g, bear } = pinned('endless');
+    expect(run(g, 6)).toBe(0);
+    // Slammed and pushed back over and over: it gets nowhere.
+    expect(bear.dist).toBeLessThan(60);
+    g.waveTime = ENDLESS.enrageAfter - 1;
+    expect(enraged(g)).toBe(false);
+    const before = bear.dist;
+    // The berserk is announced exactly once, then the bear walks off (or reaches the camp).
+    expect(run(g, 4)).toBe(1);
+    expect(enraged(g) || g.phase === 'build').toBe(true);
+    expect(g.enemies.length === 0 || bear.dist > before + 60).toBe(true);
+    expect(bear.stunT).toBe(0);
+  });
+
+  it('never come in a chapter run, nor outside a battle', () => {
+    const { g, bear } = pinned('chapter');
+    g.waveTime = ENDLESS.enrageAfter + 10;
+    expect(enraged(g)).toBe(false);
+    expect(run(g, 4)).toBe(0);
+    expect(bear.dist).toBeLessThan(60);
+    const e = createGame({ seed: 1, chapter: ENDLESS_CHAPTER, mode: 'daily' });
+    e.waveTime = ENDLESS.enrageAfter + 10;
+    expect(enraged(e)).toBe(false);
+    e.phase = 'battle';
+    expect(enraged(e)).toBe(true);
+  });
+
+  it('end the bot runs that used to stall for good', () => {
+    // Before the berserk rule both of these sat in one wave until the 200-minute safety cap.
+    for (const seed of [63352, 617682]) {
+      const g = playChapter(seed, ENDLESS_CHAPTER, endlessOptions());
+      expect(g.phase, `seed ${seed}`).toBe('lost');
+    }
   });
 });
 

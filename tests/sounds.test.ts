@@ -61,6 +61,7 @@ const SAMPLES: { [K in SimEvent['t']]: Array<Extract<SimEvent, { t: K }>> } = {
   steal: [{ t: 'steal', ...at, amount: 30 }],
   waveStart: [{ t: 'waveStart', wave: 1, boss: null, elite: false, mods: '' }, { t: 'waveStart', wave: 5, boss: '白骨精', elite: false, mods: '' }],
   waveClear: [{ t: 'waveClear', wave: 1, bonus: 20 }],
+  enrage: [{ t: 'enrage' }],
   won: [{ t: 'won' }],
   lost: [{ t: 'lost' }],
 };

@@ -1,9 +1,10 @@
 // Run modes (plan.md B4). A chapter run has a fixed number of waves and ends with its boss; the endless run and the
 // daily challenge have no last wave and play by chapter 10's rules until the camp falls. Pure and clock-free: the
 // daily challenge's day (YYYYMMDD) comes in from the UI as the run's seed.
-import { ENDLESS_CHAPTER } from '../config/endless.ts';
+import { ENDLESS, ENDLESS_CHAPTER } from '../config/endless.ts';
 import { MAPS, type MapDef } from '../config/maps.ts';
-import type { GameMode } from './types.ts';
+import { DT } from './clock.ts';
+import type { GameMode, GameState } from './types.ts';
 
 /** Every run mode (save validation). */
 export const MODES: readonly GameMode[] = ['chapter', 'endless', 'daily'];
@@ -29,6 +30,22 @@ export function dailyMapIndex(day: number): number {
 export function modeMap(mode: GameMode, chapter: number, seed: number): MapDef {
   if (mode === 'daily') return MAPS[dailyMapIndex(seed)];
   return MAPS[(mode === 'endless' ? ENDLESS_CHAPTER : chapter) - 1];
+}
+
+/**
+ * Whether the monsters of the wave being fought have gone berserk (狂暴): in an endless or daily run, once the wave has
+ * lasted ENDLESS.enrageAfter seconds, stuns, slows and knockback no longer hold them (see ENDLESS.enrageAfter for why;
+ * game.ts step shakes off stuns and slows, effects.ts knock refuses to push). Derived from the wave clock, so it needs
+ * no state of its own; chapter runs never enrage.
+ */
+export function enraged(g: Pick<GameState, 'mode' | 'phase' | 'waveTime'>): boolean {
+  // Reason: half a tick early, so the rounding of the summed-up wave clock can't move it to the next tick.
+  return isOpenEnded(g.mode) && g.phase === 'battle' && g.waveTime >= ENDLESS.enrageAfter - DT / 2;
+}
+
+/** Whether the wave turns berserk on this very tick: true on exactly one tick of a wave that lasts long enough. */
+export function enragedNow(g: Pick<GameState, 'mode' | 'phase' | 'waveTime'>): boolean {
+  return enraged(g) && g.waveTime < ENDLESS.enrageAfter + DT / 2;
 }
 
 /** "10月9日" for the day 20261009. */

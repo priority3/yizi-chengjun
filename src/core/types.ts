@@ -287,6 +287,8 @@ export type SimEvent =
   /** `mods` is the HUD label of the encounter modifiers in force, '' for a plain wave. */
   | { t: 'waveStart'; wave: number; boss: string | null; elite: boolean; mods: string }
   | { t: 'waveClear'; wave: number; bonus: number }
+  /** An endless or daily wave lasted so long its monsters went berserk: stuns, slows and knockback stop holding them. */
+  | { t: 'enrage' }
   | { t: 'won' }
   | { t: 'lost' };
 

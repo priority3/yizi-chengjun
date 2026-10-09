@@ -8,7 +8,7 @@ import { DT } from './clock.ts';
 import { stepCombat } from './combat.ts';
 import { chooseEncounter, defaultWaveMods, encounterDue, modsLabel, offerEncounter, openChest } from './encounters.ts';
 import { bestOpenSlot, buildMap } from './map.ts';
-import { isOpenEnded, modeMap, UNLIMITED } from './modes.ts';
+import { enraged, enragedNow, isOpenEnded, modeMap, UNLIMITED } from './modes.ts';
 import { makeEnemy, moveEnemies } from './monsters.ts';
 import { mixSeed } from './rng.ts';
 import { buy, refresh, restock, unlock } from './shop.ts';
@@ -147,6 +147,15 @@ export function step(g: GameState): void {
   }
   moveEnemies(g);
   stepCombat(g);
+  // A berserk endless wave (enraged): whatever this tick's attacks stunned or slowed walks on next tick.
+  if (enraged(g)) {
+    if (enragedNow(g)) g.events.push({ t: 'enrage' });
+    for (const e of g.enemies) {
+      e.stunT = 0;
+      e.slowT = 0;
+      e.slowPct = 0;
+    }
+  }
   if (g.campHp <= 0) {
     g.phase = 'lost';
     g.events.push({ t: 'lost' });

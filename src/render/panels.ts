@@ -4,7 +4,7 @@ import { CHAPTERS } from '../config/chapters.ts';
 import { ENDLESS } from '../config/endless.ts';
 import { UNITS } from '../config/units.ts';
 import { modsLabel } from '../core/encounters.ts';
-import { dayLabel, UNLIMITED } from '../core/modes.ts';
+import { dayLabel, enraged, UNLIMITED } from '../core/modes.ts';
 import { wavesSurvived } from '../core/records.ts';
 import { currentRefreshCost, offerPrice } from '../core/shop.ts';
 import type { GameState } from '../core/types.ts';
@@ -256,10 +256,12 @@ export function drawBattleBar(ctx: CanvasRenderingContext2D, g: GameState, ui: P
   const left = g.enemies.length + g.spawns.length;
   const wave = g.totalWaves === UNLIMITED ? `第 ${g.wave} 波` : `第 ${g.wave}/${g.totalWaves} 波`;
   outlined(ctx, wave, 16, b.y + 17, brush(17), '#fbeed2', 'rgba(20,10,4,0.9)', 3, 'left');
-  const active = modsLabel(g.activeMods);
+  // A berserk endless wave says so for as long as it lasts, ahead of the encounter modifiers.
+  const rage = enraged(g);
+  const active = [rage ? '妖怪狂暴：不吃眩晕减速击退' : '', modsLabel(g.activeMods)].filter(Boolean).join(' · ');
   const info = active ? `剩余妖怪 ${left} · ${active}` : `剩余妖怪 ${left}`;
   const px = fitPx(ctx, info, W - 160, 11, (n) => sans(n, 600), 8);
-  text(ctx, info, 16, b.y + 37, sans(px, 600), active ? '#ffb07a' : COLORS.dim, 'left');
+  text(ctx, info, 16, b.y + 37, sans(px, 600), rage ? '#ff7a6a' : active ? '#ffb07a' : COLORS.dim, 'left');
   text(ctx, ui.dragging ? '拖到垃圾桶卖出 →' : '可以随时拖动场上的字', W - 64, b.y + 26, sans(10, 600), COLORS.dim, 'right');
   drawTrash(ctx, L.barTrash, ui.hoverTrash);
 }

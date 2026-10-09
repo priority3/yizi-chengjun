@@ -1,7 +1,7 @@
 // Wave composition per chapter: minions from both gates, an elite mid-chapter, the chapter boss last,
 // plus whatever the last encounter queued (wolf packs, a thief, a visiting boss, speed/HP/bounty tweaks)
 // and, in later chapters, now and then an air raid of bats flying straight at the camp.
-// Endless and daily runs never run out of waves: every 5th ends with a random chapter boss, the elite comes 2 before.
+// Endless and daily runs never run out of waves: every 5th ends with a random chapter boss, and 2 waves later the elite.
 import { CHAPTERS, incomeMul, MIN_SPAWN_GAP, SPAWN_GAP } from '../config/chapters.ts';
 import { AIR_RAID, BASE_HP, ENEMIES, SPEED_GROWTH, SPEED_GROWTH_CAP } from '../config/enemies.ts';
 import { ENDLESS, ENDLESS_CHAPTER } from '../config/endless.ts';
@@ -45,10 +45,10 @@ export function isBossWave(g: Pick<GameState, 'totalWaves'>, w: number): boolean
 
 /**
  * Whether wave `w` ends with the elite 魔将: mid-chapter (never on the boss wave), or in an endless run
- * ENDLESS.eliteBefore waves before each boss wave.
+ * ENDLESS.eliteAfter waves after each boss wave.
  */
 export function isEliteWave(g: Pick<GameState, 'totalWaves'>, w: number): boolean {
-  if (g.totalWaves === UNLIMITED) return (w + ENDLESS.eliteBefore) % ENDLESS.bossEvery === 0;
+  if (g.totalWaves === UNLIMITED) return w > ENDLESS.bossEvery && (w - ENDLESS.eliteAfter) % ENDLESS.bossEvery === 0;
   return w === eliteWave(g.totalWaves) && w !== g.totalWaves;
 }
 
