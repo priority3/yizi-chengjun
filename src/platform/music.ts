@@ -5,6 +5,7 @@
 // WebAudio clock, so the rhythm stays exact even when the main thread stutters.
 import { hz, type Voice } from '../config/sounds.ts';
 import { audio, type AudioEngine } from './audio.ts';
+import { platform } from './env.ts';
 
 export type MusicMode = 'build' | 'battle' | 'boss';
 
@@ -252,8 +253,8 @@ export class Music {
   /** Wall-clock ms when the music began winding down (nobody asking, muted or switched off); else null. */
   private dyingSince: number | null = null;
 
-  /** `wall` is a millisecond clock (injectable for tests). */
-  constructor(engine: MusicEngine = audio, wall: () => number = () => performance.now()) {
+  /** `wall` is a millisecond clock, the platform's by default (injectable for tests). */
+  constructor(engine: MusicEngine = audio, wall: () => number = () => platform().now()) {
     this.engine = engine;
     this.wall = wall;
   }

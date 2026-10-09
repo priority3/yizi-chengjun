@@ -3,8 +3,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CHAPTERS } from '../src/config/chapters.ts';
 import { createGame } from '../src/core/game.ts';
+import { loadProgress } from '../src/platform/progress.ts';
 import { clearRun, LEGACY_RUN_KEY, loadRun, RUN_KEY, saveRun, type RunStorage } from '../src/platform/save.ts';
-import { loadProgress } from '../src/platform/web.ts';
 import { DRAFT_KEY, LEGACY_DRAFT_KEY, loadDraft, saveDraft } from '../src/ui/editor-text.ts';
 import { blankDraft, colsOf } from '../src/ui/editor-model.ts';
 

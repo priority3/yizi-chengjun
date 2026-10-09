@@ -6,7 +6,7 @@ import { awardStars, starRating, type StarAward } from '../core/rating.ts';
 import { settleEndless, type EndlessAward } from '../core/records.ts';
 import { clearRewards, type ClearRewards } from '../core/treasures.ts';
 import type { GameState } from '../core/types.ts';
-import type { Progress } from '../platform/web.ts';
+import type { Progress } from '../platform/progress.ts';
 
 /** What the result panel shows, and whether the progress save changed (then the caller writes it). */
 export interface RunEnd {

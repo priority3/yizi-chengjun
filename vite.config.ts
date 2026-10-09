@@ -29,5 +29,7 @@ export default defineConfig({
   test: {
     // Reason: parallel agents work in git worktrees under .claude/worktrees; never pick up their copies of the tests.
     exclude: ['**/node_modules/**', '**/.git/**', '**/dist/**', '.claude/**'],
+    // Installs the web platform (src/platform/env.ts) before each test file, as main.ts does in the browser.
+    setupFiles: ['./tests/setup.ts'],
   },
 });

@@ -3,7 +3,7 @@
 // Drag it or turn the wheel to scroll, tap a button at the top of the page to jump to a section; 返回 goes back to
 // the title screen.
 import { AGE_RATING } from '../config/legal.ts';
-import type { Stage } from '../platform/web.ts';
+import type { Stage } from '../platform/env.ts';
 import { drawAgeBadge } from '../render/age-badge.ts';
 import { outlined, roundRect, text } from '../render/draw.ts';
 import { brush } from '../render/fonts.ts';

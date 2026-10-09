@@ -4,6 +4,7 @@
 import { soundFor, soundPriority, SOUNDS, type SoundId } from '../config/sounds.ts';
 import type { SimEvent } from '../core/types.ts';
 import { audio } from '../platform/audio.ts';
+import { platform } from '../platform/env.ts';
 
 /** The same sound starts at most once per this many milliseconds. */
 export const SFX_REPEAT_MS = 50;
@@ -16,8 +17,8 @@ export class Sfx {
   /** When each sound last started (ms on the `now` clock). */
   private readonly last = new Map<SoundId, number>();
 
-  /** `out` plays a sound and `now` is a millisecond clock; both are injectable for tests. */
-  constructor(out: (id: SoundId) => void = (id) => audio.play(SOUNDS[id]), now: () => number = () => performance.now()) {
+  /** `out` plays a sound and `now` is a millisecond clock (the platform's); both are injectable for tests. */
+  constructor(out: (id: SoundId) => void = (id) => audio.play(SOUNDS[id]), now: () => number = () => platform().now()) {
     this.out = out;
     this.now = now;
   }

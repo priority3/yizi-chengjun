@@ -6,7 +6,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { AGE_NOTICE, CONTACT_EMAIL, HEALTH_ADVICE, PRIVACY_POLICY, USER_AGREEMENT, type LegalDoc } from '../src/config/legal.ts';
 import { MAPS } from '../src/config/maps.ts';
-import { parseProgress, type Stage } from '../src/platform/web.ts';
+import type { Stage } from '../src/platform/env.ts';
+import { parseProgress } from '../src/platform/progress.ts';
 import { MAX_H, MIN_H, setDesignHeight, W, type Rect } from '../src/render/layout.ts';
 import { BACK } from '../src/render/widgets.ts';
 import {

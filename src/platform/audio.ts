@@ -1,9 +1,11 @@
 // WebAudio engine. Every sound in the game is synthesized here from Voice recipes (config/sounds.ts): there are
 // no audio files. Lazy: no AudioContext exists until unlock() runs inside a user gesture (iOS and Chrome refuse
 // to start audio otherwise). Graph: sfx bus + music bus -> master -> limiter (-4 dBFS) -> speakers.
+// The context comes from the platform (platform/env.ts createAudioContext), so any WebAudio-compatible context works.
 // Every method is a silent no-op without WebAudio (Node tests, old browsers) and never throws: sound is
 // optional, the game must keep running.
 import type { Voice } from '../config/sounds.ts';
+import { platform } from './env.ts';
 
 /** Starting bus volumes (0..1). Music sits well under the effects. */
 export const MASTER_VOLUME = 0.6;
@@ -23,14 +25,6 @@ const SWITCH_FADE = 0.03;
 /** Output limiter: a hard knee at this level with a steep ratio, a safety net only big bursts reach. */
 const LIMIT_DB = -4;
 const LIMIT_RATIO = 20;
-
-type AudioCtor = new () => AudioContext;
-
-/** The browser's AudioContext constructor (webkit-prefixed on old iOS), or null without WebAudio. */
-function audioCtor(): AudioCtor | null {
-  const g = globalThis as { AudioContext?: AudioCtor; webkitAudioContext?: AudioCtor };
-  return g.AudioContext ?? g.webkitAudioContext ?? null;
-}
 
 /** A gain node at `value`, already connected to `dest`. */
 function gainNode(ctx: AudioContext, value: number, dest: AudioNode): GainNode {
@@ -161,12 +155,11 @@ export class AudioEngine {
   }
 
   private create(): void {
-    const Ctor = audioCtor();
-    if (!Ctor) {
+    const ctx = platform().createAudioContext();
+    if (!ctx) {
       this.broken = true;
       return;
     }
-    const ctx = new Ctor();
     // Reason: a big fight can stack a dozen voices, and clipping sounds far worse than squashing the peaks.
     const limiter = ctx.createDynamicsCompressor();
     limiter.threshold.value = LIMIT_DB;

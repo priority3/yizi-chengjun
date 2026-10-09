@@ -5,7 +5,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { MAPS, type MapDef } from '../src/config/maps.ts';
 import { createGame } from '../src/core/game.ts';
 import { buildMap, coverage } from '../src/core/map.ts';
-import { parseProgress, type Progress } from '../src/platform/web.ts';
+import { parseProgress, type Progress } from '../src/platform/progress.ts';
 import { L, MAX_H, MIN_H, setDesignHeight, W, type Rect } from '../src/render/layout.ts';
 import { BEST_COUNT, BEST_RANGE, checkDraft } from '../src/ui/editor-check.ts';
 import {

@@ -1,5 +1,6 @@
 // Offscreen sprite cache. Cards, monsters and portraits are drawn once per pixel ratio and then blitted,
 // which keeps per-frame work low on phones (dozens of monsters, each built from many paths).
+import { offscreen } from '../platform/env.ts';
 
 export type Painter = (ctx: CanvasRenderingContext2D) => void;
 
@@ -22,11 +23,7 @@ export class SpriteCache {
   get(key: string, w: number, h: number, paint: Painter): HTMLCanvasElement {
     const cached = this.map.get(key);
     if (cached) return cached;
-    const c = document.createElement('canvas');
-    c.width = Math.max(1, Math.ceil(w * this.ratio));
-    c.height = Math.max(1, Math.ceil(h * this.ratio));
-    const g = c.getContext('2d');
-    if (!g) throw new Error('Canvas 2D is not supported in this browser');
+    const { canvas: c, ctx: g } = offscreen(Math.max(1, Math.ceil(w * this.ratio)), Math.max(1, Math.ceil(h * this.ratio)));
     g.setTransform(this.ratio, 0, 0, this.ratio, 0, 0);
     paint(g);
     this.map.set(key, c);

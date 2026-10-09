@@ -1,6 +1,7 @@
 // The app icon (home screen, install prompt, task switcher): a deep red seal stamped on rice paper, with 悟空 on a
-// paper disc inside a gold ring (his 金箍), painted by code at any size. In dev, window.__yzcjIcon(size, maskable)
-// exports it as a PNG data URL (see main.ts); the PNGs in public/icons/ are made that way.
+// paper disc inside a gold ring (his 金箍), painted by code at any size. In dev, the console hook
+// __yzcjIcon(size, maskable) exports it as a PNG data URL (see main.ts); the PNGs in public/icons/ are made that way.
+import { offscreen } from '../platform/env.ts';
 import { hash01, roundRect } from './draw.ts';
 import { drawPortrait } from './heroes-art.ts';
 
@@ -164,15 +165,11 @@ export function paintAppIcon(ctx: CanvasRenderingContext2D, size: number, maskab
   paintIconEmblem(ctx, l);
 }
 
-/** The icon as a PNG data URL, `size` pixels square (16..2048); the dev hook window.__yzcjIcon. */
+/** The icon as a PNG data URL, `size` pixels square (16..2048); the dev console hook __yzcjIcon. */
 export function appIconDataUrl(size: number, maskable = false): string {
   const px = Math.round(size);
   if (!(px >= 16 && px <= 2048)) throw new RangeError(`icon size must be 16..2048 pixels, got ${size}`);
-  const canvas = document.createElement('canvas');
-  canvas.width = px;
-  canvas.height = px;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Canvas 2D is not supported in this browser');
+  const { canvas, ctx } = offscreen(px, px);
   paintAppIcon(ctx, px, maskable);
   return canvas.toDataURL('image/png');
 }

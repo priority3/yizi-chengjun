@@ -9,7 +9,7 @@ import { endlessOptions, playChapter } from '../src/core/sim.ts';
 import { snapshot } from '../src/core/snapshot.ts';
 import { emptyVault } from '../src/core/treasures.ts';
 import type { GameState } from '../src/core/types.ts';
-import { loadProgress, parseProgress, saveProgress } from '../src/platform/web.ts';
+import { loadProgress, parseProgress, saveProgress } from '../src/platform/progress.ts';
 
 const N = CHAPTERS.length;
 const DAY = 20261009;

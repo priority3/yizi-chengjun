@@ -1,6 +1,6 @@
 // The map editor's text formats (plan.md D1): 导出 writes the rows as a TypeScript array laid out exactly like
 // config/maps.ts, 导入 reads that back (or bare rows, or a whole maps.ts entry), and the draft is kept as JSON in
-// localStorage. Pure: the storage is passed in, so tests use an in-memory one.
+// the platform's storage. Pure: the storage is passed in, so tests use an in-memory one.
 import type { MapTheme } from '../config/maps.ts';
 import { clampSide, colsOf, GROUND, LEGEND, makeDraft, MAP_THEMES, MAX_SIDE, MIN_SIDE, resize, type Draft } from './editor-model.ts';
 
@@ -65,7 +65,7 @@ export function importDraft(text: string, current: Draft): Draft | { error: stri
   return resize(d, Math.max(colsOf(d), MIN_SIDE), Math.max(d.rows.length, MIN_SIDE));
 }
 
-// ---- 草稿 (localStorage) -------------------------------------------------------------------------------------------
+// ---- 草稿 (the platform's storage) ---------------------------------------------------------------------------------
 
 /** Where the draft is kept. */
 export const DRAFT_KEY = 'yzcj:editor';

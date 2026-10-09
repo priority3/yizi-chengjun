@@ -3,6 +3,7 @@
 // (a couple per frame, see warmThumbs) and cached, one per chapter.
 import { MAPS } from '../config/maps.ts';
 import { buildMap, type MapData, type Pt } from '../core/map.ts';
+import { offscreen } from '../platform/env.ts';
 import { paintMap } from './map-art.ts';
 import { starPath } from './rating-art.ts';
 import { THEMES } from './scenery.ts';
@@ -48,11 +49,7 @@ export function mapThumb(chapter: number, w: number, h: number, pixelRatio: numb
   const key = sizeKey(w, h, pixelRatio);
   const hit = thumbs[chapter - 1];
   if (hit?.key === key) return hit.img;
-  const img = document.createElement('canvas');
-  img.width = Math.ceil(w * pixelRatio);
-  img.height = Math.ceil(h * pixelRatio);
-  const ctx = img.getContext('2d');
-  if (!ctx) throw new Error('Canvas 2D is not supported in this browser');
+  const { canvas: img, ctx } = offscreen(Math.ceil(w * pixelRatio), Math.ceil(h * pixelRatio));
   ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   paintThumb(ctx, mapOf(chapter), w, h);
   thumbs[chapter - 1] = { key, img };
