@@ -42,8 +42,11 @@ interface StoredRun {
   camera: CameraPos;
 }
 
-/** localStorage, or null where there is none (Node) or it is blocked (private mode, some in-app browsers). */
-function browserStorage(): RunStorage | null {
+/**
+ * localStorage, or null where there is none (Node) or it is blocked (private mode, some in-app browsers). The map
+ * editor keeps its draft there too.
+ */
+export function browserStorage(): RunStorage | null {
   try {
     return globalThis.localStorage ?? null;
   } catch {

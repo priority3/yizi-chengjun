@@ -75,6 +75,8 @@ export interface ResultInfo {
   buttons?: number;
   /** Seconds since the panel appeared: the stars pop in one after another. */
   t: number;
+  /** Whether the panel offers the 分享 seal (all runs but the map editor's 试玩; true when not given). */
+  share?: boolean;
 }
 
 /** Result panel heights; a win's panel grows by one line when it pays the three-star bonus. */
@@ -190,7 +192,7 @@ export function drawResult(ctx: CanvasRenderingContext2D, info: ResultInfo, butt
     text(ctx, `坚持到第 ${g.wave}/${g.totalWaves} 波`, W / 2, r.y + 88, sans(14, 600), '#6a4a26');
     text(ctx, '多合成、多解锁格子；法宝页能炼器变强', W / 2, r.y + 116, sans(11, 500), '#7a6248');
   }
-  drawShareSeal(ctx, r, info.t);
+  if (info.share !== false) drawShareSeal(ctx, r, info.t);
   drawButtons(ctx, r, buttons);
 }
 
@@ -241,6 +243,6 @@ function drawShareSeal(ctx: CanvasRenderingContext2D, panel: Rect, t: number): v
 /** A tap on the result panel: 分享战报 on the seal (once it has stamped down), else one of the stacked buttons. */
 export function tapResult(p: Pointer, info: ResultInfo, buttons: readonly OverlayButton[], share: () => void): void {
   const panel = resultPanel(info);
-  if (info.t >= SEAL_AT && inRect(p.x, p.y, shareButtonRect(panel))) share();
+  if (info.share !== false && info.t >= SEAL_AT && inRect(p.x, p.y, shareButtonRect(panel))) share();
   else tapButtons(p, panel, buttons);
 }

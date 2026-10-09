@@ -20,6 +20,11 @@ export function openEndedBanner(g: GameState, gear: string): BannerText {
   };
 }
 
+/** The banner of the map editor's 试玩: chapter 1's monsters and economy on the edited map. */
+export function testBanner(): BannerText {
+  return { title: '试玩 · 自制地图', sub: '第一章的妖怪和功德 · 不带法宝 · 不存档、不计奖励' };
+}
+
 /** The banner of a resumed run: the wave that comes next, and where. */
 export function resumeBanner(g: GameState): BannerText {
   const sub = '回到这一波开打前，摆好的字都在';
