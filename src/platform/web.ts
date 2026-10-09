@@ -2,6 +2,7 @@
 // gestures, and persists progress (chapters + the 法宝 vault). Everything platform-specific stays in this file.
 import { EQUIP_SLOTS, MAX_TIER } from '../config/treasures.ts';
 import { MAX_STARS } from '../core/rating.ts';
+import { emptyEndlessRecord, type DailyRecord } from '../core/records.ts';
 import { emptyVault, isTreasureId, type Vault } from '../core/treasures.ts';
 import { L, MAX_H, MIN_H, setDesignHeight, W } from '../render/layout.ts';
 import { sprites } from '../render/sprites.ts';
@@ -87,6 +88,10 @@ export interface Progress {
   stars: number[];
   /** Per chapter: the one-time three-star bonus has been paid. */
   starBonus: boolean[];
+  /** Most waves survived in an endless run (core/records.ts). */
+  endlessBest: number;
+  /** The daily challenge's best, for one day at a time (a new day starts over). */
+  daily: DailyRecord;
 }
 
 const STORAGE_KEY = 'zdxy:v3';
@@ -127,6 +132,18 @@ function parseStars(raw: unknown, wins: number): number {
   return Math.min(MAX_STARS, Math.max(1, Math.floor(Number(raw) || 0)));
 }
 
+/** A whole number of at least 0 from a saved value; 0 for anything else (missing, junk, negative, infinite). */
+function whole(raw: unknown): number {
+  const n = Number(raw);
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+}
+
+/** The daily record, with no day and no best for saves made before it existed (or junk). */
+function parseDaily(raw: unknown): DailyRecord {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<DailyRecord>;
+  return { key: whole(r.key), best: whole(r.best) };
+}
+
 /** Parses a saved progress string (null when it isn't one); missing fields get their defaults. Pure. */
 export function parseProgress(raw: string | null, chapters: number): Progress | null {
   if (!raw) return null;
@@ -143,6 +160,8 @@ export function parseProgress(raw: string | null, chapters: number): Progress | 
     sound: parseSound(p.sound),
     stars: wins.map((w, i) => parseStars(stars[i], w)),
     starBonus: wins.map((_, i) => bonus[i] === true),
+    endlessBest: whole(p.endlessBest),
+    daily: parseDaily(p.daily),
   };
 }
 
@@ -156,6 +175,7 @@ function freshProgress(chapters: number): Progress {
     sound: parseSound(null),
     stars: new Array<number>(chapters).fill(0),
     starBonus: new Array<boolean>(chapters).fill(false),
+    ...emptyEndlessRecord(),
   };
 }
 
@@ -180,6 +200,8 @@ export function saveProgress(p: Progress): void {
     sound: { ...p.sound },
     stars: [...p.stars],
     starBonus: [...p.starBonus],
+    endlessBest: p.endlessBest,
+    daily: { ...p.daily },
   };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryCopy));

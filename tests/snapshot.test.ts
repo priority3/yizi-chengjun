@@ -1,9 +1,11 @@
 // 局中存档: a build-phase run survives snapshot -> JSON -> restore exactly and then plays on identically;
 // anything that doesn't fit the current build (version, map layout, phase, fields) is refused.
 import { describe, expect, it } from 'vitest';
+import { ENDLESS_CHAPTER } from '../src/config/endless.ts';
 import { MAPS, type MapDef } from '../src/config/maps.ts';
 import { botBuildAction, DEFAULT_BOT } from '../src/core/bot.ts';
 import { act, createGame, hashState, step } from '../src/core/game.ts';
+import { dailyMapIndex, UNLIMITED } from '../src/core/modes.ts';
 import { mixSeed, type RngHolder } from '../src/core/rng.ts';
 import { isFighter } from '../src/core/slots.ts';
 import { mapKey, restore, snapshot, SNAPSHOT_VERSION, type RunSnapshot, type SnapshotState } from '../src/core/snapshot.ts';
@@ -13,8 +15,8 @@ import { emptyGame, put, TEST_MAP } from './helpers.ts';
 
 /** Same cap as the balance sim: 20 simulated minutes. */
 const MAX_TICKS = 20 * 60 * 60;
-/** Results that changed the board; the bot stops shopping on anything else (as in core/sim.ts). */
-const PROGRESS: ReadonlySet<ActionResult> = new Set<ActionResult>(['ok', 'merge', 'hero', 'divine', 'move', 'swap']);
+/** Results that changed the board; the bot stops shopping on anything else (as in core/sim.ts; only endless runs sell). */
+const PROGRESS: ReadonlySet<ActionResult> = new Set<ActionResult>(['ok', 'merge', 'hero', 'divine', 'move', 'swap', 'sold']);
 
 /** As if the snapshot went to localStorage and back. */
 const viaJson = (s: RunSnapshot | null): RunSnapshot => JSON.parse(JSON.stringify(s)) as RunSnapshot;
@@ -321,5 +323,85 @@ describe('resumed runs play on identically', () => {
     expect(hopped.phase).toBe(plain.phase);
     expect(hopped.tick).toBe(plain.tick);
     expect(hashState(hopped)).toBe(hashState(plain));
+  });
+});
+
+describe('endless and daily snapshots', () => {
+  const DAY = 20261005;
+  const endless = (seed: number) => createGame({ seed, chapter: ENDLESS_CHAPTER, mode: 'endless' });
+  const daily = (day: number) => createGame({ seed: day, chapter: 1, mode: 'daily' });
+  const patch = (s: RunSnapshot, p: Partial<Record<keyof SnapshotState, unknown>>): RunSnapshot =>
+    ({ ...s, state: { ...s.state, ...p } }) as RunSnapshot;
+
+  it('round-trip an endless run mid-way through JSON, its missing last wave included, and play on identically', () => {
+    const seed = 7919;
+    const luck = { rng: mixSeed(seed, 99) };
+    const g = play(endless(seed), luck, (x) => (x.wave === 6 ? null : x));
+    expect([g.phase, g.wave]).toEqual(['build', 6]);
+    const json = JSON.stringify(snapshot(g));
+    // Reason: Infinity would come back from JSON as null; the unlimited total is a plain 0.
+    expect(json).toContain(`"totalWaves":${UNLIMITED}`);
+    expect(json).toContain('"mode":"endless"');
+    const r = restore(JSON.parse(json) as RunSnapshot);
+    expect(r).not.toBeNull();
+    if (!r) return;
+    expect(stateText(r)).toBe(stateText(g));
+    expect(hashState(r)).toBe(hashState(g));
+    // Both play on to wave 12's build phase (or their fall): an endless run can outlast the helper's time cap.
+    const luckR = { ...luck };
+    const until12 = (x: GameState): GameState | null => (x.wave >= 12 ? null : x);
+    const a = play(g, luck, until12);
+    const b = play(r, luckR, until12);
+    expect(a.wave).toBeGreaterThan(9);
+    expect([b.phase, b.wave, b.tick]).toEqual([a.phase, a.wave, a.tick]);
+    expect(hashState(b)).toBe(hashState(a));
+  });
+
+  it('can save and resume a daily run on a map with 泥沼 at every build phase without changing the outcome', () => {
+    expect(daily(DAY).map.slotKind).toContain('mire');
+    const plain = play(daily(DAY), { rng: mixSeed(DAY, 99) });
+    let resumes = 0;
+    const hopped = play(daily(DAY), { rng: mixSeed(DAY, 99) }, (x) => {
+      const r = restore(viaJson(snapshot(x)));
+      expect(r && stateText(r)).toBe(stateText(x));
+      expect(r?.mode).toBe('daily');
+      resumes++;
+      return r;
+    });
+    expect(resumes).toBeGreaterThan(5);
+    expect([hopped.phase, hopped.wave, hopped.tick]).toEqual([plain.phase, plain.wave, plain.tick]);
+    expect(hashState(hopped)).toBe(hashState(plain));
+  });
+
+  it('rebuild a daily run on the map of its day', () => {
+    const s = viaJson(snapshot(daily(DAY)));
+    expect(s.mapKey).toBe(mapKey(MAPS[dailyMapIndex(DAY)]));
+    expect(restore(s)?.map.slots).toEqual(daily(DAY).map.slots);
+    // Another day, on another map, can't pass for it.
+    expect(restore(patch(s, { seed: DAY + 1 }))).toBeNull();
+  });
+
+  it('reject open-ended saves whose wave counters or chapter do not fit their mode, and unknown modes', () => {
+    const e = viaJson(snapshot(endless(3)));
+    const c = viaJson(snapshot(createGame({ seed: 3, chapter: ENDLESS_CHAPTER })));
+    expect(restore(e)).not.toBeNull();
+    expect(restore(patch(e, { totalWaves: 8 }))).toBeNull();
+    expect(restore(patch(e, { totalWaves: null }))).toBeNull();
+    expect(restore(patch(e, { chapter: 9 }))).toBeNull();
+    expect(restore(patch(e, { mode: 'arena' }))).toBeNull();
+    // A chapter run always has a last wave.
+    expect(restore(patch(c, { totalWaves: UNLIMITED }))).toBeNull();
+    // An endless run has no last wave to be past, however far it got.
+    expect(restore(patch(e, { wave: 57 }))?.wave).toBe(57);
+  });
+
+  it('read a save from before the modes existed as a chapter run', () => {
+    const g = createGame({ seed: 9, chapter: 4 });
+    const old = viaJson(snapshot(g));
+    delete (old.state as Partial<SnapshotState>).mode;
+    const r = restore(old);
+    expect(r?.mode).toBe('chapter');
+    expect(r && hashState(r)).toBe(hashState(g));
+    expect(r && stateText(r)).toBe(stateText(g));
   });
 });

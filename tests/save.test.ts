@@ -43,7 +43,7 @@ describe('run save', () => {
     g.wave = 3;
     expect(saveRun(g, camera, store)).toBe(true);
     expect([...store.data.keys()]).toEqual([RUN_KEY]);
-    expect(peekRun(store)).toEqual({ chapter: 3, wave: 4 });
+    expect(peekRun(store)).toEqual({ chapter: 3, wave: 4, mode: 'chapter', day: 0 });
     const run = loadRun(store);
     expect(run).not.toBeNull();
     expect(run && hashState(run.g)).toBe(hashState(g));
@@ -61,7 +61,7 @@ describe('run save', () => {
     g.wave = 1;
     // Like the live Camera, which also holds the map: only x, y and zoom are stored.
     saveRun(g, { ...camera, map: g.map } as typeof camera, store);
-    expect(peekRun(store)).toEqual({ chapter: 1, wave: 2 });
+    expect(peekRun(store)).toEqual({ chapter: 1, wave: 2, mode: 'chapter', day: 0 });
     const stored = JSON.parse(store.getItem(RUN_KEY) ?? '{}') as { camera: object; snapshot: { v: number } };
     expect(Object.keys(stored.camera)).toEqual(['x', 'y', 'zoom']);
     expect(stored.snapshot.v).toBe(SNAPSHOT_VERSION);
@@ -91,7 +91,7 @@ describe('run save', () => {
     expect(loadRun(store)).toBeNull();
     expect(peekRun(store)).toBeNull();
     store.setItem(RUN_KEY, good);
-    expect(peekRun(store)).toEqual({ chapter: 2, wave: 1 });
+    expect(peekRun(store)).toEqual({ chapter: 2, wave: 1, mode: 'chapter', day: 0 });
   });
 
   it('never throws when storage is blocked, full or missing', () => {
@@ -103,5 +103,35 @@ describe('run save', () => {
     expect(saveRun(g, camera, null)).toBe(false);
     expect(loadRun(null)).toBeNull();
     expect(() => clearRun(null)).not.toThrow();
+  });
+});
+
+describe('endless and daily run saves', () => {
+  const DAY = 20261009;
+
+  it('save and resume an endless run like a chapter, labelled by its mode', () => {
+    const store = new MemoryStorage();
+    const g = createGame({ seed: 77, chapter: 10, mode: 'endless' });
+    g.wave = 11;
+    expect(saveRun(g, camera, store)).toBe(true);
+    expect(peekRun(store, DAY)).toEqual({ chapter: 10, wave: 12, mode: 'endless', day: 0 });
+    const run = loadRun(store, DAY);
+    expect(run?.g.mode).toBe('endless');
+    expect(run && hashState(run.g)).toBe(hashState(g));
+  });
+
+  it('keep today\'s daily challenge, and drop one saved on another day', () => {
+    const store = new MemoryStorage();
+    const g = createGame({ seed: DAY, chapter: 1, mode: 'daily' });
+    g.wave = 4;
+    saveRun(g, camera, store);
+    expect(peekRun(store, DAY)).toEqual({ chapter: 10, wave: 5, mode: 'daily', day: DAY });
+    expect(loadRun(store, DAY)?.g.seed).toBe(DAY);
+    // The next day the save is out of date: no save, and it is deleted.
+    expect(peekRun(store, DAY + 1)).toBeNull();
+    expect(store.data.size).toBe(0);
+    saveRun(g, camera, store);
+    expect(loadRun(store, DAY + 1)).toBeNull();
+    expect(loadRun(store, DAY)).toBeNull();
   });
 });
