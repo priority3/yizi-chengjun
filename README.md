@@ -84,16 +84,19 @@ A/a  法阵（伤害 +20%）  H/h 高台（射程 +30）  M/m 泥沼（只能放
 
 | 目录 | 内容 |
 |---|---|
+| `src/` | `boot.ts` 是各平台共用的启动流程（画布、字体、场景、输入、帧循环、切后台暂停）；`main.ts` 是网页入口：装上网页平台再启动，并加上只有网页版才有的地图编辑器、离线缓存和控制台调试钩子 |
 | `src/config/` | 数值表：字卡、组合、妖怪、章节与经济、英雄大招、法宝；`maps.ts` 是十张 ASCII 地图；`endless.ts` 是无尽和每日的规则数值；`brand.ts` 是游戏名和副标题；`terms.ts` 是合规词表（货币、守护对象、强化字与强化名、奇遇名、第 10 章名与通关标题、结算用词），玩家看到的这些词都从这里取；`legal.ts` 是隐私政策、用户协议、适龄提示和健康游戏忠告的文本；`sounds.ts` 是每种事件对应的合成音配方 |
 | `src/core/` | 纯逻辑，固定步长 1/60 秒，带种子随机数，同种子可完全重放；`map.ts` 把 ASCII 图变成路线、航线和石台，`monsters.ts` 的 `routeOf` 取妖怪实际走的路线，`slots.ts` 是特殊石台的放置规则和加成，`rating.ts` 是星级和三星奖励，`modes.ts` 是无尽和每日的规则（无限波、每日地图、狂暴），`records.ts` 是它们的记录和灵石，`status.ts` 是毒和网的状态，`buffs.ts` 是速和鼓的加成，`mirror.ts` 是镜的反弹，`ultimates.ts` 大招、`encounters.ts` 奇遇、`treasures.ts` 法宝库、`snapshot.ts` 局中存档的序列化与逐字段校验；`bot.ts` 是给模拟用的机器人（新字卡的估值在 `bot-cards.ts`），`sim.ts`、`sim-trace.ts` 跑胜率表和逐波追踪 |
 | `src/render/` | 画面：自适应布局、镜头（`camera.ts`）、地图与景物绘制（`map-art.ts`、`scenery.ts`）、带材质边框和按等级变化插画的字卡（`cards.ts`、`unit-art.ts`，毒网鼓镜在 `unit-art-extra.ts`、它们的特效在 `fx-cards.ts`）、英雄头像、妖怪与它们的朝向和步态（`monster-pose.ts`、零件画法在 `monster-parts.ts`）、特殊石台（`pad-art.ts`，符文环、瞄准角标和拖卡提示在 `slot-marks.ts`）、选章卡片和地图缩略图（`chapter-card.ts`、`map-thumb.ts`、星星在 `rating-art.ts`）、无尽和每日的入口卡片（`mode-card.ts`）、适龄标识（`age-badge.ts`）、中文换行（`text-wrap.ts`）、战报卡片（`share-card.ts`，宣纸、边框和印章在 `share-art.ts`）、应用图标（`app-icon.ts`）和新版本横幅（`update-banner.ts`）、特效与大招动画、把事件变成音效的 `sfx.ts`、HUD、商店、奇遇面板、法宝图标、引导用的手（`hand.ts`） |
 | `src/ui/` | 输入（点、拖、双指捏合、滚轮）、各场景（标题、选章、对局与结算、法宝页）、拖卡与镜头手势（`map-controls.ts`）、字卡说明（`describe.ts`）、新手引导动画（`tutorial.ts`）、选章页排版（`chapter-layout.ts`）、无尽结算面板（`endless-result.ts`）、开局横幅（`run-banners.ts`）、启动合规屏（`splash-scene.ts`、计时在 `splash-clock.ts`）、关于页（`about-scene.ts`、`about-layout.ts`、滚动在 `scroller.ts`）、首页排版（`title-layout.ts`）、生成战报数据并分享（`share-result.ts`）、结算记账（`run-end.ts`）；地图编辑器在 `editor-scene.ts`，编辑模型、检查、导入导出和界面分别在 `editor-model.ts`、`editor-check.ts`、`editor-text.ts`、`editor-panels.ts`、`editor-layout.ts`，画法在 `render/editor-draw.ts` |
-| `src/platform/` | `web.ts` 画布适配、移动端手势屏蔽、长期存档（章节进度、星级、法宝库、声音设置，兼容旧存档）；`save.ts` 局中存档；`audio.ts` 音频引擎（解锁、总线、限幅）；`music.ts` 五声音阶背景音乐；`pwa.ts` 注册离线缓存并提示新版本；`share.ts` 系统分享和保存图片层（游戏里唯一的 DOM 界面）；`today.ts` 每日挑战用的本地日期；`site.ts` 当前域名；`editor-io.ts` 编辑器的网址、剪贴板和输入框 |
+| `src/platform/` | `env.ts` 是平台接口（屏幕与离屏画布、时钟与帧、指针输入、书法字体、存储、音频、前后台、分享），游戏只通过 `platform()` 用设备能力；`web.ts` 是它的网页实现（画布适配、移动端手势屏蔽），指针事件在 `web-input.ts`；`progress.ts` 长期存档（章节进度、星级、法宝库、声音设置、无尽和每日记录，兼容旧存档）；`save.ts` 局中存档；`audio.ts` 音频引擎（解锁、总线、限幅）；`music.ts` 五声音阶背景音乐；`pwa.ts` 注册离线缓存并提示新版本；`share.ts` 系统分享和保存图片层（游戏里唯一的 DOM 界面）；`today.ts` 每日挑战用的本地日期；`editor-io.ts` 编辑器的网址、剪贴板和输入框 |
 | `build/` | 打包插件：`sw-plugin.ts` 在打包时把手写的 `sw-template.js` 填上预缓存清单和缓存名，写成 `dist/sw.js`；`precache.ts` 是可测的纯函数。应用图标不进预缓存 |
 
 改完数值后跑 `pnpm sim` 看胜率表，`--leaks` 找崩盘的波。当前不带法宝的机器人胜率从第 1 章约 98% 逐章降到第 10 章约 13%（`pnpm sim 40`：100/93/85/65/70/50/45/38/23/13；200 局更稳，是 98/90/77/72/66/54/50/43/19/14）；`tests/sim.test.ts` 用 20 个固定种子把关：第 1 章不低于 85%、第 10 章不高于 20%、后一章不会比前一章高出 30 个百分点以上。带三件一阶法宝（`pnpm sim 40 金刚琢,照妖镜,定风珠`）各章再涨约 10～25 个百分点，第 10 章涨得最少（100 局里 10% 到 18%）。无尽模式机器人平均倒在第 14 波左右（`pnpm sim --endless 80`，约九成落在 12～25 波）。每多一种兵字，机器人的合成就更分散，所以加新卡后要重调各图的 `hp`。真人会摆位、会凑合成、会挑奇遇，一般比机器人打得好。
 
 面向玩家的文字有合规要求：`tests/compliance.test.ts` 扫描 `src/` 下所有代码（含注释），宗教用语（功德、神佛、寺庙、经文一类）和暴力用语（击杀、斩杀一类）一旦被写进来测试就会失败；新文字请用 `src/config/terms.ts` 里的词。
+
+画面、界面和核心层不直接调用浏览器：`tests/platform-boundary.test.ts` 只允许网页入口和网页平台文件出现 `window`、`document` 这类浏览器全局。需要新的设备能力时，先加到 `src/platform/env.ts` 的接口里，再在 `web.ts` 实现，这样小游戏版只需补自己的那一份。
 
 每章都从小经济重新开始，开局铜钱第 1 章 70、之后每章多 6（`startGongde`），而妖怪血量逐章上涨（`CHAPTERS` 的 `hpStart` 管第一波、`hpGrowth` 管逐波增长；第 4、5、8、10 章首波较软、后程更陡，避免第一波就定胜负），所以后面的章节击败和清波的铜钱收入也按章节递增（`INCOME_GROWTH`），否则后期根本攒不出伤害。
 
