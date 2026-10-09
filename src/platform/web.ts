@@ -1,6 +1,7 @@
 // Browser glue: fits the canvas to the screen (DPR-aware, adaptive design height), blocks mobile browser
 // gestures, and persists progress (chapters + the 法宝 vault). Everything platform-specific stays in this file.
 import { EQUIP_SLOTS, MAX_TIER } from '../config/treasures.ts';
+import { MAX_STARS } from '../core/rating.ts';
 import { emptyVault, isTreasureId, type Vault } from '../core/treasures.ts';
 import { L, MAX_H, MIN_H, setDesignHeight, W } from '../render/layout.ts';
 import { sprites } from '../render/sprites.ts';
@@ -82,6 +83,10 @@ export interface Progress {
   /** The chapter-1 animated guide has been completed. */
   tutorialDone: boolean;
   sound: SoundSettings;
+  /** Best star rating per chapter (see core/rating.ts): 1..3, or 0 when not rated (not cleared since ratings exist). */
+  stars: number[];
+  /** Per chapter: the one-time three-star bonus has been paid. */
+  starBonus: boolean[];
 }
 
 const STORAGE_KEY = 'zdxy:v3';
@@ -111,18 +116,44 @@ export function parseSound(raw: unknown): SoundSettings {
   return { muted: r.muted === true, music: r.music !== false };
 }
 
+/**
+ * Best stars of one chapter, 0..3. Saves from before ratings existed have none (0), even for cleared chapters.
+ * Reason: a chapter without a clear can't carry stars, so junk in a hand-edited save can't rate it.
+ */
+function parseStars(raw: unknown, wins: number): number {
+  if (wins <= 0) return 0;
+  return Math.min(MAX_STARS, Math.max(0, Math.floor(Number(raw) || 0)));
+}
+
 /** Parses a saved progress string (null when it isn't one); missing fields get their defaults. Pure. */
 export function parseProgress(raw: string | null, chapters: number): Progress | null {
   if (!raw) return null;
   const p = JSON.parse(raw) as Partial<Progress>;
   if (typeof p.unlocked !== 'number' || !Array.isArray(p.wins)) return null;
   const wins = Array.from({ length: chapters }, (_, i) => Number(p.wins?.[i]) || 0);
+  const stars = (Array.isArray(p.stars) ? p.stars : []) as unknown[];
+  const bonus = (Array.isArray(p.starBonus) ? p.starBonus : []) as unknown[];
   return {
     unlocked: Math.min(chapters, Math.max(1, p.unlocked)),
     wins,
     vault: parseVault(p.vault),
     tutorialDone: p.tutorialDone === true,
     sound: parseSound(p.sound),
+    stars: wins.map((w, i) => parseStars(stars[i], w)),
+    starBonus: wins.map((_, i) => bonus[i] === true),
+  };
+}
+
+/** Progress of a brand-new player. */
+function freshProgress(chapters: number): Progress {
+  return {
+    unlocked: 1,
+    wins: new Array<number>(chapters).fill(0),
+    vault: emptyVault(),
+    tutorialDone: false,
+    sound: parseSound(null),
+    stars: new Array<number>(chapters).fill(0),
+    starBonus: new Array<boolean>(chapters).fill(false),
   };
 }
 
@@ -135,7 +166,7 @@ export function loadProgress(chapters: number): Progress {
   } catch {
     // Storage blocked (private mode / some in-app browsers): fall back to the in-memory copy below.
   }
-  return memoryCopy ?? { unlocked: 1, wins: new Array<number>(chapters).fill(0), vault: emptyVault(), tutorialDone: false, sound: parseSound(null) };
+  return memoryCopy ?? freshProgress(chapters);
 }
 
 export function saveProgress(p: Progress): void {
@@ -145,6 +176,8 @@ export function saveProgress(p: Progress): void {
     vault: { stones: p.vault.stones, treasures: p.vault.treasures.map((s) => ({ ...s })), equipped: [...p.vault.equipped] },
     tutorialDone: p.tutorialDone,
     sound: { ...p.sound },
+    stars: [...p.stars],
+    starBonus: [...p.starBonus],
   };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryCopy));
