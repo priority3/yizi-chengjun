@@ -1,6 +1,7 @@
 // Scene manager plus the title screen and the chapter select screen.
 import { CHAPTERS } from '../config/chapters.ts';
 import { STAR_BONUS, THREE_STAR_PCT, TWO_STAR_PCT } from '../core/rating.ts';
+import { applyPwaUpdate, pwaUpdateReady, pwaUpdating } from '../platform/pwa.ts';
 import { clearRun, loadRun, peekRun, type RunInfo } from '../platform/save.ts';
 import { loadProgress, saveProgress, type Progress, type Stage } from '../platform/web.ts';
 import { ChapterCards, thumbRect, type ChapterCard } from '../render/chapter-card.ts';
@@ -10,6 +11,7 @@ import { drawPortrait, type PortraitId } from '../render/heroes-art.ts';
 import { inRect, L, W, type Rect } from '../render/layout.ts';
 import { peekThumb, warmThumbs } from '../render/map-thumb.ts';
 import { NUMERALS } from '../render/panels.ts';
+import { drawUpdateBanner, updateBannerHit } from '../render/update-banner.ts';
 import { BACK, backdrop, drawButton, drawPanel } from '../render/widgets.ts';
 import { GameScene } from './game-scene.ts';
 import type { GestureHandlers, Pointer } from './input.ts';
@@ -142,9 +144,15 @@ class TitleScene implements Scene {
     // Faint version label for telling deployments apart when something needs debugging.
     // Reason: the host tells apart the entry points (vercel.app, a custom domain, localhost) when a player reports a bug.
     text(ctx, `v${__APP_VERSION__} · ${__APP_BUILD__} · ${location.host}`, W - 8, L.H - 9, sans(9, 500), 'rgba(255,240,210,0.45)', 'right');
+    // A newer build is installed and waiting (production only, see platform/pwa.ts).
+    if (pwaUpdateReady()) drawUpdateBanner(ctx, this.t, pwaUpdating());
   }
 
   tap(p: Pointer): void {
+    if (pwaUpdateReady() && inRect(p.x, p.y, updateBannerHit())) {
+      applyPwaUpdate();
+      return;
+    }
     if (this.run && inRect(p.x, p.y, this.continueRect())) {
       // Reason: resume() only fails if the save went bad since the screen opened; then drop the button.
       if (!this.nav.resume()) this.run = null;
