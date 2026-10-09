@@ -1,6 +1,8 @@
 // Entry point: sets up the stage, waits for the brush font, then runs the scene loop.
 import { audio } from './platform/audio.ts';
+import { registerServiceWorker } from './platform/pwa.ts';
 import { createStage, installGuards } from './platform/web.ts';
+import { appIconDataUrl } from './render/app-icon.ts';
 import { loadFonts } from './render/fonts.ts';
 import { L, W } from './render/layout.ts';
 import { sprites } from './render/sprites.ts';
@@ -11,6 +13,8 @@ declare global {
   interface Window {
     /** Dev-only handle for inspecting game state from the console. */
     __zdxy?: SceneManager;
+    /** Dev-only: the app icon as a PNG data URL (`maskable` = full-bleed, emblem inside the safe zone). */
+    __zdxyIcon?: (size: number, maskable?: boolean) => string;
   }
 }
 
@@ -49,6 +53,10 @@ function armAudioUnlock(): void {
 }
 armAudioUnlock();
 if (import.meta.env.DEV) window.__zdxy = scenes;
+// Exports public/icons/*.png from the browser console (the project has no image assets or Node canvas).
+if (import.meta.env.DEV) window.__zdxyIcon = appIconDataUrl;
+// Offline play and the 有新版本 banner; a no-op in dev and wherever service workers are unavailable.
+registerServiceWorker();
 
 let last = performance.now();
 

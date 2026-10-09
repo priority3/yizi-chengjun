@@ -8,6 +8,13 @@
     />
     <meta name="theme-color" content="#1d1714" />
     <link rel="icon" href="data:," />
+    <!-- PWA: install + offline (dist/sw.js comes from build/sw-plugin.ts). Icons are painted by src/render/app-icon.ts. -->
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="字斗西游" />
     <title>字斗西游</title>
     <style>
       /* 马善政楷书 (Ma Shan Zheng, SIL OFL 1.1 — see fonts/OFL.txt), subset by scripts/subset-font.py */
