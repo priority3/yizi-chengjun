@@ -16,13 +16,13 @@ export const CHAPTERS: readonly ChapterDef[] = [
   { id: 1, name: '白虎岭', boss: '白骨精', waves: 5, hpStart: 1.05, hpGrowth: 1.19 },
   { id: 2, name: '黄风岭', boss: '黄风怪', waves: 5, hpStart: 1.2, hpGrowth: 1.245 },
   { id: 3, name: '平顶山', boss: '金角大王', waves: 6, hpStart: 1.35, hpGrowth: 1.28 },
-  { id: 4, name: '火云洞', boss: '红孩儿', waves: 6, hpStart: 1.5, hpGrowth: 1.315 },
-  { id: 5, name: '黑风山', boss: '黑熊精', waves: 6, hpStart: 1.5, hpGrowth: 1.37 },
+  { id: 4, name: '火云洞', boss: '红孩儿', waves: 6, hpStart: 1.3, hpGrowth: 1.355 },
+  { id: 5, name: '黑风山', boss: '黑熊精', waves: 6, hpStart: 1.3, hpGrowth: 1.41 },
   { id: 6, name: '通天河', boss: '灵感大王', waves: 7, hpStart: 1.65, hpGrowth: 1.385 },
   { id: 7, name: '盘丝洞', boss: '蜘蛛精', waves: 7, hpStart: 1.85, hpGrowth: 1.41 },
-  { id: 8, name: '火焰山', boss: '牛魔王', waves: 7, hpStart: 1.9, hpGrowth: 1.45 },
+  { id: 8, name: '火焰山', boss: '牛魔王', waves: 7, hpStart: 1.6, hpGrowth: 1.49 },
   { id: 9, name: '狮驼岭', boss: '金翅大鹏', waves: 8, hpStart: 2.15, hpGrowth: 1.475 },
-  { id: 10, name: '小雷音寺', boss: '黄眉大王', waves: 8, hpStart: 2.45, hpGrowth: 1.475 },
+  { id: 10, name: '小雷音寺', boss: '黄眉大王', waves: 8, hpStart: 1.8, hpGrowth: 1.547 },
 ];
 
 export const START_GONGDE = 70;

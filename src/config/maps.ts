@@ -132,7 +132,7 @@ export const MAPS: readonly MapDef[] = [
   },
   {
     theme: 'fire',
-    hp: 1.2,
+    hp: 1.42,
     rows: [
       '1##########.',
       '.~~.......#.',
@@ -154,7 +154,7 @@ export const MAPS: readonly MapDef[] = [
   },
   {
     theme: 'forest',
-    hp: 1.45,
+    hp: 1.63,
     rows: [
       '.1..........2.',
       '.#..O.TT.O..#.',
@@ -202,7 +202,7 @@ export const MAPS: readonly MapDef[] = [
   },
   {
     theme: 'web',
-    hp: 1.05,
+    hp: 1.12,
     rows: [
       '1.........2.',
       '#....T....#.',
@@ -224,7 +224,7 @@ export const MAPS: readonly MapDef[] = [
   },
   {
     theme: 'flame',
-    hp: 1.6,
+    hp: 1.86,
     rows: [
       '1############.',
       '.T.M......~~#.',
@@ -248,7 +248,7 @@ export const MAPS: readonly MapDef[] = [
   },
   {
     theme: 'lion',
-    hp: 0.92,
+    hp: 0.88,
     rows: [
       '.1..........2.',
       '.#..T....T..#.',
@@ -272,7 +272,7 @@ export const MAPS: readonly MapDef[] = [
   },
   {
     theme: 'temple',
-    hp: 1.35,
+    hp: 1.6,
     rows: [
       '.1..........2.',
       '.#....TT....#.',

@@ -32,7 +32,7 @@ describe('headless chapter runs', () => {
   });
 
   it('get harder toward the last chapter', () => {
-    // On this seed family the gap measures 80 points today (90% -> 10%); 0.3 keeps the guarantee
+    // On this seed family the gap measures 85 points today (95% -> 10%); 0.3 keeps the guarantee
     // meaningful without pinning it to one exact tuning pass.
     expect(winRate(CHAPTERS.length)).toBeLessThan(winRate(1) - 0.3);
   });
@@ -47,6 +47,9 @@ describe('headless chapter runs', () => {
  * - Chapter 10 ≤ 20: today 10; above 20 in 2 of the 40 families.
  * - Rise ≤ 30 points: today's biggest rises are +20 (3→4, 6→7). A +15 limit would trip on 40% of the families,
  *   +25 on 8%, +30 on none — so this flags real inversions without failing on noise. Finer checks: `pnpm sim 40`.
+ * v0.6 (special pads, flyers, retuned maps) reads 95 70 60 50 70 35 55 60 25 10 here; on 200 seeds the curve is
+ * 99 90 77 70 66 55 49 43 20 13. This family runs lucky on chapter 10: right after merging it read 35 while ten
+ * other 20-seed families averaged 11, so judge a failure here against a bigger sample before retuning for it.
  */
 const CHAPTER1_MIN = 85;
 const LAST_MAX = 20;
