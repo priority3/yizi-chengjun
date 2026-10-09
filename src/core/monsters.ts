@@ -6,7 +6,7 @@ import { MAP_SPEED } from '../config/maps.ts';
 import { DT } from './clock.ts';
 import { pathPoint, type PathData } from './map.ts';
 import { rand } from './rng.ts';
-import { waveHp } from './waves.ts';
+import { runWaveHp } from './waves.ts';
 import type { Enemy, GameState } from './types.ts';
 
 /** The line `e` follows: its entrance's road, or for a flyer the straight flight line from that entrance to the camp. */
@@ -55,7 +55,7 @@ export function placeOnRoad(g: GameState, e: Enemy): void {
 /** Spawns `count` minions just behind `near` on its road, at the current wave's strength — used by summon and split. */
 export function spawnMinions(g: GameState, def: string, count: number, near: Enemy): void {
   const d = ENEMIES[def];
-  const hp = Math.round(waveHp(def, g.chapter, Math.max(1, g.wave)) * g.map.hpScale);
+  const hp = Math.round(runWaveHp(g, def, Math.max(1, g.wave)) * g.map.hpScale);
   for (let i = 0; i < count; i++) {
     const dist = Math.max(0, near.dist - 12 - rand(g) * 30);
     const side = (rand(g) - 0.5) * 2;

@@ -178,6 +178,12 @@ export interface ShopOffer {
 
 export type Phase = 'build' | 'battle' | 'won' | 'lost';
 
+/**
+ * What kind of run: a chapter (fixed waves, its boss last), or one of the open-ended runs that go on until the camp
+ * falls: 'endless', or 'daily' (the daily challenge, whose seed is the day, YYYYMMDD). See core/modes.ts.
+ */
+export type GameMode = 'chapter' | 'endless' | 'daily';
+
 export type Action =
   | { t: 'buy'; offer: number; cell: number }
   | { t: 'drop'; from: number; to: number | 'sell' }
@@ -286,13 +292,16 @@ export type SimEvent =
 
 export interface GameState {
   seed: number;
+  /** The chapter whose rules the run plays by: always the last one (ENDLESS_CHAPTER) in endless and daily runs. */
   chapter: number;
+  mode: GameMode;
   /** The chapter's map: roads, slots, camp. Built once per run, never mutated. */
   map: MapData;
   tick: number;
   phase: Phase;
   /** Current wave (1-based) during battle; waves already cleared during build. */
   wave: number;
+  /** Waves in the run; UNLIMITED (0, see core/modes.ts) in endless and daily runs, which have no last wave. */
   totalWaves: number;
   /** Seconds since the current wave started. */
   waveTime: number;
