@@ -193,7 +193,7 @@ function bailong(ctx: CanvasRenderingContext2D, x: number, y: number, r: number)
 function master(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
   const lw = Math.max(1, r * 0.08);
   circle(ctx, x, y + r * 0.08, r * 0.8, '#f6d7b5', lw);
-  // 毗卢帽: a golden crown of five petals on a red band.
+  // A golden crown of five petals on a red band.
   for (let i = 0; i < 5; i++) {
     const px = x + (i - 2) * r * 0.3;
     ctx.beginPath();

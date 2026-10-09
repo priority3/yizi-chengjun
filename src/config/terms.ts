@@ -49,3 +49,6 @@ export const DEFEAT = '击败';
 
 /** 沙僧's finishing blow on a weakened monster: his label and description, and the 法宝 that raises its threshold. */
 export const SUBDUE = '收服';
+
+/** The brush mark that floats over a monster 沙僧 finishes off (the first character of SUBDUE). */
+export const SUBDUE_MARK = SUBDUE[0];

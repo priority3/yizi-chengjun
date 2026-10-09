@@ -30,7 +30,7 @@ export const ENCOUNTERS: Record<EncounterId, EncounterDef> = {
   妖风大作: { id: '妖风大作', kind: 'challenge', desc: '下一波妖怪快 40%，赏金和波次奖励翻倍' },
   月圆之夜: { id: '月圆之夜', kind: 'challenge', desc: '下一波妖怪多 50% 血，赏金 ×2.5' },
   狼群来袭: { id: '狼群来袭', kind: 'challenge', desc: '下一波全是狼，数量 ×1.5，赏金翻倍' },
-  盗宝妖: { id: '盗宝妖', kind: 'challenge', desc: `下一波混进一只小偷：摸到阵地偷 30 ${CURRENCY}，杀掉得 30` },
+  盗宝妖: { id: '盗宝妖', kind: 'challenge', desc: `下一波混进一只小偷：摸到阵地偷 30 ${CURRENCY}，击败得 30` },
   妖王亲临: { id: '妖王亲临', kind: 'challenge', desc: '下一波末尾来一只半血妖王，赏金 60' },
 };
 

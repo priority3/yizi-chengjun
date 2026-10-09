@@ -21,6 +21,8 @@ const BANNED: ReadonlyArray<readonly [word: string, use: string]> = [
   ['\u52ab\u96be', 'TRIAL 考验'], // jienan, "tribulation": the encounter category of harder waves
   ['\u51fb\u6740', 'DEFEAT 击败'], // jisha, "kill": result panels and the share text
   ['\u65a9\u6740', 'SUBDUE 收服'], // zhansha, "execute": 沙僧 and the 法宝 that helps him
+  ['\u65a9', 'SUBDUE 收服 / 连击'], // zhan, "behead": 沙僧's ultimate and the mark it leaves
+  ['\u6740', 'DEFEAT 击败'], // sha, "kill": in any word
 ];
 
 /** The strengthening card's old glyph (shen, "god"), allowed only as the card's internal id. */

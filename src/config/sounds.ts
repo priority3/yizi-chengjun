@@ -193,7 +193,7 @@ export const SOUNDS: Record<SoundId, Voice[]> = {
   kill: [noise(0.12, 0.15, lp(2400, 400)), tone('sine', 320, 160, 0.08, 0.1)],
   // Reason: two drum hits on top of a bigger burst, so a boss falling stands out from the minions dying around it.
   bossKill: [noise(0.3, 0.2, lp(2000, 200)), ...drum(80, 0, 0.42), ...drum(80, 0.22, 0.42)],
-  // 斩: a sharp slash.
+  // 沙僧 finishing a monster off (收服): a sharp slash.
   execute: [noise(0.09, 0.14, hp(3000, 7000)), tone('sine', 2600, 700, 0.08, 0.07)],
   // A boss getting back up: a rising shimmer.
   revive: [tone('sine', 220, 880, 0.4, 0.11, { attack: 0.06 }), tone('triangle', 330, 1320, 0.4, 0.04, { attack: 0.06 }), noise(0.4, 0.04, hp(3000, 8000), { attack: 0.1 })],

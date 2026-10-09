@@ -3,7 +3,7 @@
 // drawn under the camera, except the boss vignette, which the renderer paints in screen space from `introDim()`;
 // nothing feeds back into the simulation, so it may use Math.random freely.
 import { ENEMIES, traitText } from '../config/enemies.ts';
-import { CURRENCY, TRIAL } from '../config/terms.ts';
+import { CURRENCY, SUBDUE_MARK, TRIAL } from '../config/terms.ts';
 import { ULTIMATES } from '../config/ultimates.ts';
 import { glyphOf, UNITS } from '../config/units.ts';
 import { encounterName, ENCOUNTERS, KIND_LABEL } from '../core/encounters.ts';
@@ -260,7 +260,7 @@ export class Vfx {
           break;
         case 'execute':
           this.add('slash', e.x, e.y, 0, 0, '#ffffff', 22, 0.35);
-          this.float(e.x, e.y - 18, '斩', '#e0302a', 30, true, 0.8);
+          this.float(e.x, e.y - 18, SUBDUE_MARK, '#e0302a', 30, true, 0.8);
           break;
         case 'buy':
         case 'unlock': {
