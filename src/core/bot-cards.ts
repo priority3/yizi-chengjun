@@ -12,6 +12,14 @@ export const SUPPORT_VALUE = 12;
 /** A 网's worth per level: a little below a plain 箭 (about 10.7), when the bot wants one at all (see wantsNet). */
 export const NET_VALUE = 8;
 
+/** A 镜's worth per level, as a share of SUPPORT_VALUE: `calm` with a full camp, plus `hurt` times the share of HP lost. */
+export const MIRROR_VALUE = { calm: 0.5, hurt: 1.5 } as const;
+/**
+ * Share of a needle's full poison (poisonPerHit) the bot counts on. Reason: a stack only pays in full on a monster
+ * that lives through it; measured over bot runs (`pnpm sim`), 毒's poison dealt about half its nominal damage.
+ */
+export const POISON_SHARE = 0.5;
+
 /**
  * Whether the bot would buy the 网 `id`: one net, and only with a boss or the elite coming next.
  * Reason: in `pnpm sim` every net the bot kept on the board cost it wins (a cell and 功德 that a fighter would have
@@ -22,13 +30,6 @@ export function wantsNet(g: GameState, id: UnitId): boolean {
   const next = g.wave + 1;
   return isBossWave(g, next) || isEliteWave(g, next);
 }
-/** A 镜's worth per level, as a share of SUPPORT_VALUE: `calm` with a full camp, plus `hurt` times the share of HP lost. */
-export const MIRROR_VALUE = { calm: 0.5, hurt: 1.5 } as const;
-/**
- * Share of a needle's full poison (poisonPerHit) the bot counts on. Reason: a stack only pays in full on a monster
- * that lives through it; measured over bot runs (`pnpm sim`), 毒's poison dealt about half its nominal damage.
- */
-export const POISON_SHARE = 0.5;
 
 /** A 毒's poison as damage per second over time, at the share the bot can count on (0 for any other tile). */
 export function poisonValue(t: Tile): number {
