@@ -5,7 +5,7 @@ import type { ShotKind } from '../core/types.ts';
 import { drawCoin, drawStar, hash01, outlined, roundRect, text } from './draw.ts';
 import { brush, sans } from './fonts.ts';
 import { drawPortrait } from './heroes-art.ts';
-import { corpsePose, FOOT, makeCorpsePose } from './monster-pose.ts';
+import { corpseHeight, corpsePose, FOOT, makeCorpsePose } from './monster-pose.ts';
 import { monsterSprite } from './monsters-art.ts';
 
 export type FxKind = 'swing' | 'bolt' | 'beam' | 'slam' | 'dragon' | 'ring' | 'burst' | 'seal' | 'slash';
@@ -52,10 +52,13 @@ export interface Floater {
 /** A monster that was just killed, toppling over where it fell (see corpsePose). Drawn under the living monsters. */
 export interface Corpse {
   def: string;
+  /** Its spot on the ground. */
   x: number;
   y: number;
   t: number;
   life: number;
+  /** Px above the ground it died at (a flyer's FLY_LIFT, 0 on the ground); it drops from there (see corpseHeight). */
+  lift: number;
 }
 
 /** Reason: one scratch pose shared by every corpse, so drawing them allocates nothing per frame. */
@@ -63,23 +66,33 @@ const corpseScratch = makeCorpsePose();
 /** A falling body pivots on the edge it falls towards, this many radii right of its centre, so it ends up lying on the ground. */
 const TOPPLE_EDGE = 0.85;
 
-/** The monster's sprite toppling to the right, sinking and fading; a boss also sends a shockwave out as it lands. */
+/**
+ * The monster's sprite toppling to the right, sinking and fading; a flyer's drops out of the air while it topples.
+ * A boss also sends a shockwave out as it lands.
+ */
 export function drawCorpse(ctx: CanvasRenderingContext2D, c: Corpse): void {
   const def = ENEMIES[c.def];
   const r = def.radius;
   const { img, box } = monsterSprite(c.def);
-  const p = corpsePose(corpseScratch, c.t / c.life);
+  const k = c.t / c.life;
+  const p = corpsePose(corpseScratch, k);
   const foot = r * FOOT;
   const ground = c.y + foot;
+  const height = corpseHeight(c.lift, k);
   // 0 upright .. 1 flat: the shadow slides out under the falling body (it stays on the surface, no sinking).
   const lying = p.angle / (Math.PI / 2);
+  // A falling flyer's shadow starts as small and faint as a live flyer's and firms up as the body nears the ground
+  // (always 1 for a ground monster, whose shadow is drawn exactly as before).
+  const near = c.lift > 0 ? 1 - height / c.lift : 1;
+  const shade = 0.65 + 0.35 * near;
   ctx.save();
-  ctx.globalAlpha = p.alpha;
+  ctx.globalAlpha = p.alpha * (0.64 + 0.36 * near);
   ctx.beginPath();
-  ctx.ellipse(c.x + r * 1.6 * lying, ground, r * (0.9 + 0.2 * lying), r * 0.28, 0, 0, Math.PI * 2);
+  ctx.ellipse(c.x + r * 1.6 * lying, ground, r * (0.9 + 0.2 * lying) * shade, r * 0.28 * shade, 0, 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(40,20,5,0.25)';
   ctx.fill();
-  ctx.translate(c.x + r * TOPPLE_EDGE, ground + p.sink);
+  ctx.globalAlpha = p.alpha;
+  ctx.translate(c.x + r * TOPPLE_EDGE, ground + p.sink - height);
   ctx.rotate(p.angle);
   // Sprite corner relative to the pivot: upright, the sprite sits exactly where the living monster stood.
   ctx.drawImage(img, -r * TOPPLE_EDGE - box / 2, -foot - box / 2, box, box);

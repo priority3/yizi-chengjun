@@ -2,18 +2,20 @@
 // Sprites are cached per radius; a white silhouette copy is used for the hit flash.
 import { ENEMIES } from '../config/enemies.ts';
 import { COLORS } from './draw.ts';
+import { inkStroke, paintBatEars, paintBatWings, paintBigBeak, paintChickTuft, paintStubWings, paintTinyFangs } from './monster-parts.ts';
 import { sprites } from './sprites.ts';
 
-type Extra = 'bones' | 'wind' | 'flame' | 'legs' | 'wings' | 'gourd' | 'ring' | 'brows' | 'fins';
+type Extra = 'bones' | 'wind' | 'flame' | 'legs' | 'wings' | 'gourd' | 'ring' | 'brows' | 'fins' | 'batwings' | 'chick';
 
 interface Look {
   body: string;
   belly?: string;
-  shape: 'round' | 'tall' | 'wide';
+  /** 'small' is a round body narrower than the monster's radius, leaving room for big wings and ears. */
+  shape: 'round' | 'tall' | 'wide' | 'small';
   horns?: 'small' | 'big' | 'bull' | 'gold';
-  ears?: 'pointy' | 'round';
+  ears?: 'pointy' | 'round' | 'bat';
   eyes: 'angry' | 'round' | 'hollow' | 'glow';
-  mouth: 'fang' | 'grin' | 'beak' | 'teeth';
+  mouth: 'fang' | 'grin' | 'beak' | 'teeth' | 'tiny' | 'bigbeak';
   extra?: Extra;
 }
 
@@ -22,6 +24,9 @@ const LOOKS: Record<string, Look> = {
   狼: { body: '#676b78', belly: '#a9adb6', shape: 'round', ears: 'pointy', eyes: 'angry', mouth: 'teeth' },
   熊: { body: '#6a4526', belly: '#a0703f', shape: 'wide', ears: 'round', eyes: 'round', mouth: 'grin' },
   蛛: { body: '#2c2338', belly: '#4a3a5c', shape: 'round', eyes: 'glow', mouth: 'fang', extra: 'legs' },
+  // Flyers: a dark purple bat with big ears and leathery wings, and a golden chick with a big beak and stubby wings.
+  蝠: { body: '#3d2652', belly: '#5d3d78', shape: 'small', ears: 'bat', eyes: 'glow', mouth: 'tiny', extra: 'batwings' },
+  鹏: { body: '#e8b53c', belly: '#f8de92', shape: 'round', eyes: 'round', mouth: 'bigbeak', extra: 'chick' },
   魔: { body: '#7c1f25', belly: '#a8433f', shape: 'tall', horns: 'big', eyes: 'glow', mouth: 'teeth' },
   白骨精: { body: '#efe9da', belly: '#d9d0bb', shape: 'tall', eyes: 'hollow', mouth: 'teeth', extra: 'bones' },
   黄风怪: { body: '#c8983a', belly: '#e9c86c', shape: 'round', ears: 'pointy', eyes: 'angry', mouth: 'fang', extra: 'wind' },
@@ -38,13 +43,8 @@ const LOOKS: Record<string, Look> = {
 function bodySize(look: Look, r: number): { rx: number; ry: number } {
   if (look.shape === 'tall') return { rx: r * 0.86, ry: r * 1.08 };
   if (look.shape === 'wide') return { rx: r * 1.12, ry: r * 0.9 };
+  if (look.shape === 'small') return { rx: r * 0.8, ry: r * 0.8 };
   return { rx: r, ry: r };
-}
-
-function inkStroke(ctx: CanvasRenderingContext2D, r: number): void {
-  ctx.lineWidth = Math.max(1.4, r * 0.1);
-  ctx.strokeStyle = COLORS.ink;
-  ctx.stroke();
 }
 
 function paintBehind(ctx: CanvasRenderingContext2D, look: Look, x: number, y: number, r: number): void {
@@ -96,6 +96,7 @@ function paintBehind(ctx: CanvasRenderingContext2D, look: Look, x: number, y: nu
       inkStroke(ctx, r);
     }
   }
+  if (look.extra === 'batwings') paintBatWings(ctx, x, y, r);
   if (look.ears === 'pointy') {
     for (const s of [-1, 1]) {
       ctx.beginPath();
@@ -117,6 +118,7 @@ function paintBehind(ctx: CanvasRenderingContext2D, look: Look, x: number, y: nu
       inkStroke(ctx, r);
     }
   }
+  if (look.ears === 'bat') paintBatEars(ctx, x, y, r, look.body);
 }
 
 function paintHorns(ctx: CanvasRenderingContext2D, look: Look, x: number, r: number, top: number): void {
@@ -188,6 +190,14 @@ function paintFace(ctx: CanvasRenderingContext2D, look: Look, x: number, y: numb
     inkStroke(ctx, r * 0.7);
     return;
   }
+  if (look.mouth === 'bigbeak') {
+    paintBigBeak(ctx, x, my, r);
+    return;
+  }
+  if (look.mouth === 'tiny') {
+    paintTinyFangs(ctx, x, my, r);
+    return;
+  }
   const mw = look.mouth === 'grin' ? r * 0.5 : r * 0.36;
   ctx.moveTo(x - mw, my - r * 0.06);
   ctx.quadraticCurveTo(x, my + r * 0.34, x + mw, my - r * 0.06);
@@ -219,6 +229,10 @@ function paintFace(ctx: CanvasRenderingContext2D, look: Look, x: number, y: numb
 
 function paintFront(ctx: CanvasRenderingContext2D, look: Look, x: number, y: number, r: number, top: number): void {
   switch (look.extra) {
+    case 'chick':
+      paintStubWings(ctx, x, y, r);
+      paintChickTuft(ctx, x, r, top);
+      break;
     case 'bones':
       ctx.strokeStyle = 'rgba(90,70,50,0.55)';
       ctx.lineWidth = r * 0.07;
