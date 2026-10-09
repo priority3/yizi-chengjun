@@ -2,15 +2,16 @@
 // handles the shop, drag-and-drop onto the map's slots, encounters, pause and results.
 import { CHAPTERS, unlockCost } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
+import type { MapDef } from '../config/maps.ts';
 import { UNITS } from '../config/units.ts';
 import { DT } from '../core/clock.ts';
 import { act, createGame, step } from '../core/game.ts';
 import { slotAt } from '../core/map.ts';
-import { awardStars, starRating, type StarAward } from '../core/rating.ts';
-import { settleEndless, type EndlessAward } from '../core/records.ts';
+import type { StarAward } from '../core/rating.ts';
+import type { EndlessAward } from '../core/records.ts';
 import { currentRefreshCost } from '../core/shop.ts';
 import { isFighter, slotKindOf } from '../core/slots.ts';
-import { buildMods, clearRewards, type ClearRewards } from '../core/treasures.ts';
+import { buildMods, defaultMods, type ClearRewards } from '../core/treasures.ts';
 import type { Action, ActionResult, GameMode, GameState, SimEvent, Tile } from '../core/types.ts';
 import { isBossWave } from '../core/waves.ts';
 import { audio } from '../platform/audio.ts';
@@ -31,7 +32,8 @@ import { drawPause, drawResult, pausePanel, tapButtons, tapResult, type OverlayB
 import { Toasts } from './hud.ts';
 import type { Pointer } from './input.ts';
 import { CameraControls, CardDrag } from './map-controls.ts';
-import { openEndedBanner, resumeBanner, type BannerText } from './run-banners.ts';
+import { openEndedBanner, resumeBanner, testBanner, type BannerText } from './run-banners.ts';
+import { settleRun } from './run-end.ts';
 import type { Nav, Scene } from './scenes.ts';
 import { runShareInfo, shareResult } from './share-result.ts';
 import { Tutorial } from './tutorial.ts';
@@ -52,6 +54,11 @@ function isOver(g: GameState): boolean {
 export class GameScene implements Scene {
   private readonly nav: Nav;
   private readonly chapter: number;
+  /**
+   * The map editor's 试玩 map, or null. Such a run is never saved or rewarded, has no 战报 (the card can only show a
+   * chapter's map), and its menus lead back to the editor.
+   */
+  private readonly test: MapDef | null;
   private readonly g: GameState;
   private readonly renderer: GameRenderer;
   private readonly vfx: Vfx;
@@ -82,17 +89,19 @@ export class GameScene implements Scene {
 
   /**
    * `resumed`: a saved unfinished run of `chapter` to continue instead of starting a fresh one. `mode`: what a fresh
-   * run is — endless and daily runs are passed chapter 10, whose rules they play by.
+   * run is — endless and daily runs are passed chapter 10, whose rules they play by. `test`: the map editor's 试玩,
+   * a chapter run on that map without 法宝.
    */
-  constructor(stage: Stage, chapter: number, nav: Nav, resumed?: SavedRun, mode: GameMode = 'chapter') {
+  constructor(stage: Stage, chapter: number, nav: Nav, resumed?: SavedRun, mode: GameMode = 'chapter', test?: MapDef) {
     this.nav = nav;
     this.chapter = chapter;
+    this.test = test ?? null;
     const vault = nav.progress.vault;
     // Reason: Math.random is fine here — only the seed is random; the run itself stays deterministic. The daily
     // challenge's seed is today's date instead, so everyone plays the same run that day (createGame drops its 法宝).
     // A resumed run is used as saved: its 法宝 modifiers stay what they were, whatever the vault holds now.
     const seed = mode === 'daily' ? todayKey() : (Math.random() * 0x7fffffff) | 0;
-    this.g = resumed?.g ?? createGame({ seed, chapter, mods: buildMods(vault), mode });
+    this.g = resumed?.g ?? createGame({ seed, chapter, mods: test ? defaultMods() : buildMods(vault), mode, map: test });
     this.renderer = new GameRenderer(stage);
     this.vfx = new Vfx(this.g.map);
     this.cam = new Camera(this.g.map);
@@ -101,12 +110,13 @@ export class GameScene implements Scene {
     const focus = starter >= 0 ? this.g.map.slots[starter] : { x: this.g.map.w / 2, y: this.g.map.h / 2 };
     this.cam.lookAt(focus.x, focus.y, START_ZOOM, this.view());
     // Tips and the first-run guide belong to chapter 1 (endless and daily runs play chapter 10 anyway).
-    const first = chapter === 1 && this.g.mode === 'chapter';
+    const first = chapter === 1 && this.g.mode === 'chapter' && !test;
     this.tips = first;
     this.tutorial = new Tutorial(!resumed && first && !nav.progress.tutorialDone);
     const ch = CHAPTERS[chapter - 1];
     const gear = vault.equipped.length > 0 ? ` · 带了 ${vault.equipped.length} 件法宝` : '';
     if (resumed) this.resumeView(resumed.camera);
+    else if (test) this.showBanner(testBanner());
     else if (this.g.mode !== 'chapter') this.showBanner(openEndedBanner(this.g, gear));
     else this.vfx.showBanner(`第${NUMERALS[chapter - 1]}章 · ${ch.name}`, `别让妖怪走到唐僧的营地，打败${ENEMIES[ch.boss].name}${gear}`, '#ffd166', null, 2.6);
   }
@@ -375,30 +385,21 @@ export class GameScene implements Scene {
     this.endT = 0;
     this.cards.clear();
     this.camCtl.reset();
-    // Won or lost, the run is over: nothing left to resume.
-    clearRun();
-    if (this.g.mode !== 'chapter') {
-      // An endless or daily run always ends with the camp falling: it pays its 灵石 and may set a record.
-      this.endless = settleEndless(this.nav.progress, this.nav.progress.vault, this.g);
-      this.nav.save();
-      return;
-    }
-    if (this.g.phase !== 'won') return;
-    const p = this.nav.progress;
-    p.tutorialDone = true;
-    const firstClear = (p.wins[this.chapter - 1] ?? 0) === 0;
-    p.unlocked = Math.max(p.unlocked, Math.min(CHAPTERS.length, this.chapter + 1));
-    p.wins[this.chapter - 1] = (p.wins[this.chapter - 1] ?? 0) + 1;
-    this.rewards = clearRewards(p.vault, this.chapter, firstClear);
-    this.award = awardStars(p, p.vault, this.chapter, starRating(this.g.campHp, this.g.campMax));
-    this.nav.save();
+    // Won or lost, the run is over: nothing left to resume (a 试玩 never saves, so the saved run it didn't replace stays).
+    if (!this.test) clearRun();
+    const end = settleRun(this.nav.progress, this.g, this.chapter, this.test !== null);
+    this.rewards = end.rewards;
+    this.award = end.award;
+    this.endless = end.endless;
+    if (end.changed) this.nav.save();
   }
 
   // ---- 局中存档 ------------------------------------------------------------
 
   /** Autosaves the run in its build phase; battles are never saved, so a reload replays the wave from its build phase. */
   private persist(): void {
-    if (this.g.phase === 'build') saveRun(this.g, this.cam);
+    // A 试玩 is never saved: a saved run is restored onto its chapter's map.
+    if (this.g.phase === 'build' && !this.test) saveRun(this.g, this.cam);
   }
 
   /** A resumed run: the camera goes back where the player left it, and a banner says which wave comes next. */
@@ -416,15 +417,17 @@ export class GameScene implements Scene {
     this.vfx.showBanner(b.title, b.sub, '#ffd166', null, 2.6);
   }
 
-  /** Starts this run's kind afresh: the same chapter, a new endless run, or today's daily challenge. */
+  /** Starts this run's kind afresh: the same chapter, a new endless run, today's daily challenge, or another 试玩. */
   private restart(): void {
-    if (this.g.mode === 'endless') this.nav.endless();
+    if (this.test) this.nav.tryMap(this.test);
+    else if (this.g.mode === 'endless') this.nav.endless();
     else if (this.g.mode === 'daily') this.nav.daily();
     else this.nav.play(this.chapter);
   }
 
   /** 返回选章 from the pause menu gives the run up, so its save goes too (重新开始 clears it through nav.play). */
   private abandon(): void {
+    if (this.test) return this.nav.editor(); // A 试玩's 返回编辑.
     clearRun();
     this.nav.chapters();
   }
@@ -433,7 +436,7 @@ export class GameScene implements Scene {
 
   private resultInfo(): ResultInfo {
     const { g, chapter, rewards, award, endless } = this;
-    return { g, chapter, rewards, award, endless, buttons: this.resultButtons().length, t: this.endT - RESULT_DELAY };
+    return { g, chapter, rewards, award, endless, buttons: this.resultButtons().length, t: this.endT - RESULT_DELAY, share: !this.test };
   }
 
   /** What the 战报 card shows for this run (分享战报; the dev console's `__zdxyShare()` reads it too). */
@@ -467,11 +470,13 @@ export class GameScene implements Scene {
       { label: '继续', go: () => (this.paused = false) },
       { label: this.nav.progress.sound.music ? '音乐：开' : '音乐：关', go: () => this.toggleMusic() },
       { label: '重新开始', go: () => this.restart() },
-      { label: '返回选章', go: () => this.abandon() },
+      { label: this.test ? '返回编辑' : '返回选章', go: () => this.abandon() },
     ];
   }
 
   private resultButtons(): OverlayButton[] {
+    // A 试玩: play the edited map again, or go back to editing it.
+    if (this.test) return [{ label: '再来一次', go: () => this.restart() }, { label: '返回编辑', go: () => this.abandon() }];
     const out: OverlayButton[] = [];
     // An endless or daily run: 再来一次 and 返回选章 (below).
     if (this.g.mode !== 'chapter') out.push({ label: '再来一次', go: () => this.restart() });

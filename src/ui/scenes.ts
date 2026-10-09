@@ -1,6 +1,7 @@
 // Scene manager plus the title screen and the chapter select screen.
 import { CHAPTERS } from '../config/chapters.ts';
 import { ENDLESS, ENDLESS_CHAPTER } from '../config/endless.ts';
+import type { MapDef } from '../config/maps.ts';
 import { dailyMapIndex, dayLabel } from '../core/modes.ts';
 import { STAR_BONUS, THREE_STAR_PCT, TWO_STAR_PCT } from '../core/rating.ts';
 import { dailyBest } from '../core/records.ts';
@@ -20,6 +21,7 @@ import { NUMERALS } from '../render/panels.ts';
 import { drawUpdateBanner, updateBannerHit } from '../render/update-banner.ts';
 import { BACK, backdrop, drawButton, drawPanel } from '../render/widgets.ts';
 import { chapterRect, entryRect } from './chapter-layout.ts';
+import { EditorScene } from './editor-scene.ts';
 import { GameScene } from './game-scene.ts';
 import type { GestureHandlers, Pointer } from './input.ts';
 import { TreasureScene } from './treasure-scene.ts';
@@ -46,12 +48,21 @@ export interface Nav {
   /** The 法宝 (treasure) screen. */
   treasures(): void;
   save(): void;
+  /** The map editor (plan.md D1), opened from the address …/#editor. */
+  editor(): void;
+  /**
+   * The map editor's 试玩: a chapter-1 run on `def` without 法宝. It is never saved and earns nothing, so the saved
+   * unfinished run (if any) stays; its menus lead back to the editor.
+   */
+  tryMap(def: MapDef): void;
 }
 
 export class SceneManager implements Nav {
   readonly progress: Progress;
   current: Scene;
   private readonly stage: Stage;
+  /** The map editor, made the first time it opens. */
+  private editorScene: EditorScene | null = null;
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -100,6 +111,22 @@ export class SceneManager implements Nav {
 
   save(): void {
     saveProgress(this.progress);
+  }
+
+  /** One editor per page: coming back from 试玩 (or reopening it) finds its undo steps and view as they were. */
+  editor(): void {
+    this.editorScene ??= new EditorScene(this, this.stage);
+    this.current = this.editorScene;
+  }
+
+  /** Whether the map editor is on screen (main.ts closes it when the address drops #editor). */
+  inEditor(): boolean {
+    return this.editorScene !== null && this.current === this.editorScene;
+  }
+
+  tryMap(def: MapDef): void {
+    // Reason: unlike play(), no clearRun(): a 试玩 is never saved, so the unfinished run it would replace stays resumable.
+    this.current = new GameScene(this.stage, 1, this, undefined, 'chapter', def);
   }
 }
 

@@ -10,9 +10,10 @@ export class Camera {
   x = 0;
   y = 0;
   zoom = 1;
-  private readonly map: MapData;
+  /** Only the map's size is read: the map editor hands in a size it changes as the map is resized. */
+  private readonly map: Pick<MapData, 'w' | 'h'>;
 
-  constructor(map: MapData) {
+  constructor(map: Pick<MapData, 'w' | 'h'>) {
     this.map = map;
   }
 

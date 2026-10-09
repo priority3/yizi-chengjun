@@ -1,5 +1,6 @@
 // Entry point: sets up the stage, waits for the brush font, then runs the scene loop.
 import { audio } from './platform/audio.ts';
+import { wantsEditor } from './platform/editor-io.ts';
 import { registerServiceWorker } from './platform/pwa.ts';
 import { createStage, installGuards } from './platform/web.ts';
 import { appIconDataUrl } from './render/app-icon.ts';
@@ -57,6 +58,17 @@ if (import.meta.env.DEV) window.__zdxy = scenes;
 if (import.meta.env.DEV) window.__zdxyIcon = appIconDataUrl;
 // Offline play and the 有新版本 banner; a no-op in dev and wherever service workers are unavailable.
 registerServiceWorker();
+
+/**
+ * The map editor (plan.md D1) has no button: the address …/#editor opens it, on load or when typed later (also in
+ * production); leaving that address closes it again.
+ */
+function followAddress(): void {
+  if (wantsEditor()) scenes.editor();
+  else if (scenes.inEditor()) scenes.title();
+}
+window.addEventListener('hashchange', followAddress);
+followAddress();
 
 let last = performance.now();
 

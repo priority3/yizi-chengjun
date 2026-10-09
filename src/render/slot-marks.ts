@@ -17,9 +17,10 @@ export const PAD_TAG_COLOR: Readonly<Record<SlotKind, string>> = {
 
 /**
  * The faint golden rune ring over every unlocked 法阵, radius `r` (a little wider than the pad, so it shows
- * around a card standing there). One path and one dashed stroke for all of them.
+ * around a card standing there). One path and one dashed stroke for all of them. Only the map and which pads are
+ * unlocked are read, so the map editor draws them too.
  */
-export function drawRuneRings(ctx: CanvasRenderingContext2D, g: GameState, r: number, time: number): void {
+export function drawRuneRings(ctx: CanvasRenderingContext2D, g: Pick<GameState, 'map' | 'unlocked'>, r: number, time: number): void {
   const { slots, slotKind } = g.map;
   let any = false;
   ctx.beginPath();
