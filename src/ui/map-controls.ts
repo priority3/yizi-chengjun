@@ -8,6 +8,7 @@ import type { Action, GameState } from '../core/types.ts';
 import type { Camera } from '../render/camera.ts';
 import { inRect, L, type Rect } from '../render/layout.ts';
 import type { DragUi } from '../render/renderer.ts';
+import { padLabel } from './describe.ts';
 import type { Pointer } from './input.ts';
 
 /** How far above a finger a dragged card is drawn. */
@@ -30,6 +31,8 @@ export class CardDrag {
   hoverTrash = false;
   /** What letting go does when the two cards combine (merge / awaken / 神). */
   hoverHint: string | null = null;
+  /** What the special pad under the card does for what would stand there (法阵 / 高台 / 泥沼), or null. */
+  hoverPad: string | null = null;
   private lift = 0;
 
   /** Starts dragging the shop card or the tile under `start`. False when there is nothing to pick up. */
@@ -86,6 +89,7 @@ export class CardDrag {
     this.hoverValid = false;
     this.hoverTrash = false;
     this.hoverHint = null;
+    this.hoverPad = null;
   }
 
   private updateHover(g: GameState, slotUnder: SlotLocator): void {
@@ -96,12 +100,18 @@ export class CardDrag {
     const cell = slotUnder(d.x, d.y);
     this.hoverCell = cell;
     this.hoverHint = null;
+    this.hoverPad = null;
     if (cell < 0) {
       this.hoverValid = false;
       return;
     }
     const target = g.slots[cell];
-    const outcome = previewDrop({ id: d.unit, level: d.level, divine: d.divine }, target);
+    const kinds = g.map.slotKind;
+    // Reason: the pads matter — nothing may leave a fighter in a 泥沼, here or (after a swap) where the card came from.
+    const outcome = previewDrop({ id: d.unit, level: d.level, divine: d.divine }, target, kinds[cell], d.kind === 'cell' ? kinds[d.index] : null);
+    // What would stand on this pad afterwards: an awakened hero, the fighter a 神 lands on, or the card itself.
+    const lands = (target && heroFor(d.unit, target.id)) ?? (d.unit === '神' && target ? target.id : d.unit);
+    this.hoverPad = padLabel(kinds[cell], lands);
     if (d.kind === 'shop') {
       const o = g.shop[d.index];
       const combines = outcome === 'empty' || outcome === 'merge' || outcome === 'hero' || outcome === 'divine';

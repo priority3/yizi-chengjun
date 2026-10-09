@@ -82,8 +82,9 @@ function startWave(g: GameState): ActionResult {
 /** Applies a player (or bot) action immediately. Events it produces are appended to `g.events`. */
 export function act(g: GameState, a: Action): ActionResult {
   if (g.phase === 'won' || g.phase === 'lost') return 'phase';
-  // Reason: a pending encounter must be answered before the shop reopens or the next wave starts.
-  if (g.encounter && a.t !== 'choose' && a.t !== 'drop') return 'phase';
+  // Reason: a pending encounter must be answered before the shop reopens or the next wave starts; rearranging the
+  // board (drops, 瞄准) is fine meanwhile.
+  if (g.encounter && a.t !== 'choose' && a.t !== 'drop' && a.t !== 'mode') return 'phase';
   switch (a.t) {
     case 'buy':
       return g.phase === 'build' ? buy(g, a.offer, a.cell) : 'phase';

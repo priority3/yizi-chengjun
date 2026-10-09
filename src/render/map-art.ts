@@ -1,12 +1,13 @@
 // Paints a chapter map: themed ground, scenery, the dirt roads, the monster entrances, 唐僧's camp and the
 // stone pads cards stand on. Painted once per zoom level into an offscreen canvas.
-import { MAPS, TILE } from '../config/maps.ts';
+import { MAPS, TILE, type SlotKind } from '../config/maps.ts';
 import { buildMap, pathPoint, ROAD_W, type MapData, type Pt } from '../core/map.ts';
 import type { Stage } from '../platform/web.ts';
 import { hash01, roundRect, text } from './draw.ts';
 import { brush } from './fonts.ts';
 import { drawPortrait } from './heroes-art.ts';
 import { L, W } from './layout.ts';
+import { altarRunes, highPlinth, mirePad } from './pad-art.ts';
 import { drawLiquids, drawProps, scatter, THEMES, vignette, type Palette } from './scenery.ts';
 
 /** Slot pad radius (world px). */
@@ -187,12 +188,19 @@ function camp(ctx: CanvasRenderingContext2D, p: Pt): void {
   text(ctx, '营', p.x + 34, p.y - 34, brush(8), '#fff1c2');
 }
 
-/** A stone pad a card can stand on (its locked overlay is drawn live by the renderer). */
-export function pad(ctx: CanvasRenderingContext2D, p: Pt, seed: number): void {
-  ctx.beginPath();
-  ctx.ellipse(p.x + 2, p.y + 4, PAD_R + 2, PAD_R * 0.9, 0, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(40,25,10,0.28)';
-  ctx.fill();
+/**
+ * A stone pad a card can stand on (its locked overlay is drawn live by the renderer). Special pads look the part:
+ * a 高台 stands taller, a 法阵 has runes cut into its stone, a 泥沼 is mud instead of stone (pad-art.ts).
+ */
+export function pad(ctx: CanvasRenderingContext2D, p: Pt, seed: number, kind: SlotKind = 'plain'): void {
+  if (kind === 'mire') return mirePad(ctx, p, PAD_R, seed);
+  if (kind === 'high') highPlinth(ctx, p, PAD_R, seed);
+  else {
+    ctx.beginPath();
+    ctx.ellipse(p.x + 2, p.y + 4, PAD_R + 2, PAD_R * 0.9, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(40,25,10,0.28)';
+    ctx.fill();
+  }
   const g = ctx.createRadialGradient(p.x - 6, p.y - 8, 4, p.x, p.y, PAD_R);
   g.addColorStop(0, '#e4d2ac');
   g.addColorStop(1, '#b59a6c');
@@ -212,6 +220,7 @@ export function pad(ctx: CanvasRenderingContext2D, p: Pt, seed: number): void {
     ctx.lineTo(p.x + Math.cos(a) * (PAD_R - 4), p.y + Math.sin(a) * (PAD_R - 4));
     ctx.stroke();
   }
+  if (kind === 'altar') altarRunes(ctx, p, PAD_R, seed);
 }
 
 /** Paints the whole map in world units (0..w, 0..h). */
@@ -235,7 +244,7 @@ export function paintMap(ctx: CanvasRenderingContext2D, map: MapData): void {
   drawProps(ctx, map);
   map.spawns.forEach((s) => entrance(ctx, s));
   camp(ctx, map.camp);
-  map.slots.forEach((s, i) => pad(ctx, s, i));
+  map.slots.forEach((s, i) => pad(ctx, s, i, map.slotKind[i]));
   vignette(ctx, map);
 }
 

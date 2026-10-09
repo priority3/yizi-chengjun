@@ -85,11 +85,17 @@ describe('switching modes', () => {
     expect(TARGET_MODES).toEqual(['first', 'strong', 'weak']);
   });
 
-  it('works for heroes and in battle too', () => {
+  it('works for heroes, in battle, and while an encounter waits to be answered', () => {
     const g = battle(emptyGame());
     const hero = put(g, 2, '八戒');
     expect(act(g, { t: 'mode', cell: 2 })).toBe('ok');
     expect(hero.target).toBe('strong');
+    const h = emptyGame();
+    const arrow = put(h, 3, '箭');
+    h.encounter = ['财神到', '宝箱', '盗宝妖'];
+    expect(act(h, { t: 'mode', cell: 3 })).toBe('ok');
+    expect(arrow.target).toBe('strong');
+    expect(act(h, { t: 'start' })).toBe('phase');
   });
 
   it('refuses supports, fragments and 神, ignores empty cells, and stops once the run is over', () => {

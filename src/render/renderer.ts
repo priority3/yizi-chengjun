@@ -2,9 +2,10 @@
 // the shop or battle bar, the dragged card and any banner or modal in screen space.
 import { unlockCost } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
+import { SLOT_NAME } from '../config/maps.ts';
 import { UNITS } from '../config/units.ts';
 import { pathDir, type Pt } from '../core/map.ts';
-import { tileRange } from '../core/stats.ts';
+import { padAllows, padRange, slotRange } from '../core/slots.ts';
 import type { Enemy, EnemyDef, GameState, Tile, UnitId } from '../core/types.ts';
 import type { Stage } from '../platform/web.ts';
 import type { Camera } from './camera.ts';
@@ -17,6 +18,7 @@ import { drawMap, PAD_R } from './map-art.ts';
 import { FOOT, makePose, monsterPose, type Gait, type MonsterPose } from './monster-pose.ts';
 import { monsterSprite } from './monsters-art.ts';
 import { drawBanner, drawBattleBar, drawHud, drawShop, type PanelUi } from './panels.ts';
+import { drawAimBadge, drawPadLabel, drawRuneRings, PAD_TAG_COLOR } from './slot-marks.ts';
 import { blit } from './sprites.ts';
 import type { Vfx } from './vfx.ts';
 
@@ -74,6 +76,8 @@ export interface GameUi extends PanelUi {
   selected: number;
   /** What releasing on hoverCell does when it combines (merge / awaken / 神), shown next to the slot. */
   hoverHint: string | null;
+  /** What the special pad under the dragged card does (法阵 / 高台 / 泥沼); shown when there is no hoverHint. */
+  hoverPad: string | null;
 }
 
 export class GameRenderer {
@@ -122,13 +126,17 @@ export class GameRenderer {
   /** Locked pads with their price, the range preview and the drop target. `k` = 1 / zoom keeps labels readable. */
   private drawSlots(ctx: CanvasRenderingContext2D, g: GameState, ui: GameUi, time: number, k: number): void {
     const price = unlockCost(g.unlockCount);
+    drawRuneRings(ctx, g, PAD_R + 4, time);
     g.map.slots.forEach((p, i) => {
       if (g.unlocked[i]) return;
       ctx.beginPath();
       ctx.arc(p.x, p.y, PAD_R - 1, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(45,28,12,0.6)';
       ctx.fill();
-      text(ctx, '+', p.x, p.y - 6 * k, sans(Math.round(18 * k), 800), 'rgba(255,235,200,0.85)');
+      // A locked special pad says what it is where a plain one shows its "+".
+      const kind = g.map.slotKind[i];
+      if (kind === 'plain') text(ctx, '+', p.x, p.y - 6 * k, sans(Math.round(18 * k), 800), PAD_TAG_COLOR.plain);
+      else text(ctx, SLOT_NAME[kind], p.x, p.y - 6 * k, sans(Math.round(10 * k), 800), PAD_TAG_COLOR[kind]);
       drawCoin(ctx, p.x - 8 * k, p.y + 9 * k, 4 * k);
       text(ctx, String(price), p.x - 3 * k, p.y + 9.5 * k, sans(Math.round(9 * k), 800), g.gongde >= price ? '#ffe9b0' : 'rgba(255,200,190,0.85)', 'left');
     });
@@ -138,10 +146,12 @@ export class GameRenderer {
     if (ui.drag && ui.hoverCell >= 0) {
       ringCell = ui.hoverCell;
       const t: Tile = { uid: 0, id: ui.drag.unit, level: ui.drag.level, divine: ui.drag.divine, cd: 0, invested: 0, rage: 0 };
-      ringRange = tileRange(t, g.mods);
+      // The reach the card would have on that pad (a 高台 adds to it); none where it can't stand (a 泥沼).
+      const kind = g.map.slotKind[ringCell];
+      ringRange = padAllows(kind, t.id) ? padRange(t, kind, g.mods) : 0;
     } else if (ui.selected >= 0 && g.slots[ui.selected]) {
       ringCell = ui.selected;
-      ringRange = tileRange(g.slots[ui.selected] as Tile, g.mods);
+      ringRange = slotRange(g, g.slots[ui.selected] as Tile, ui.selected);
     }
     if (ringCell >= 0 && ringRange > 0 && Number.isFinite(ringRange)) {
       const p = g.map.slots[ringCell];
@@ -164,6 +174,7 @@ export class GameRenderer {
         ctx.lineWidth = 3 * k;
         ctx.strokeStyle = ui.hoverValid ? '#7dff9a' : '#ff6a5a';
         ctx.stroke();
+        if (ui.hoverPad) drawPadLabel(ctx, p, ui.hoverPad, ui.hoverValid, PAD_R, k);
       }
     }
   }
@@ -219,6 +230,8 @@ export class GameRenderer {
       }
       blit(ctx, img, x + shake, y, size, size, scale);
       if (hero) drawBar(ctx, x - 19, y + CARD / 2 - 5, 38, 4.5, t.rage, ready ? '#ffd166' : '#ff7a2a');
+      // 瞄准 other than 打最前: a badge on the bottom-right corner, clear of the level badge and the 神 seal up top.
+      if (t.target) drawAimBadge(ctx, t.target, x + shake + 23 * scale, y + 21 * scale, 7.5 * scale);
       ctx.restore();
     });
   }
