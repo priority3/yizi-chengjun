@@ -22,7 +22,7 @@ import { clearRun, saveRun, type CameraPos, type SavedRun } from '../platform/sa
 import { todayKey } from '../platform/today.ts';
 import { Camera } from '../render/camera.ts';
 import { encounterCardRects } from '../render/encounter-panel.ts';
-import { inRect, L, viewRect, type Rect } from '../render/layout.ts';
+import { hudHitZones, inRect, L, viewRect, type Rect } from '../render/layout.ts';
 import { NUMERALS } from '../render/panels.ts';
 import { GameRenderer, type GameUi } from '../render/renderer.ts';
 import { Sfx } from '../render/sfx.ts';
@@ -217,9 +217,11 @@ export class GameScene implements Scene {
   }
 
   private buttonAt(p: Pointer): string | null {
-    if (inRect(p.x, p.y, L.btnPause)) return 'pause';
-    if (inRect(p.x, p.y, L.btnSpeed)) return 'speed';
-    if (inRect(p.x, p.y, L.btnSound)) return 'sound';
+    // The HUD icons judge against their touch zones, not the painted buttons — see hudHitZones().
+    const [pause, speed, sound] = hudHitZones();
+    if (inRect(p.x, p.y, pause)) return 'pause';
+    if (inRect(p.x, p.y, speed)) return 'speed';
+    if (inRect(p.x, p.y, sound)) return 'sound';
     if (this.g.phase === 'build') {
       if (inRect(p.x, p.y, L.btnRefresh)) return 'refresh';
       if (inRect(p.x, p.y, L.btnStart)) return 'start';

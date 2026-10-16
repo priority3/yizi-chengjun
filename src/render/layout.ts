@@ -69,3 +69,22 @@ export function viewRect(phase: Phase): Rect {
 export function inRect(x: number, y: number, r: Rect): boolean {
   return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 }
+
+/** Height of the HUD icon strip's touch zones, in design units. */
+export const HUD_HIT_H = 38;
+
+/**
+ * Touch zones for the three HUD icon buttons, in pause / speed / sound order.
+ *
+ * Reason: the painted buttons are 28 units tall — about 30 pt on a 390 px screen, under the 44 pt touch minimum.
+ * The zones take the full strip height with no change to the layout, and are split between the buttons at their
+ * midpoints so neighbours never overlap (a plain padding would have made pause and speed fight over the same tap).
+ * The strip stops at 38 so that a tap on the camp HP bar just below can never toggle the speed.
+ */
+export function hudHitZones(): [Rect, Rect, Rect] {
+  const buttons = [L.btnPause, L.btnSpeed, L.btnSound];
+  const centres = buttons.map((r) => r.x + r.w / 2);
+  const edges = [0, (centres[0] + centres[1]) / 2, (centres[1] + centres[2]) / 2, centres[2] + (centres[2] - centres[1]) / 2];
+  const zone = (i: number): Rect => ({ x: edges[i], y: 0, w: edges[i + 1] - edges[i], h: HUD_HIT_H });
+  return [zone(0), zone(1), zone(2)];
+}
