@@ -1,5 +1,5 @@
 // Reusable UI widgets drawn on the canvas: buttons, panels, the trash bin, speech bubbles.
-import { COLORS, fitPx, roundRect, text } from './draw.ts';
+import { BORDER, COLORS, fitPx, PRESS_DY, R, roundRect, SHADOW, text } from './draw.ts';
 import { brush, sans } from './fonts.ts';
 import { L, W, type Rect } from './layout.ts';
 
@@ -21,11 +21,11 @@ const STYLES: Record<ButtonStyle, { top: string; bottom: string; edge: string; t
 
 export function drawButton(ctx: CanvasRenderingContext2D, r: Rect, label: string, style: ButtonStyle, sub?: string, pressed = false): void {
   const s = STYLES[style];
-  const dy = pressed ? 2 : 0;
-  const radius = Math.min(12, r.h / 2);
+  const dy = pressed ? PRESS_DY : 0;
+  const radius = Math.min(R.md, r.h / 2);
   ctx.save();
-  roundRect(ctx, r.x, r.y + 3, r.w, r.h, radius);
-  ctx.fillStyle = 'rgba(30,15,5,0.35)';
+  roundRect(ctx, r.x, r.y + SHADOW.y, r.w, r.h, radius);
+  ctx.fillStyle = SHADOW.color;
   ctx.fill();
   const g = ctx.createLinearGradient(0, r.y + dy, 0, r.y + r.h + dy);
   g.addColorStop(0, s.top);
@@ -33,7 +33,7 @@ export function drawButton(ctx: CanvasRenderingContext2D, r: Rect, label: string
   roundRect(ctx, r.x, r.y + dy, r.w, r.h, radius);
   ctx.fillStyle = g;
   ctx.fill();
-  ctx.lineWidth = 2;
+  ctx.lineWidth = BORDER.mid;
   ctx.strokeStyle = s.edge;
   ctx.stroke();
   // Glossy top edge.
@@ -55,10 +55,10 @@ export function drawButton(ctx: CanvasRenderingContext2D, r: Rect, label: string
 export function drawIconButton(ctx: CanvasRenderingContext2D, r: Rect, icon: 'pause' | 'x1' | 'x2', pressed: boolean): void {
   const cx = r.x + r.w / 2;
   const cy = r.y + r.h / 2 + (pressed ? 1 : 0);
-  roundRect(ctx, r.x, r.y + (pressed ? 1 : 0), r.w, r.h, 9);
+  roundRect(ctx, r.x, r.y + (pressed ? 1 : 0), r.w, r.h, R.sm);
   ctx.fillStyle = icon === 'x2' ? '#e8912a' : 'rgba(255,245,225,0.16)';
   ctx.fill();
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = BORDER.thin;
   ctx.strokeStyle = 'rgba(255,230,190,0.55)';
   ctx.stroke();
   if (icon === 'pause') {
@@ -74,17 +74,17 @@ export function drawIconButton(ctx: CanvasRenderingContext2D, r: Rect, icon: 'pa
 export function drawPanel(ctx: CanvasRenderingContext2D, r: Rect): void {
   ctx.fillStyle = 'rgba(15,8,4,0.6)';
   ctx.fillRect(0, 0, W, L.H);
-  roundRect(ctx, r.x, r.y, r.w, r.h, 16);
+  roundRect(ctx, r.x, r.y, r.w, r.h, R.lg);
   const g = ctx.createLinearGradient(0, r.y, 0, r.y + r.h);
   g.addColorStop(0, '#fbf1d8');
   g.addColorStop(1, '#ecd8ae');
   ctx.fillStyle = g;
   ctx.fill();
-  ctx.lineWidth = 3;
+  ctx.lineWidth = BORDER.thick;
   ctx.strokeStyle = '#b8862c';
   ctx.stroke();
-  roundRect(ctx, r.x + 6, r.y + 6, r.w - 12, r.h - 12, 12);
-  ctx.lineWidth = 1;
+  roundRect(ctx, r.x + 6, r.y + 6, r.w - 12, r.h - 12, R.md);
+  ctx.lineWidth = BORDER.hair;
   ctx.strokeStyle = 'rgba(160,110,40,0.45)';
   ctx.stroke();
 }
@@ -127,10 +127,10 @@ export function drawBubble(ctx: CanvasRenderingContext2D, x: number, y: number, 
   const w = Math.min(220, ctx.measureText(msg).width + 20);
   const h = 26;
   const bx = Math.min(W - w - 6, Math.max(6, x - w / 2));
-  roundRect(ctx, bx, y - h, w, h, 12);
+  roundRect(ctx, bx, y - h, w, h, R.md);
   ctx.fillStyle = '#fffaf0';
   ctx.fill();
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = BORDER.thin;
   ctx.strokeStyle = '#8a6a3a';
   ctx.stroke();
   text(ctx, msg, bx + w / 2, y - h / 2 + 1, sans(px, 600), '#4a2a10');

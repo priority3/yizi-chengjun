@@ -17,6 +17,22 @@ export const COLORS = {
   heal: '#4fd06a',
 };
 
+/** Corner radii in design units — one scale for every painted panel, button and card. */
+export const R = { sm: 9, md: 12, lg: 16 } as const;
+
+/** Border widths for painted surfaces: hairline, dividers, buttons, heavy panels. */
+export const BORDER = { hair: 1, thin: 1.5, mid: 2, thick: 3 } as const;
+
+/**
+ * The drop shadow every raised surface shares: a hard offset with no blur, so panels look like paper laid on paper.
+ * Reason: the shadow's absolute position stays put while a pressed button sinks by `PRESS_DY` — the visible band
+ * under the button shrinks from 3 to 1, which is what reads as the surface being pushed down instead of sliding.
+ */
+export const SHADOW = { color: 'rgba(30,15,5,0.35)', y: 3 } as const;
+
+/** How far a pressed button sinks (the shadow itself does not move). */
+export const PRESS_DY = 2;
+
 export function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, r);
@@ -61,6 +77,9 @@ export function outlined(
   ctx.fillText(s, x, y);
 }
 
+/** Strings already reported as too wide for their box, so the dev warning fires once each instead of every frame. */
+const overflowReported = new Set<string>();
+
 /** Largest pixel size (<= maxPx) at which `s` fits in `maxWidth` using the given font builder. */
 export function fitPx(
   ctx: CanvasRenderingContext2D,
@@ -73,6 +92,13 @@ export function fitPx(
   for (let px = maxPx; px > minPx; px--) {
     ctx.font = build(px);
     if (ctx.measureText(s).width <= maxWidth) return px;
+  }
+  // Reason: reaching here means the text does not fit at the smallest allowed size either, so it gets drawn past the
+  // edge of its box. Only a human can decide whether that string should be shortened, wrapped, or given more room —
+  // so name it once, in dev, instead of letting the overflow happen silently.
+  if (import.meta.env.DEV && !overflowReported.has(s)) {
+    overflowReported.add(s);
+    console.warn(`[fitPx] 「${s}」 does not fit ${Math.round(maxWidth)} units even at ${minPx}px`);
   }
   return minPx;
 }

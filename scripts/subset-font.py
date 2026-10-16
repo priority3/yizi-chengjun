@@ -7,6 +7,7 @@ characters the game actually draws, so the web font stays tiny. Re-run after add
 The source TTF comes from https://github.com/google/fonts/tree/main/ofl/mashanzheng
 """
 import pathlib
+import re
 import sys
 
 from fontTools import subset
@@ -15,10 +16,22 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "src" / "assets" / "fonts" / "yzcj-brush.woff2"
 # Digits and punctuation brush text may use, besides the CJK characters found in the source files.
 EXTRA = "0123456789·：！？，。「」（）+-× "
+# Characters brush text asks for that Ma Shan Zheng simply has no glyph for: the source font cannot provide them, so
+# the browser falls back to the system face for these marks alone. `--check` skips them instead of failing forever.
+NO_GLYPH_IN_SOURCE = "·"
 
 
 def is_cjk(ch: str) -> bool:
     return "㐀" <= ch <= "鿿" or "　" <= ch <= "〿" or "＀" <= ch <= "￯"
+
+
+def strip_comments(text: str) -> str:
+    """Drops // and /* */ comments before any character is collected.
+
+    Reason: comments carry Chinese the game never draws — `// its own (抖音 tt.*, 微信 wx.*)` alone asks for three
+    brush glyphs nobody renders. Collecting them only bloats the subset.
+    """
+    return re.sub(r"//[^\n]*", "", re.sub(r"/\*.*?\*/", "", text, flags=re.S))
 
 
 # Files whose Chinese is only ever drawn in the system sans font: their characters don't need brush glyphs.
@@ -31,11 +44,13 @@ def collect() -> str:
     for path in [*(ROOT / "src").rglob("*.ts"), ROOT / "index.html"]:
         if path in SANS_ONLY:
             continue
-        chars.update(ch for ch in path.read_text(encoding="utf-8") if is_cjk(ch))
+        chars.update(ch for ch in strip_comments(path.read_text(encoding="utf-8")) if is_cjk(ch))
     return "".join(sorted(chars))
 
 
 def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] == "--check":
+        sys.exit(check())
     src = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else "/tmp/MaShanZheng-Regular.ttf")
     if not src.exists():
         sys.exit(f"source font not found: {src}")
@@ -52,6 +67,36 @@ def main() -> None:
     subsetter.subset(font)
     subset.save_font(font, str(OUT), opts)
     print(f"{len(text)} characters -> {OUT.relative_to(ROOT)} ({OUT.stat().st_size / 1024:.1f} KB)")
+
+
+def built_chars() -> set[str]:
+    """The characters the built woff2 actually covers, read from its cmap."""
+    from fontTools.ttLib import TTFont
+
+    return {chr(code) for code in TTFont(str(OUT)).getBestCmap()}
+
+
+def check() -> int:
+    """Fails when the built subset is missing characters the source now draws in the brush font.
+
+    Reason: brush() falls back to the system sans font, so a stale subset never renders a tofu box — it just draws
+    the wrong typeface. Without this check the only way to notice is spotting one odd glyph on a real device.
+    """
+    if not OUT.exists():
+        print(f"{OUT.relative_to(ROOT)} is missing — run `pnpm font <MaShanZheng-Regular.ttf>`")
+        return 1
+    try:
+        have = built_chars()
+    except ImportError as exc:  # brotli is needed to read woff2
+        print(f"cannot read the woff2 ({exc}) — pip install brotli")
+        return 2
+    missing = sorted(ch for ch in collect() if ch not in have and ch not in NO_GLYPH_IN_SOURCE)
+    if missing:
+        print(f"{len(missing)} character(s) missing from the brush subset: {''.join(missing)}")
+        print("run `pnpm font <MaShanZheng-Regular.ttf>` and commit the new woff2")
+        return 1
+    print(f"OK: the brush subset covers all {len(set(collect()))} characters the source draws")
+    return 0
 
 
 if __name__ == "__main__":

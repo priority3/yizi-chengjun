@@ -10,7 +10,7 @@ import { wavesSurvived } from '../core/records.ts';
 import { currentRefreshCost, offerPrice } from '../core/shop.ts';
 import type { GameState } from '../core/types.ts';
 import { cardSprite } from './cards.ts';
-import { COLORS, drawBar, drawCoin, fitPx, outlined, roundRect, text } from './draw.ts';
+import { BORDER, COLORS, drawBar, drawCoin, fitPx, outlined, R, roundRect, SHADOW, text } from './draw.ts';
 import { brush, sans } from './fonts.ts';
 import { drawPortrait } from './heroes-art.ts';
 import { L, W, type Rect } from './layout.ts';
@@ -36,10 +36,10 @@ function drawSoundButton(ctx: CanvasRenderingContext2D, r: Rect, muted: boolean,
   const dy = pressed ? 1 : 0;
   const cx = r.x + r.w / 2;
   const cy = r.y + r.h / 2 + dy;
-  roundRect(ctx, r.x, r.y + dy, r.w, r.h, 9);
+  roundRect(ctx, r.x, r.y + dy, r.w, r.h, R.sm);
   ctx.fillStyle = 'rgba(255,245,225,0.16)';
   ctx.fill();
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = BORDER.thin;
   ctx.strokeStyle = 'rgba(255,230,190,0.55)';
   ctx.stroke();
   ctx.save();
@@ -177,10 +177,10 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: GameState, ui: PanelUi
 function drawOffer(ctx: CanvasRenderingContext2D, g: GameState, i: number, ui: PanelUi): void {
   const r = L.shopCards[i];
   const o = g.shop[i];
-  roundRect(ctx, r.x, r.y, r.w, r.h, 12);
+  roundRect(ctx, r.x, r.y, r.w, r.h, R.md);
   ctx.fillStyle = 'rgba(120,80,40,0.16)';
   ctx.fill();
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = BORDER.thin;
   ctx.strokeStyle = 'rgba(140,95,45,0.45)';
   ctx.stroke();
   const cx = r.x + r.w / 2;
@@ -211,16 +211,16 @@ function drawOffer(ctx: CanvasRenderingContext2D, g: GameState, i: number, ui: P
 export function drawShop(ctx: CanvasRenderingContext2D, g: GameState, ui: PanelUi): void {
   const s = L.shop;
   ctx.save();
-  roundRect(ctx, s.x, s.y + 3, s.w, s.h, 16);
-  ctx.fillStyle = 'rgba(30,15,5,0.35)';
+  roundRect(ctx, s.x, s.y + SHADOW.y, s.w, s.h, R.lg);
+  ctx.fillStyle = SHADOW.color;
   ctx.fill();
-  roundRect(ctx, s.x, s.y, s.w, s.h, 16);
+  roundRect(ctx, s.x, s.y, s.w, s.h, R.lg);
   const bg = ctx.createLinearGradient(0, s.y, 0, s.y + s.h);
   bg.addColorStop(0, '#f7ead0');
   bg.addColorStop(1, '#e6cfa2');
   ctx.fillStyle = bg;
   ctx.fill();
-  ctx.lineWidth = 3;
+  ctx.lineWidth = BORDER.thick;
   ctx.strokeStyle = '#a8742a';
   ctx.stroke();
   // Scroll ribbon title.
@@ -228,7 +228,7 @@ export function drawShop(ctx: CanvasRenderingContext2D, g: GameState, ui: PanelU
   roundRect(ctx, W / 2 - rw / 2, s.y - 10, rw, 26, 8);
   ctx.fillStyle = '#8a3a22';
   ctx.fill();
-  ctx.lineWidth = 2;
+  ctx.lineWidth = BORDER.mid;
   ctx.strokeStyle = '#f0c24a';
   ctx.stroke();
   text(ctx, '商  店', W / 2, s.y + 3.5, brush(17), '#fbeed2');
@@ -242,7 +242,9 @@ export function drawShop(ctx: CanvasRenderingContext2D, g: GameState, ui: PanelU
   const queued = modsLabel(g.waveMods);
   const hint = ui.dragging ? '拖到阵地空格上 · 叠到同名卡上升级' : queued ? `下一波：${queued}` : g.chest ? '宝箱：打完下一波开出一张卡' : '';
   if (hint) {
-    const px = fitPx(ctx, hint, s.w - 120, 9, (n) => sans(n, 600), 7);
+    // Reason: 7 px was unreadable on a phone. The floor is the ceiling here — the line holds whatever the encounter
+    // modifiers produce, so it shrinks no further than the size it is drawn at today.
+    const px = fitPx(ctx, hint, s.w - 120, 9, (n) => sans(n, 600), 9);
     text(ctx, hint, W / 2, s.y + 24, sans(px, 600), queued && !ui.dragging ? '#b3261e' : '#8a5a2a');
   }
 }
@@ -277,7 +279,7 @@ export function drawBanner(ctx: CanvasRenderingContext2D, b: Banner): void {
   roundRect(ctx, 24 - slide, y - h / 2, W - 48, h, 14);
   ctx.fillStyle = 'rgba(28,14,6,0.84)';
   ctx.fill();
-  ctx.lineWidth = 2;
+  ctx.lineWidth = BORDER.mid;
   ctx.strokeStyle = 'rgba(240,194,74,0.8)';
   ctx.stroke();
   if (b.portrait) {
