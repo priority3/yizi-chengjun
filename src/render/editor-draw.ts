@@ -2,7 +2,7 @@
 // draft, and the palette's brushes), the square grid, and the marks over the painted map — locked pads, the turning
 // rune rings of open 法阵, entrance numbers, the five best-covering pads and the squares an error is about. The painted
 // map itself is paintMap's, exactly as a run paints it, cached per layout by PaintedMap.
-import { PAD_LETTERS, SLOT_NAME, TILE, type MapTheme, type SlotKind } from '../config/maps.ts';
+import { PAD_LETTERS, TILE, type MapTheme, type SlotKind } from '../config/maps.ts';
 import type { MapData } from '../core/map.ts';
 import { offscreen } from '../platform/env.ts';
 import { roundRect, text } from './draw.ts';
@@ -10,7 +10,7 @@ import { sans } from './fonts.ts';
 import { paintMap, PAD_R } from './map-art.ts';
 import { starPath } from './rating-art.ts';
 import { THEMES } from './scenery.ts';
-import { drawRuneRings, PAD_TAG_COLOR } from './slot-marks.ts';
+import { drawLockedPad, drawRuneRings } from './slot-marks.ts';
 
 /** A square of the grid (column, row). */
 export interface Square {
@@ -171,19 +171,12 @@ export function drawGridLines(ctx: CanvasRenderingContext2D, cols: number, rows:
 
 /**
  * The live marks a run draws over its pads, minus the prices: the turning rune ring on every open 法阵, and each pad
- * bought with 铜钱 darkened with its "+" (or, for a special pad, its name). `time` turns the rings.
+ * bought with 铜钱 dimmed under a seal strip with its "+" (or, for a special pad, its name). `time` turns the rings.
  */
 export function drawPadMarks(ctx: CanvasRenderingContext2D, map: MapData, time: number, k: number): void {
   drawRuneRings(ctx, { map, unlocked: map.open }, PAD_R + 4, time);
   map.slots.forEach((p, i) => {
-    if (map.open[i]) return;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, PAD_R - 1, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(45,28,12,0.6)';
-    ctx.fill();
-    const kind = map.slotKind[i];
-    if (kind === 'plain') text(ctx, '+', p.x, p.y, sans(Math.round(18 * k), 800), PAD_TAG_COLOR.plain);
-    else text(ctx, SLOT_NAME[kind], p.x, p.y, sans(Math.round(10 * k), 800), PAD_TAG_COLOR[kind]);
+    if (!map.open[i]) drawLockedPad(ctx, p, map.slotKind[i], null, true, PAD_R, k);
   });
 }
 

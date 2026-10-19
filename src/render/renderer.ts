@@ -2,7 +2,6 @@
 // the shop or battle bar, the dragged card and any banner or modal in screen space.
 import { unlockCost } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
-import { SLOT_NAME } from '../config/maps.ts';
 import { UNITS } from '../config/units.ts';
 import { pathDir, type Pt } from '../core/map.ts';
 import { routeOf } from '../core/monsters.ts';
@@ -12,7 +11,7 @@ import type { Enemy, EnemyDef, GameState, Tile, UnitId } from '../core/types.ts'
 import type { Stage } from '../platform/env.ts';
 import type { Camera } from './camera.ts';
 import { CARD, cardSprite } from './cards.ts';
-import { drawBar, drawCoin, drawStar, outlined, roundRect, text } from './draw.ts';
+import { drawBar, drawStar, outlined, roundRect, text } from './draw.ts';
 import { drawEncounterPanel } from './encounter-panel.ts';
 import { brush, sans } from './fonts.ts';
 import { drawNetOver, drawPoisonBubbles } from './fx-cards.ts';
@@ -21,7 +20,7 @@ import { drawMap, PAD_R } from './map-art.ts';
 import { FLY_LIFT, FOOT, makePose, monsterPose, type Gait, type MonsterPose } from './monster-pose.ts';
 import { monsterSprite } from './monsters-art.ts';
 import { drawBanner, drawBattleBar, drawHud, drawShop, type PanelUi } from './panels.ts';
-import { drawAimBadge, drawPadLabel, drawRuneRings, PAD_TAG_COLOR } from './slot-marks.ts';
+import { drawAimBadge, drawLockedPad, drawPadLabel, drawRuneRings, padRing } from './slot-marks.ts';
 import { blit } from './sprites.ts';
 import type { Vfx } from './vfx.ts';
 
@@ -131,17 +130,7 @@ export class GameRenderer {
     const price = unlockCost(g.unlockCount);
     drawRuneRings(ctx, g, PAD_R + 4, time);
     g.map.slots.forEach((p, i) => {
-      if (g.unlocked[i]) return;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, PAD_R - 1, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(45,28,12,0.6)';
-      ctx.fill();
-      // A locked special pad says what it is where a plain one shows its "+".
-      const kind = g.map.slotKind[i];
-      if (kind === 'plain') text(ctx, '+', p.x, p.y - 6 * k, sans(Math.round(18 * k), 800), PAD_TAG_COLOR.plain);
-      else text(ctx, SLOT_NAME[kind], p.x, p.y - 6 * k, sans(Math.round(10 * k), 800), PAD_TAG_COLOR[kind]);
-      drawCoin(ctx, p.x - 8 * k, p.y + 9 * k, 4 * k);
-      text(ctx, String(price), p.x - 3 * k, p.y + 9.5 * k, sans(Math.round(9 * k), 800), g.gongde >= price ? '#ffe9b0' : 'rgba(255,200,190,0.85)', 'left');
+      if (!g.unlocked[i]) drawLockedPad(ctx, p, g.map.slotKind[i], price, g.gongde >= price, PAD_R, k);
     });
     // Range preview for the dragged card (over a slot) or a tapped tile.
     let ringCell = -1;
@@ -172,8 +161,7 @@ export class GameRenderer {
       const p = g.map.slots[ui.hoverCell];
       if (ui.hoverHint) this.drawCombineHint(ctx, p, ui.hoverHint, time, k);
       else {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, PAD_R + 3, 0, Math.PI * 2);
+        padRing(ctx, p, PAD_R + 5);
         ctx.lineWidth = 3 * k;
         ctx.strokeStyle = ui.hoverValid ? '#7dff9a' : '#ff6a5a';
         ctx.stroke();
@@ -185,8 +173,7 @@ export class GameRenderer {
   /** A spinning golden ring around the target card plus a label saying what releasing will do. */
   private drawCombineHint(ctx: CanvasRenderingContext2D, p: Pt, hint: string, time: number, k: number): void {
     ctx.save();
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, PAD_R + 6, 0, Math.PI * 2);
+    padRing(ctx, p, PAD_R + 7);
     ctx.setLineDash([9 * k, 7 * k]);
     ctx.lineDashOffset = -time * 45 * k;
     ctx.lineWidth = 3.5 * k;
