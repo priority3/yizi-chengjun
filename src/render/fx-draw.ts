@@ -11,7 +11,7 @@ import { drawPortrait } from './heroes-art.ts';
 import { corpseHeight, corpsePose, FOOT, makeCorpsePose } from './monster-pose.ts';
 import { monsterSprite } from './monsters-art.ts';
 
-export type FxKind = 'swing' | 'bolt' | 'beam' | 'slam' | 'dragon' | 'ring' | 'burst' | 'seal' | 'slash';
+export type FxKind = 'swing' | 'bolt' | 'beam' | 'slam' | 'dragon' | 'ring' | 'burst' | 'seal' | 'slash' | 'streak';
 
 export interface Fx {
   kind: FxKind;
@@ -264,6 +264,18 @@ export function drawFx(ctx: CanvasRenderingContext2D, f: Fx): void {
       ctx.fillStyle = '#c8001f';
       ctx.fill();
       text(ctx, GOLD_GLYPH, 0, 1, brush(22), '#fff4ec');
+      break;
+    }
+    case 'streak': {
+      // A blur from the striker to the hit, thinning and fading as it goes: a staff blow's reach.
+      ctx.globalAlpha = 1 - k;
+      ctx.beginPath();
+      ctx.moveTo(f.x + (f.x2 - f.x) * k * 0.6, f.y + (f.y2 - f.y) * k * 0.6);
+      ctx.lineTo(f.x2, f.y2);
+      ctx.lineWidth = f.size * (1 - k) + 0.5;
+      ctx.strokeStyle = f.color;
+      ctx.lineCap = 'round';
+      ctx.stroke();
       break;
     }
     case 'slash':

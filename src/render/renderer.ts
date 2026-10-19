@@ -11,6 +11,7 @@ import type { Enemy, EnemyDef, GameState, Tile, UnitId } from '../core/types.ts'
 import type { Stage } from '../platform/env.ts';
 import type { Camera } from './camera.ts';
 import { CARD, cardSprite } from './cards.ts';
+import { drawReadyRing, drawTroop } from './troops.ts';
 import { drawBar, drawStar, outlined, roundRect, text } from './draw.ts';
 import { drawEncounterPanel } from './encounter-panel.ts';
 import { brush, sans } from './fonts.ts';
@@ -194,34 +195,30 @@ export class GameRenderer {
     text(ctx, hint, p.x, cy + 0.5 * k, sans(Math.round(10 * k), 800), '#ffe9a8');
   }
 
+  /**
+   * Every tile as its troop (troops.ts): a banner and a squad on the pad, facing where it last shot. A hero with full
+   * rage stands in a breathing golden ring with its rage bar under it; a fighter with a 瞄准 other than 打最前 carries
+   * its badge by the pad's right edge. A tile being dragged shows faintly where it was picked up.
+   */
   private drawTiles(ctx: CanvasRenderingContext2D, g: GameState, ui: GameUi, vfx: Vfx, time: number): void {
+    const troops = vfx.troops;
     g.slots.forEach((t, i) => {
       if (!t) return;
       const p = g.map.slots[i];
-      const x = p.x;
-      // Reason: cards stand a little above the pad's centre so the pad shows underneath like a plinth.
-      const y = p.y - 6;
       const shake = vfx.shakes[i] > 0 ? Math.sin(vfx.shakes[i] * 80) * 3 : 0;
-      const scale = 1 + vfx.pops[i] * 0.9 + vfx.recoil[i] * 0.7;
-      const { img, size } = cardSprite(t.id, t.level, t.divine);
-      const dragging = ui.drag?.kind === 'cell' && ui.drag.index === i;
+      const scale = 1 + vfx.pops[i] * 0.9;
       const hero = UNITS[t.id].kind === 'hero';
       const ready = hero && t.rage >= 1;
       ctx.save();
-      if (dragging) ctx.globalAlpha = 0.3;
-      if (ready) {
-        // Full rage: the card glows until the next attack unleashes the ultimate.
-        ctx.shadowColor = 'rgba(255,200,60,1)';
-        ctx.shadowBlur = 16 + Math.sin(time * 9) * 6;
-        roundRect(ctx, x - CARD / 2, y - CARD / 2, CARD, CARD, 9);
-        ctx.fillStyle = 'rgba(255,215,90,0.8)';
-        ctx.fill();
-        ctx.shadowBlur = 0;
-      }
-      blit(ctx, img, x + shake, y, size, size, scale);
-      if (hero) drawBar(ctx, x - 19, y + CARD / 2 - 5, 38, 4.5, t.rage, ready ? '#ffd166' : '#ff7a2a');
-      // 瞄准 other than 打最前: a badge on the bottom-right corner, clear of the level badge and the 金 seal up top.
-      if (t.target) drawAimBadge(ctx, t.target, x + shake + 23 * scale, y + 21 * scale, 7.5 * scale);
+      if (ui.drag?.kind === 'cell' && ui.drag.index === i) ctx.globalAlpha = 0.3;
+      ctx.translate(p.x + shake, p.y);
+      // Reason: a pop grows the troop from where it stands, so a merge looks like the squad drawing itself up.
+      if (scale !== 1) ctx.scale(scale, scale);
+      if (ready) drawReadyRing(ctx, 0, 0, time);
+      // Reason: each pad's clock is offset a little, so neighbouring banners and squads don't sway in step.
+      drawTroop(ctx, t, 0, 0, troops.face[i], troops.since[i], troops.shooter[i], time + i * 0.77);
+      if (hero) drawBar(ctx, -19, 17, 38, 4.5, t.rage, ready ? '#ffd166' : '#ff7a2a');
+      if (t.target) drawAimBadge(ctx, t.target, 22, 13, 7);
       ctx.restore();
     });
   }
