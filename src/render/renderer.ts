@@ -12,14 +12,16 @@ import type { Stage } from '../platform/env.ts';
 import type { Camera } from './camera.ts';
 import { CARD, cardSprite } from './cards.ts';
 import { drawReadyRing, drawTroop } from './troops.ts';
-import { drawBar, drawStar, outlined, roundRect, text } from './draw.ts';
+import { drawBar, outlined, roundRect, text } from './draw.ts';
 import { drawEncounterPanel } from './encounter-panel.ts';
 import { brush, sans } from './fonts.ts';
 import { drawNetOver, drawPoisonBubbles } from './fx-cards.ts';
+import { inkStar } from './fx-toon.ts';
 import { L, viewRect, W, type Rect } from './layout.ts';
 import { drawMap, PAD_R } from './map-art.ts';
 import { FLY_LIFT, FOOT, makePose, monsterPose, type Gait, type MonsterPose } from './monster-pose.ts';
-import { monsterSprite } from './monsters-art.ts';
+import { monsterHead, monsterSprite, monsterTop } from './monsters-art.ts';
+import { CINNABAR, INK, inkBar, PAPER } from './ink.ts';
 import { drawBanner, drawBattleBar, drawHud, drawShop, type PanelUi } from './panels.ts';
 import { drawAimBadge, drawLockedPad, drawPadLabel, drawRuneRings, padRing } from './slot-marks.ts';
 import { blit } from './sprites.ts';
@@ -274,9 +276,11 @@ export class GameRenderer {
     ctx.fillStyle = 'rgba(40,20,5,0.25)';
     ctx.fill();
     if (def.boss) {
+      // A pulsing patch of red light on the ground round the boss's feet.
+      const k = 1.3 + Math.sin(time * 4) * 0.06;
       ctx.beginPath();
-      ctx.arc(e.x, e.y, def.radius * (1.25 + Math.sin(time * 4) * 0.05), 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,90,40,0.16)';
+      ctx.ellipse(e.x, e.y + def.radius * FOOT, def.radius * k, def.radius * k * 0.4, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(220,60,40,0.2)';
       ctx.fill();
     }
   }
@@ -286,21 +290,18 @@ export class GameRenderer {
    * `lift` raises a flyer's whole body.
    */
   private drawBody(ctx: CanvasRenderingContext2D, e: Enemy, def: EnemyDef, pose: MonsterPose, vfx: Vfx, lift: number): void {
-    const { img, flash, box } = monsterSprite(e.def);
+    const { img, flash, w, h, ax, ay } = monsterSprite(e.def);
     const foot = def.radius * FOOT;
-    // Sprite corner relative to the feet: unposed, the sprite is centred on the enemy's position.
-    const left = -box / 2;
-    const top = -foot - box / 2;
     ctx.save();
     ctx.translate(e.x, e.y + foot - lift);
     // Reason: the rotation sits outside the mirror, so `lean` is in world terms — a monster walking left tips left.
     ctx.rotate(pose.lean);
     ctx.scale(pose.flip ? -pose.sx : pose.sx, pose.sy);
-    ctx.drawImage(img, left, top, box, box);
+    ctx.drawImage(img, -ax, -ay, w, h);
     const f = vfx.flash.get(e.uid);
     if (f !== undefined) {
       ctx.globalAlpha = Math.min(1, f / 0.12) * 0.85;
-      ctx.drawImage(flash, left, top, box, box);
+      ctx.drawImage(flash, -ax, -ay, w, h);
     }
     ctx.restore();
   }
@@ -320,23 +321,29 @@ export class GameRenderer {
       ctx.stroke();
       snowflake(ctx, x + def.radius * 0.9, y - def.radius * 0.9, 5);
     }
+    const feet = y + def.radius * FOOT;
     if (e.stunT > 0) {
+      // The stars circle the head.
+      const head = monsterHead(e.def);
+      const sy = feet - head.up - head.r * 1.15;
       for (let i = 0; i < 3; i++) {
         const a = time * 6 + (i * Math.PI * 2) / 3;
-        drawStar(ctx, x + Math.cos(a) * def.radius * 0.8, y - def.radius * 1.2 + Math.sin(a) * 3, 3.5, '#ffe45a');
+        inkStar(ctx, x + Math.cos(a) * head.r * 1.3, sy + Math.sin(a) * 2.5, 3.8, 5, 0.45, '#ffe45a', 0.9);
       }
     }
-    if (isRooted(e)) drawNetOver(ctx, x, y, def.radius, time, e.uid);
+    // Reason: the net is thrown over the whole figure, so it centres halfway up it rather than on the shadow.
+    if (isRooted(e)) drawNetOver(ctx, x, feet - monsterTop(e.def) / 2, def.radius * 1.15, time, e.uid);
     if (e.poison) drawPoisonBubbles(ctx, x, y, def.radius, e.poison.stacks, time, e.uid);
   }
 
-  /** HP bar above the monster (a flyer's lifted body), plus the name under bosses and elites. */
+  /** A cinnabar HP bar in a paper groove just over the head (a flyer's lifted head), with the name above for bosses and elites. */
   private drawTags(ctx: CanvasRenderingContext2D, e: Enemy, def: EnemyDef, lift: number): void {
     const barW = Math.max(22, def.radius * 2);
-    const y = e.y - lift;
-    drawBar(ctx, e.x - barW / 2, y - def.radius - 9, barW, 4, e.hp / e.maxHp, def.boss ? '#ff5a3a' : '#6fdc5a');
+    const h = def.boss ? 6 : 4.5;
+    const bar = e.y + def.radius * FOOT - lift - monsterTop(e.def) - 4 - h;
+    inkBar(ctx, e.x - barW / 2, bar, barW, h, e.hp / e.maxHp, CINNABAR);
     if (def.boss || def.elite) {
-      outlined(ctx, def.name, e.x, y + def.radius + 12, brush(def.boss ? 14 : 12), def.boss ? '#ffd166' : '#ffb0a0', 'rgba(20,10,4,0.9)', 3);
+      outlined(ctx, def.name, e.x, bar - 8, brush(def.boss ? 14 : 12), def.boss ? CINNABAR : INK, PAPER, 3);
     }
   }
 

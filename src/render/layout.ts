@@ -33,9 +33,10 @@ export interface Layout {
 
 export function computeLayout(H: number): Layout {
   const shop: Rect = { x: 8, y: H - 190, w: W - 16, h: 184 };
-  const cardW = 92;
-  const gap = (shop.w - 3 * cardW) / 4;
-  const shopCards = [0, 1, 2].map((k) => ({ x: shop.x + gap + k * (cardW + gap), y: shop.y + 30, w: cardW, h: 96 }));
+  // Reason: the shop is a handscroll whose rollers take 16 units at each end; the offer slips and the two buttons
+  // sit inside its paper, the slips 10 units in from the paper's inner rule.
+  const cardW = 84;
+  const shopCards = [0, 1, 2].map((k) => ({ x: shop.x + 31 + k * (cardW + 15), y: shop.y + 30, w: cardW, h: 96 }));
   return {
     H,
     hud: { x: 0, y: 0, w: W, h: 58 },
@@ -44,9 +45,9 @@ export function computeLayout(H: number): Layout {
     btnSound: { x: 80, y: 6, w: 30, h: 28 },
     shop,
     shopCards,
-    btnRefresh: { x: 20, y: shop.y + 134, w: 150, h: 40 },
-    btnStart: { x: 190, y: shop.y + 134, w: 150, h: 40 },
-    trash: { x: shop.x + shop.w - 42, y: shop.y + 2, w: 36, h: 30 },
+    btnRefresh: { x: 26, y: shop.y + 134, w: 146, h: 40 },
+    btnStart: { x: 188, y: shop.y + 134, w: 146, h: 40 },
+    trash: { x: shop.x + shop.w - 52, y: shop.y - 2, w: 36, h: 30 },
     bar: { x: 0, y: H - 50, w: W, h: 50 },
     barTrash: { x: W - 54, y: H - 47, w: 44, h: 44 },
   };

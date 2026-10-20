@@ -203,32 +203,26 @@ describe('corpse', () => {
 });
 
 describe('death and boss entrance effects', () => {
-  it('leaves a corpse for every kill: 0.4 s for a minion, 0.8 s for a boss', () => {
+  it('leaves a body only for a boss, for 0.8 s; a minion vanishes in a puff of smoke instead', () => {
     const vfx = new Vfx(buildMap(TEST_MAP));
     vfx.consume([
       { t: 'kill', def: '妖', x: 100, y: 120, bounty: 2 },
       { t: 'kill', def: '白骨精', x: 200, y: 150, bounty: 40 },
     ]);
-    expect(vfx.corpses.map((c) => [c.def, c.x, c.y, c.life])).toEqual([
-      ['妖', 100, 120, 0.4],
-      ['白骨精', 200, 150, 0.8],
-    ]);
+    expect(vfx.corpses.map((c) => [c.def, c.x, c.y, c.life, c.lift])).toEqual([['白骨精', 200, 150, 0.8, 0]]);
     vfx.update(0.41);
     expect(vfx.corpses.map((c) => c.def)).toEqual(['白骨精']);
     vfx.update(0.4);
     expect(vfx.corpses).toHaveLength(0);
   });
 
-  it("starts a flyer's corpse at its lifted height, a walker's on the ground", () => {
+  it('leaves no body for a beaten flyer either', () => {
     const vfx = new Vfx(buildMap(TEST_MAP));
     vfx.consume([
       { t: 'kill', def: '蝠', x: 100, y: 120, bounty: 2 },
-      { t: 'kill', def: '妖', x: 140, y: 120, bounty: 2 },
+      { t: 'kill', def: '鹏', x: 140, y: 120, bounty: 5 },
     ]);
-    expect(vfx.corpses.map((c) => [c.def, c.x, c.y, c.lift])).toEqual([
-      ['蝠', 100, 120, FLY_LIFT],
-      ['妖', 140, 120, 0],
-    ]);
+    expect(vfx.corpses).toHaveLength(0);
   });
 
   it('holds a rumble and darkens the corners for 0.6 s when a boss wave starts', () => {

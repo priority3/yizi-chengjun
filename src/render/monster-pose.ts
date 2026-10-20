@@ -105,8 +105,10 @@ export function monsterPose(out: MonsterPose, dir: number, wasLeft: boolean, gai
   return out;
 }
 
-/** Seconds a corpse lasts: it topples over, then lies there sinking and fading. Bosses fall slower and heavier. */
-export const CORPSE_LIFE = 0.4;
+/**
+ * Seconds a fallen boss's body lasts: it topples over, then lies there sinking and fading. (A beaten minion leaves no
+ * body: it vanishes in a puff of smoke, see vfx.ts.)
+ */
 export const BOSS_CORPSE_LIFE = 0.8;
 /** Pixels a corpse sinks into the ground over its life. */
 export const CORPSE_SINK = 6;

@@ -2,7 +2,7 @@
 // with soft washes, hand-drawn blobs, ink grass and a paper grain laid over everything. Everything here is seeded
 // (hash01 / rng), so a map paints the same picture at every zoom level and on every device.
 import { offscreen } from '../platform/env.ts';
-import { hash01 } from './draw.ts';
+import { hash01, roundRect } from './draw.ts';
 
 /** Ink for outlines and strokes (a warm near-black, never pure black). */
 export const INK = '#2b2420';
@@ -138,4 +138,24 @@ export function paperGrain(ctx: CanvasRenderingContext2D, w: number, h: number):
   for (let y = 0; y < h; y += GRAIN) {
     for (let x = 0; x < w; x += GRAIN) ctx.drawImage(tile, x, y, GRAIN, GRAIN);
   }
+}
+
+/**
+ * A bar in a groove with an ink rim (the HP bars over the monsters and the camp's in the HUD); `frac` 0..1 of it is
+ * filled with `color`. The groove is paper unless `groove` says otherwise.
+ */
+export function inkBar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, frac: number, color: string, groove = PAPER): void {
+  const f = Math.max(0, Math.min(1, frac));
+  roundRect(ctx, x, y, w, h, h / 2);
+  ctx.fillStyle = groove;
+  ctx.fill();
+  if (f > 0) {
+    roundRect(ctx, x, y, Math.max(h, w * f), h, h / 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+  roundRect(ctx, x, y, w, h, h / 2);
+  ctx.lineWidth = 0.9;
+  ctx.strokeStyle = INK;
+  ctx.stroke();
 }
