@@ -2,7 +2,7 @@
 // draft, and the palette's brushes), the square grid, and the marks over the painted map — locked pads, the turning
 // rune rings of open 法阵, entrance numbers, the five best-covering pads and the squares an error is about. The painted
 // map itself is paintMap's, exactly as a run paints it, cached per layout by PaintedMap.
-import { PAD_LETTERS, SLOT_NAME, TILE, type MapTheme, type SlotKind } from '../config/maps.ts';
+import { PAD_LETTERS, TILE, type MapTheme, type SlotKind } from '../config/maps.ts';
 import type { MapData } from '../core/map.ts';
 import { offscreen } from '../platform/env.ts';
 import { roundRect, text } from './draw.ts';
@@ -10,7 +10,7 @@ import { sans } from './fonts.ts';
 import { paintMap, PAD_R } from './map-art.ts';
 import { starPath } from './rating-art.ts';
 import { THEMES } from './scenery.ts';
-import { drawRuneRings, PAD_TAG_COLOR } from './slot-marks.ts';
+import { drawLockedPad, drawRuneRings } from './slot-marks.ts';
 
 /** A square of the grid (column, row). */
 export interface Square {
@@ -24,6 +24,22 @@ const PAD_FACE: Readonly<Record<SlotKind, [string, string]>> = {
   altar: ['#f1dca6', '#c9a660'],
   high: ['#e4d2ac', '#b59a6c'],
   mire: ['#7a6a44', '#4f4428'],
+  coffer: ['#f6dc8a', '#c99a2e'],
+  beacon: ['#f2c2a0', '#c0644a'],
+  twin: ['#f0cfc8', '#b8706a'],
+  spring: ['#cfe8ec', '#6fa8b8'],
+};
+
+/** Outline of a pad swatch, by kind. */
+const PAD_EDGE: Readonly<Record<SlotKind, string>> = {
+  plain: '#7a5a30',
+  altar: '#c8901c',
+  high: '#7a5a30',
+  mire: '#3a3220',
+  coffer: '#a8740c',
+  beacon: '#8a2a1a',
+  twin: '#9a3a32',
+  spring: '#2b6585',
 };
 
 /**
@@ -121,7 +137,7 @@ function padSwatch(ctx: CanvasRenderingContext2D, ch: string, cx: number, cy: nu
   ctx.fillStyle = face;
   ctx.fill();
   ctx.lineWidth = Math.max(1, s * 0.04);
-  ctx.strokeStyle = kind === 'altar' ? '#c8901c' : kind === 'mire' ? '#3a3220' : '#7a5a30';
+  ctx.strokeStyle = PAD_EDGE[kind];
   ctx.stroke();
   if (kind === 'altar') {
     ctx.beginPath();
@@ -171,19 +187,12 @@ export function drawGridLines(ctx: CanvasRenderingContext2D, cols: number, rows:
 
 /**
  * The live marks a run draws over its pads, minus the prices: the turning rune ring on every open 法阵, and each pad
- * bought with 铜钱 darkened with its "+" (or, for a special pad, its name). `time` turns the rings.
+ * bought with 铜钱 dimmed under a seal strip with its "+" (or, for a special pad, its name). `time` turns the rings.
  */
 export function drawPadMarks(ctx: CanvasRenderingContext2D, map: MapData, time: number, k: number): void {
   drawRuneRings(ctx, { map, unlocked: map.open }, PAD_R + 4, time);
   map.slots.forEach((p, i) => {
-    if (map.open[i]) return;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, PAD_R - 1, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(45,28,12,0.6)';
-    ctx.fill();
-    const kind = map.slotKind[i];
-    if (kind === 'plain') text(ctx, '+', p.x, p.y, sans(Math.round(18 * k), 800), PAD_TAG_COLOR.plain);
-    else text(ctx, SLOT_NAME[kind], p.x, p.y, sans(Math.round(10 * k), 800), PAD_TAG_COLOR[kind]);
+    if (!map.open[i]) drawLockedPad(ctx, p, map.slotKind[i], null, true, PAD_R, k);
   });
 }
 

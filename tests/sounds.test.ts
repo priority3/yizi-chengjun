@@ -50,6 +50,8 @@ const SAMPLES: { [K in SimEvent['t']]: Array<Extract<SimEvent, { t: K }>> } = {
   sell: [{ t: 'sell', cell: 0, amount: 5 }],
   invalid: [{ t: 'invalid', cell: 0, msg: '不行' }],
   income: [{ t: 'income', cell: 0, amount: 3 }],
+  coffer: [{ t: 'coffer', cell: 0, amount: 1 }],
+  spring: [{ t: 'spring', cell: 0, layers: 2 }],
   heal: [{ t: 'heal', cell: 0, amount: 6 }],
   mirror: [{ t: 'mirror', cell: 0, ...at, dmg: 40, targets: [{ uid: 1, ...at }] }],
   unlock: [{ t: 'unlock', cell: 0 }],

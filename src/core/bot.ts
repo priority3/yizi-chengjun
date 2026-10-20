@@ -3,7 +3,7 @@
 // In endless and daily runs it also plays a long game (see longGame); chapter runs never see that.
 import { unlockCost } from '../config/chapters.ts';
 import { heroFor } from '../config/combos.ts';
-import { SLOT_BONUS } from '../config/maps.ts';
+import { BEACON, SLOT_BONUS, SPRING, TWIN_HASTE, type SlotKind } from '../config/maps.ts';
 import { MAX_LEVEL, UNITS } from '../config/units.ts';
 import { canBeDivine, canPlace, isStackable } from './board.ts';
 import { drumValue, NET_VALUE, placedValue, poisonValue, SUPPORT_VALUE, wantsNet } from './bot-cards.ts';
@@ -12,7 +12,7 @@ import { coverage } from './map.ts';
 import { isOpenEnded } from './modes.ts';
 import { rand, type RngHolder } from './rng.ts';
 import { currentRefreshCost, offerPrice } from './shop.ts';
-import { padRange, slotKindOf } from './slots.ts';
+import { beaconLit, padRange, slotKindOf } from './slots.ts';
 import { tileDps } from './stats.ts';
 import type { Action, EncounterId, GameState, Tile, UnitId } from './types.ts';
 import { hasAirRaids } from './waves.ts';
@@ -52,15 +52,30 @@ export function tileValue(t: Tile, chapter: number): number {
 }
 
 /**
- * How well a cell suits a tile: lane coverage for fighters (a 高台 reaches further, a 法阵 hits harder),
- * out-of-the-way cells for the rest. Callers check canPlace first.
+ * What the later pads are worth to a fighter before anyone stands on them, as a damage factor: the layers a 灵泉 builds
+ * up over a run (about two on average), the 铜钱 a 聚宝台 pays, the hits a lit 烽火台 sharpens round it, a 双生台's
+ * chance of a pair. 1 for the rest (their bonus is in SLOT_BONUS).
+ */
+const PAD_WORTH: Partial<Record<SlotKind, number>> = { spring: 1 + SPRING.dmg * 2, coffer: 1.1, beacon: 1 + BEACON.amp / 2, twin: 1.05 };
+
+/** What the pad under `cell` is worth to the fighter `t`: PAD_WORTH, or a 双生台 whose pair holds the same fighter. */
+function padWorth(g: GameState, cell: number, t: Tile): number {
+  const pad = slotKindOf(g, cell);
+  if (pad === 'twin') return g.slots[g.map.twin[cell]]?.id === t.id ? 1 + TWIN_HASTE : 1;
+  return SLOT_BONUS[pad].dmgMul * (PAD_WORTH[pad] ?? 1);
+}
+
+/**
+ * How well a cell suits a tile: lane coverage for fighters (a 高台 reaches further, a 法阵 hits harder, and so on:
+ * padWorth), the fighters within reach for a 鼓 or 速, out-of-the-way cells for the rest — except a dark 烽火台, which
+ * any card lights. Callers check canPlace first.
  */
 function cellScore(g: GameState, cell: number, t: Tile): number {
   const kind = UNITS[t.id].kind;
   if (kind === 'attack' || kind === 'hero') {
     const pad = slotKindOf(g, cell);
     // A 鼓 beside the cell counts like a 法阵 (drumMul is 1 without one, so boards without drums score as before).
-    return coverage(g.map, cell, padRange(t, pad, g.mods), antiAir(t.id, g.chapter)) * SLOT_BONUS[pad].dmgMul * drumMul(g, cell);
+    return coverage(g.map, cell, padRange(t, pad, g.mods), antiAir(t.id, g.chapter)) * padWorth(g, cell, t) * drumMul(g, cell);
   }
   // 鼓 wants the strongest fighters within its reach.
   if (t.id === '鼓') return drumValue(g, cell, t.level);
@@ -75,6 +90,8 @@ function cellScore(g: GameState, cell: number, t: Tile): number {
     }
     return n;
   }
+  // Reason: the others score at most 0 (out of the way is best), so a dark beacon outranks every other cell for them.
+  if (slotKindOf(g, cell) === 'beacon' && !beaconLit(g, cell)) return 1;
   return -coverage(g.map, cell, 160);
 }
 
@@ -204,8 +221,9 @@ function bestLockedSlot(g: GameState): number {
   let bestCov = -Infinity;
   g.unlocked.forEach((open, i) => {
     if (open) return;
-    const pad = SLOT_BONUS[slotKindOf(g, i)];
-    const c = pad.fighters ? coverage(g.map, i, 180 + pad.range) * pad.dmgMul : coverage(g.map, i, 180) - 1;
+    const kind = slotKindOf(g, i);
+    const pad = SLOT_BONUS[kind];
+    const c = pad.fighters ? coverage(g.map, i, 180 + pad.range) * pad.dmgMul * (PAD_WORTH[kind] ?? 1) : coverage(g.map, i, 180) - 1;
     if (c > bestCov) {
       bestCov = c;
       best = i;

@@ -40,6 +40,10 @@ export interface MapData {
   slotKind: SlotKind[];
   /** Slots within SUPPORT_RANGE of each slot (速 reaches these). */
   adj: number[][];
+  /** The 双生台 each slot is paired with (twin pads pair up in reading order), -1 for every other slot and an odd one out. */
+  twin: number[];
+  /** Slots that are 烽火台, in slot order. */
+  beacons: number[];
   decor: Decor[];
   /** Row-major road mask of the squares, for painting. */
   road: boolean[];
@@ -157,6 +161,13 @@ export function buildMap(def: MapDef): MapData {
   const adj = slots.map((p, i) =>
     slots.map((_, j) => j).filter((j) => j !== i && Math.hypot(slots[j].x - p.x, slots[j].y - p.y) <= SUPPORT_RANGE),
   );
+  const twin = slotKind.map(() => -1);
+  // Reason: slots are numbered in reading order, so pairing them in index order pairs the letters as the map reads.
+  const twins = slotKind.flatMap((k, i) => (k === 'twin' ? [i] : []));
+  for (let k = 0; k + 1 < twins.length; k += 2) {
+    twin[twins[k]] = twins[k + 1];
+    twin[twins[k + 1]] = twins[k];
+  }
   return {
     w: cols * TILE,
     h: rows * TILE,
@@ -171,6 +182,8 @@ export function buildMap(def: MapDef): MapData {
     open,
     slotKind,
     adj,
+    twin,
+    beacons: slotKind.flatMap((k, i) => (k === 'beacon' ? [i] : [])),
     decor,
     road,
     hpScale,

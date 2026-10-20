@@ -6,16 +6,22 @@
 //   A/a  法阵 altar: a fighter on it deals more damage        (upper case open, lower case bought)
 //   H/h  高台 high ground: a fighter on it reaches further    (upper case open, lower case bought)
 //   M/m  泥沼 mire: fighters can't stand on it; supports, fragments and the 金 card can
+//   C/c  聚宝台 coffer: every monster the card on it finishes off pays extra 铜钱
+//   B/b  烽火台 beacon: with any card on it, the monsters around it take more from every hit
+//   D/d  双生台 twin: pads pair up in reading order (1st with 2nd, 3rd with 4th); the same fighter on both is faster
+//   S/s  灵泉 spring: a card on it soaks up a layer for every wave it stays through; a fighter hits harder for each
 //   ~    water (lava on fire maps)   ^   rock      T   tree      .   plain ground
 //
 // Each character is one TILE x TILE square of world space. Roads must be simple corridors from each
 // entrance to E (no 2x2 road blocks, no crossings); corners get rounded automatically.
-// Special pads (A/H/M) go where they matter — corners, junctions — and stay at most a third of a map's pads.
+// Special pads go where they matter — corners, junctions — and stay at most two fifths of a map's pads. The kinds
+// come in one chapter at a time: 法阵 and 高台 from chapter 1, 聚宝台 from 2, 烽火台 from 3, 双生台 from 4 (always in
+// pairs), 泥沼 from 5, 灵泉 from 6.
 
 export type MapTheme = 'ridge' | 'wind' | 'plateau' | 'fire' | 'forest' | 'river' | 'web' | 'flame' | 'lion' | 'temple';
 
 /** What a build pad does to the card standing on it. */
-export type SlotKind = 'plain' | 'altar' | 'high' | 'mire';
+export type SlotKind = 'plain' | 'altar' | 'high' | 'mire' | 'coffer' | 'beacon' | 'twin' | 'spring';
 
 export interface SlotBonus {
   /** Damage multiplier for a fighter (attack or hero card) standing on the pad. */
@@ -26,16 +32,41 @@ export interface SlotBonus {
   fighters: boolean;
 }
 
-/** Bonuses of the special pads (B1). Balance lives here — tweak, then re-run `pnpm sim`. */
+/**
+ * Bonuses of the special pads (B1). Balance lives here — tweak, then re-run `pnpm sim`. The four later pads add
+ * nothing here: their effects are below (COFFER_BOUNTY, BEACON, TWIN_HASTE, SPRING), applied by core/slots.ts.
+ */
 export const SLOT_BONUS: Readonly<Record<SlotKind, SlotBonus>> = {
   plain: { dmgMul: 1, range: 0, fighters: true },
   altar: { dmgMul: 1.2, range: 0, fighters: true },
   high: { dmgMul: 1, range: 30, fighters: true },
   mire: { dmgMul: 1, range: 0, fighters: false },
+  coffer: { dmgMul: 1, range: 0, fighters: true },
+  beacon: { dmgMul: 1, range: 0, fighters: true },
+  twin: { dmgMul: 1, range: 0, fighters: true },
+  spring: { dmgMul: 1, range: 0, fighters: true },
 };
 
+/** 聚宝台: extra 铜钱 for every monster the card standing on it finishes off (the last hit is its), more for a boss. */
+export const COFFER_BOUNTY = { minion: 1, boss: 10 } as const;
+/** 烽火台: while any card stands on it, monsters within `range` px of it take `amp` more from every hit (poison aside). */
+export const BEACON = { range: 130, amp: 0.15 } as const;
+/** 双生台: the same fighter on both pads of a pair attacks this much faster on each (added to its 速 and 鼓 haste, uncapped). */
+export const TWIN_HASTE = 0.25;
+/** 灵泉: one layer per wave cleared with the card on it, at most `max`; each adds `dmg` to a fighter's damage. Moving it clears them. */
+export const SPRING = { max: 3, dmg: 0.08 } as const;
+
 /** Display name of each pad kind. */
-export const SLOT_NAME: Readonly<Record<SlotKind, string>> = { plain: '石台', altar: '法阵', high: '高台', mire: '泥沼' };
+export const SLOT_NAME: Readonly<Record<SlotKind, string>> = {
+  plain: '石台',
+  altar: '法阵',
+  high: '高台',
+  mire: '泥沼',
+  coffer: '聚宝台',
+  beacon: '烽火台',
+  twin: '双生台',
+  spring: '灵泉',
+};
 
 /** The ASCII letters that make a build pad: its kind, and whether it is open from the start (upper case). */
 export const PAD_LETTERS: Readonly<Record<string, { kind: SlotKind; open: boolean }>> = {
@@ -47,6 +78,14 @@ export const PAD_LETTERS: Readonly<Record<string, { kind: SlotKind; open: boolea
   h: { kind: 'high', open: false },
   M: { kind: 'mire', open: true },
   m: { kind: 'mire', open: false },
+  C: { kind: 'coffer', open: true },
+  c: { kind: 'coffer', open: false },
+  B: { kind: 'beacon', open: true },
+  b: { kind: 'beacon', open: false },
+  D: { kind: 'twin', open: true },
+  d: { kind: 'twin', open: false },
+  S: { kind: 'spring', open: true },
+  s: { kind: 'spring', open: false },
 };
 
 export interface MapDef {
@@ -96,7 +135,7 @@ export const MAPS: readonly MapDef[] = [
       '.O...a...#.O',
       '.........#..',
       '..########..',
-      '..#.O...o...',
+      '..#.C...o...',
       '..#......H..',
       '..########..',
       '.O.....o.#..',
@@ -110,7 +149,7 @@ export const MAPS: readonly MapDef[] = [
   },
   {
     theme: 'plateau',
-    hp: 0.95,
+    hp: 0.97,
     rows: [
       '1..........2',
       '#.O..^^..O.#',
@@ -120,8 +159,8 @@ export const MAPS: readonly MapDef[] = [
       '############',
       '.A...#...O..',
       '..^..#..^...',
-      '..####..o...',
-      '..#.O.......',
+      '..####..c...',
+      '..#.B.......',
       '..#..^..O...',
       '..########..',
       '.o..^..h.#..',
@@ -139,7 +178,7 @@ export const MAPS: readonly MapDef[] = [
       '..O..o..O.#.',
       '..#######.#.',
       '..#.~~..#.#.',
-      '..#.o.O.#.#.',
+      '..#.d.D.#.#.',
       '..#..~..#.#.',
       '..#.E##.#.#.',
       '..#...#.#.#.',
@@ -154,7 +193,7 @@ export const MAPS: readonly MapDef[] = [
   },
   {
     theme: 'forest',
-    hp: 1.43,
+    hp: 1.46,
     rows: [
       '.1..........2.',
       '.#..O.TT.O..#.',
@@ -168,7 +207,7 @@ export const MAPS: readonly MapDef[] = [
       '..O...#...O...',
       '..T...#.T.....',
       '..#####.......',
-      '..#..o...A.T..',
+      '..#..b...A.T..',
       '..#########...',
       '.T..h....o#...',
       '......#####...',
@@ -178,20 +217,20 @@ export const MAPS: readonly MapDef[] = [
   },
   {
     theme: 'river',
-    hp: 0.81,
+    hp: 0.83,
     rows: [
       '1#####..#####2',
       '.....#..#..T..',
       '.O.a.#..#.o.O.',
       '.#####..#####.',
       '.#..T.....T.#.',
-      '.#.O......O.#.',
+      '.#.S......O.#.',
       '.####....####.',
       '....#....#....',
       '~~~~#~~~~#~~~~',
       '~~~~#~~~~#~~~~',
       '....######....',
-      '.M....#...H...',
+      '.O....#...H...',
       '..T...#....T..',
       '..o...####.o..',
       '.........#....',
@@ -207,13 +246,13 @@ export const MAPS: readonly MapDef[] = [
       '1.........2.',
       '#....T....#.',
       '###.O..O.###',
-      '..#.m..m.#..',
+      '..#.m..o.#..',
       '..#......#..',
       '###.O..O.###',
       '#..........#',
       '#.o......o.#',
       '###......###',
-      '..#.O..O.#..',
+      '..#.D..D.#..',
       '..#......#..',
       '..########..',
       '.h...#....o.',
@@ -224,7 +263,7 @@ export const MAPS: readonly MapDef[] = [
   },
   {
     theme: 'flame',
-    hp: 1.68,
+    hp: 1.73,
     rows: [
       '1############.',
       '.T.M......~~#.',
@@ -237,12 +276,12 @@ export const MAPS: readonly MapDef[] = [
       '......~.....#.',
       '..~~..a...H.#.',
       '.############2',
-      '.#..O..^..o...',
+      '.#..S..^..o...',
       '.#.......~~...',
       '.########.O...',
       '..o.....#.....',
       '....#####..~~.',
-      '..O.#..O...~~.',
+      '..O.#..C...~~.',
       '....E.........',
     ],
   },
@@ -259,9 +298,9 @@ export const MAPS: readonly MapDef[] = [
       '.O..#....#..O.',
       '....######....',
       '3####..#......',
-      '.m...O.#..o...',
+      '.m...B.#..o...',
       '.......#......',
-      '...o...#..H...',
+      '...c...#..H...',
       '....####......',
       '..O.#....a....',
       '....#......O..',
@@ -272,7 +311,7 @@ export const MAPS: readonly MapDef[] = [
   },
   {
     theme: 'temple',
-    hp: 1.75,
+    hp: 1.79,
     rows: [
       '.1..........2.',
       '.#....TT....#.',
@@ -284,10 +323,10 @@ export const MAPS: readonly MapDef[] = [
       '..#...h..O....',
       '..#.O.........',
       '..##########..',
-      '....a....o.#..',
-      '..O......O.#..',
+      '....a....d.#..',
+      '..O......D.#..',
       '....########..',
-      '..o.#..O......',
+      '..o.#..S......',
       '....#.....o...',
       '....######....',
       '..M......#.O..',

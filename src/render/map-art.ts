@@ -1,14 +1,17 @@
-// Paints a chapter map: themed ground, scenery, the dirt roads, the monster entrances, 师父's camp and the
-// stone pads cards stand on. Painted once per zoom level into an offscreen canvas.
+// Paints a chapter map in the 国潮青绿 look: the paper with its washes and scenery, the ochre roads with a brushed ink
+// rim, the monster entrances, 师父's camp and the stone pads cards stand on, then the paper grain over it all.
+// Painted once per zoom level into an offscreen canvas.
 import { MAPS, TILE, type SlotKind } from '../config/maps.ts';
-import { buildMap, pathPoint, ROAD_W, type MapData, type Pt } from '../core/map.ts';
+import { buildMap, LANE_SPREAD, pathPoint, ROAD_W, type MapData, type PathData, type Pt } from '../core/map.ts';
 import { offscreen, type Stage } from '../platform/env.ts';
-import { hash01, roundRect, text } from './draw.ts';
+import { text } from './draw.ts';
 import { brush } from './fonts.ts';
 import { drawPortrait } from './heroes-art.ts';
+import { blobPts, CINNABAR, inkGrass, INK, PAPER, paperGrain, rng, smoothPath, wash } from './ink.ts';
 import { L, W } from './layout.ts';
-import { altarRunes, highPlinth, mirePad } from './pad-art.ts';
-import { drawLiquids, drawProps, scatter, THEMES, vignette, type Palette } from './scenery.ts';
+import { altarGlow, altarRunes, drum, highPlinth, mirePad, PAD_SIDE, plainPad } from './pad-art.ts';
+import { beaconPad, cofferPad, springPad, twinCord, twinPad } from './pad-art-extra.ts';
+import { drawLiquids, drawProp, paintPaper, scatter, THEMES, vignette, type Palette } from './scenery.ts';
 
 /** Slot pad radius (world px). */
 export const PAD_R = 25;
@@ -64,6 +67,22 @@ function sharedFrom(map: MapData): number[] {
   });
 }
 
+/** One road's centre line, resampled every 6 px and nudged sideways by a slow wobble of up to about `wob` px. */
+function traceRoad(ctx: CanvasRenderingContext2D, path: PathData, wob: number, ph: number): void {
+  if (wob === 0) {
+    path.pts.forEach((q, i) => (i === 0 ? ctx.moveTo(q.x, q.y) : ctx.lineTo(q.x, q.y)));
+    return;
+  }
+  for (let d = 0; ; d += 6) {
+    const at = Math.min(d, path.length);
+    const off = (wob * (Math.sin(at * 0.021 + ph) + 0.5 * Math.sin(at * 0.057 + ph * 2.3))) / 1.5;
+    const q = pathPoint(path, at, off / LANE_SPREAD);
+    if (d === 0) ctx.moveTo(q.x, q.y);
+    else ctx.lineTo(q.x, q.y);
+    if (at >= path.length) break;
+  }
+}
+
 /** All roads at once, layer by layer, so overlapping roads merge into one surface instead of stacking. */
 function roads(ctx: CanvasRenderingContext2D, map: MapData, pal: Palette): void {
   const { centres, stubs } = junctions(map);
@@ -71,181 +90,187 @@ function roads(ctx: CanvasRenderingContext2D, map: MapData, pal: Palette): void 
   const inJunction = (p: Pt): boolean => centres.some((c) => Math.hypot(c.x - p.x, c.y - p.y) < JUNCTION_R);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  const traceAll = () => {
+  const traceAll = (wob: number, ph: number): void => {
     ctx.beginPath();
-    for (const p of map.paths) p.pts.forEach((q, i) => (i === 0 ? ctx.moveTo(q.x, q.y) : ctx.lineTo(q.x, q.y)));
+    map.paths.forEach((p, k) => traceRoad(ctx, p, wob, ph + k * 1.7));
     for (const [a, b] of stubs) {
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
     }
   };
-  traceAll();
-  ctx.lineWidth = ROAD_W + 10;
-  ctx.strokeStyle = pal.edge;
-  ctx.globalAlpha = 0.55;
+  // A faint worn verge first, so the road stands out from paper of a similar colour.
+  traceAll(0, 0);
+  ctx.lineWidth = ROAD_W + 14;
+  ctx.strokeStyle = 'rgba(70,48,24,0.1)';
   ctx.stroke();
-  ctx.globalAlpha = 1;
-  traceAll();
+  // Reason: the whole network is inked a little wider, wobbling like a brush, and then filled without the wobble, so
+  // the ink is left only on the outer edges (thicker in places, thinner in others) and joining roads have no seam.
+  traceAll(1.2, 0.4);
+  ctx.lineWidth = ROAD_W + 4;
+  ctx.strokeStyle = INK;
+  ctx.stroke();
+  traceAll(0, 0);
   ctx.lineWidth = ROAD_W;
   ctx.strokeStyle = pal.road;
   ctx.stroke();
-  traceAll();
+  traceAll(1.4, 1.1);
   ctx.lineWidth = ROAD_W * 0.55;
-  ctx.strokeStyle = 'rgba(255,240,210,0.13)';
+  ctx.strokeStyle = 'rgba(255,243,215,0.33)';
   ctx.stroke();
-  // Cart tracks and verge pebbles, drawn once per stretch of road (shared stretches only by the first road).
+  // Wheel ruts, pebbles and verge grass, drawn once per stretch of road (shared stretches only by the first road).
   map.paths.forEach((path, k) => {
-    const upto = Math.min(path.pts.length, shared[k] + 1);
-    ctx.beginPath();
-    let pen = false;
-    for (let i = 0; i < upto; i++) {
-      const q = path.pts[i];
-      if (inJunction(q)) {
-        pen = false;
-        continue;
-      }
-      if (pen) ctx.lineTo(q.x, q.y);
-      else ctx.moveTo(q.x, q.y);
-      pen = true;
-    }
-    ctx.setLineDash([10, 16]);
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = 'rgba(255,245,220,0.22)';
-    ctx.stroke();
-    ctx.setLineDash([]);
     const limit = shared[k] < path.pts.length ? path.cum[shared[k]] : path.length;
-    const verge = (ROAD_W / 2 + 4) / 12;
-    for (let d = 10; d < limit; d += 26) {
-      for (const side of [-verge, verge]) {
-        const p = pathPoint(path, d + hash01(Math.round(d) + (side > 0 ? 1 : 0)) * 10, side);
-        if (inJunction(p)) continue;
-        ctx.beginPath();
-        ctx.ellipse(p.x, p.y, 2.6, 1.8, hash01(Math.round(d)) * 3, 0, Math.PI * 2);
-        ctx.fillStyle = hash01(Math.round(d * 3)) > 0.5 ? '#a89a82' : '#8f8370';
-        ctx.fill();
+    const rand = rng(k * 613 + 29);
+    for (const side of [-7, 7]) {
+      ctx.beginPath();
+      let pen = false;
+      for (let d = 0; d <= limit; d += 6) {
+        const q = pathPoint(path, d, side / LANE_SPREAD);
+        if (inJunction(q)) {
+          pen = false;
+          continue;
+        }
+        if (pen) ctx.lineTo(q.x, q.y);
+        else ctx.moveTo(q.x, q.y);
+        pen = true;
       }
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(140,96,52,0.22)';
+      ctx.stroke();
+    }
+    for (let d = 8; d < limit; d += 14) {
+      if (rand() < 0.45) continue;
+      const q = pathPoint(path, d, ((rand() - 0.5) * (ROAD_W - 8)) / LANE_SPREAD);
+      if (inJunction(q)) continue;
+      ctx.beginPath();
+      ctx.ellipse(q.x, q.y, 1.2 + rand() * 1.6, 0.9 + rand(), rand() * 3, 0, Math.PI * 2);
+      ctx.fillStyle = rand() < 0.5 ? 'rgba(150,108,66,0.55)' : 'rgba(118,84,52,0.5)';
+      ctx.fill();
+    }
+    const verge = (ROAD_W / 2 + 5) / LANE_SPREAD;
+    for (let d = 10; d < limit; d += 22) {
+      if (rand() < 0.5) continue;
+      const q = pathPoint(path, d, rand() < 0.5 ? -verge : verge);
+      if (!inJunction(q)) inkGrass(ctx, q.x, q.y + 3, rand, pal.grass);
     }
   });
 }
 
-/** A dark cave mouth with a stone arch: where the monsters come from. */
-function entrance(ctx: CanvasRenderingContext2D, p: Pt): void {
-  ctx.beginPath();
-  ctx.ellipse(p.x, p.y + 4, 30, 24, 0, 0, Math.PI * 2);
-  ctx.fillStyle = '#6a6058';
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(p.x, p.y + 6, 22, 17, 0, 0, Math.PI * 2);
-  ctx.fillStyle = '#1e1410';
-  ctx.fill();
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = '#3a2e26';
-  ctx.stroke();
-  text(ctx, '妖', p.x, p.y + 7, brush(16), 'rgba(255,120,80,0.85)');
-}
-
-/** 师父's camp: a stone platform, a tent with red trim, and 师父 himself. */
-function camp(ctx: CanvasRenderingContext2D, p: Pt): void {
-  roundRect(ctx, p.x - 40, p.y - 30, 80, 62, 12);
-  ctx.fillStyle = 'rgba(60,35,15,0.3)';
-  ctx.fill();
-  roundRect(ctx, p.x - 38, p.y - 32, 76, 60, 12);
-  const stone = ctx.createLinearGradient(0, p.y - 32, 0, p.y + 28);
-  stone.addColorStop(0, '#cbb083');
-  stone.addColorStop(1, '#a88a5a');
-  ctx.fillStyle = stone;
+/** A cave mouth under an arch of boulders: where the monsters come from. */
+function entrance(ctx: CanvasRenderingContext2D, p: Pt, seed: number): void {
+  const rand = rng(seed * 4099 + 3);
+  wash(ctx, p.x, p.y + 6, 42, '43,36,32', 0.3);
+  smoothPath(ctx, blobPts(p.x, p.y + 6, 22, 17, rand, 10, 0.14));
+  ctx.fillStyle = '#1e1612';
   ctx.fill();
   ctx.lineWidth = 2;
-  ctx.strokeStyle = '#a8740c';
+  ctx.strokeStyle = INK;
+  ctx.stroke();
+  // Reason: the boulders run round the top half only, so the mouth opens onto the road below it.
+  for (let i = 0; i < 5; i++) {
+    const a = Math.PI * (1.04 + i * 0.23);
+    smoothPath(ctx, blobPts(p.x + Math.cos(a) * 25, p.y + 6 + Math.sin(a) * 19, 8.5, 6.5, rand, 7, 0.3));
+    ctx.fillStyle = i % 2 ? '#9fb0b7' : '#8a9ea8';
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+  }
+  text(ctx, '妖', p.x, p.y + 9, brush(15), 'rgba(214,80,50,0.92)');
+}
+
+/** 师父's camp: a stone platform, a tent of paper-white canvas with cinnabar trim, 师父 himself and a cinnabar flag. */
+function camp(ctx: CanvasRenderingContext2D, p: Pt): void {
+  drum(ctx, p.x, p.y + 4, 40, 8, 0.26);
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(p.x - 30, p.y + 14);
+  ctx.quadraticCurveTo(p.x - 14, p.y - 4, p.x, p.y - 28);
+  ctx.quadraticCurveTo(p.x + 14, p.y - 4, p.x + 30, p.y + 14);
+  ctx.closePath();
+  ctx.fillStyle = PAPER;
+  ctx.fill();
+  ctx.lineWidth = 1.8;
+  ctx.strokeStyle = INK;
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(p.x - 30, p.y + 18);
-  ctx.lineTo(p.x, p.y - 26);
-  ctx.lineTo(p.x + 30, p.y + 18);
-  ctx.closePath();
-  ctx.fillStyle = '#f3e4c4';
-  ctx.fill();
-  ctx.lineWidth = 2.5;
-  ctx.strokeStyle = '#8a3a22';
+  ctx.moveTo(p.x - 30, p.y + 14);
+  ctx.lineTo(p.x + 30, p.y + 14);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = CINNABAR;
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(p.x - 9, p.y + 18);
-  ctx.lineTo(p.x, p.y + 2);
-  ctx.lineTo(p.x + 9, p.y + 18);
+  ctx.moveTo(p.x - 9, p.y + 14);
+  ctx.lineTo(p.x, p.y - 2);
+  ctx.lineTo(p.x + 9, p.y + 14);
   ctx.closePath();
-  ctx.fillStyle = '#5a2a18';
+  ctx.fillStyle = '#4a2a1c';
   ctx.fill();
-  drawPortrait(ctx, 'master', p.x, p.y - 4, 10);
-  ctx.fillStyle = '#5a3a24';
-  ctx.fillRect(p.x + 26, p.y - 40, 2, 34);
+  ctx.lineWidth = 1.2;
+  ctx.strokeStyle = INK;
+  ctx.stroke();
+  drawPortrait(ctx, 'master', p.x, p.y - 6, 10);
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#5a3e2b';
   ctx.beginPath();
-  ctx.moveTo(p.x + 28, p.y - 40);
-  ctx.lineTo(p.x + 46, p.y - 35);
-  ctx.lineTo(p.x + 28, p.y - 28);
+  ctx.moveTo(p.x + 27, p.y + 6);
+  ctx.lineTo(p.x + 27, p.y - 40);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(p.x + 28, p.y - 39);
+  ctx.quadraticCurveTo(p.x + 37, p.y - 41, p.x + 46, p.y - 37);
+  ctx.lineTo(p.x + 46, p.y - 25);
+  ctx.quadraticCurveTo(p.x + 37, p.y - 28, p.x + 28, p.y - 26);
   ctx.closePath();
-  ctx.fillStyle = '#c8322a';
+  ctx.fillStyle = CINNABAR;
   ctx.fill();
-  text(ctx, '营', p.x + 34, p.y - 34, brush(8), '#fff1c2');
+  ctx.lineWidth = 1.2;
+  ctx.strokeStyle = INK;
+  ctx.stroke();
+  text(ctx, '营', p.x + 37, p.y - 32, brush(9), '#fff1c2');
 }
 
 /**
- * A stone pad a card can stand on (its locked overlay is drawn live by the renderer). Special pads look the part:
- * a 高台 stands taller, a 法阵 has runes cut into its stone, a 泥沼 is mud instead of stone (pad-art.ts).
+ * A stone pad a card can stand on (its locked look is drawn live by the renderer), in pad-art.ts's looks:
+ * a plain drum, a taller 高台, a 法阵 with rings cut into its top, or a 泥沼 of mud; and pad-art-extra.ts's 聚宝台,
+ * 烽火台, 双生台 and 灵泉.
  */
 export function pad(ctx: CanvasRenderingContext2D, p: Pt, seed: number, kind: SlotKind = 'plain'): void {
   if (kind === 'mire') return mirePad(ctx, p, PAD_R, seed);
-  if (kind === 'high') highPlinth(ctx, p, PAD_R, seed);
-  else {
-    ctx.beginPath();
-    ctx.ellipse(p.x + 2, p.y + 4, PAD_R + 2, PAD_R * 0.9, 0, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(40,25,10,0.28)';
-    ctx.fill();
-  }
-  const g = ctx.createRadialGradient(p.x - 6, p.y - 8, 4, p.x, p.y, PAD_R);
-  g.addColorStop(0, '#e4d2ac');
-  g.addColorStop(1, '#b59a6c');
-  ctx.beginPath();
-  ctx.arc(p.x, p.y, PAD_R, 0, Math.PI * 2);
-  ctx.fillStyle = g;
-  ctx.fill();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = '#7a5a30';
-  ctx.stroke();
-  ctx.strokeStyle = 'rgba(90,60,30,0.35)';
-  ctx.lineWidth = 1;
-  for (let i = 0; i < 3; i++) {
-    const a = hash01(seed * 7 + i) * Math.PI * 2;
-    ctx.beginPath();
-    ctx.moveTo(p.x + Math.cos(a) * 6, p.y + Math.sin(a) * 6);
-    ctx.lineTo(p.x + Math.cos(a) * (PAD_R - 4), p.y + Math.sin(a) * (PAD_R - 4));
-    ctx.stroke();
-  }
-  if (kind === 'altar') altarRunes(ctx, p, PAD_R, seed);
+  if (kind === 'high') return highPlinth(ctx, p, PAD_R, seed);
+  if (kind === 'coffer') return cofferPad(ctx, p, PAD_R, seed);
+  if (kind === 'beacon') return beaconPad(ctx, p, PAD_R, seed);
+  if (kind === 'twin') return twinPad(ctx, p, PAD_R, seed);
+  if (kind === 'spring') return springPad(ctx, p, PAD_R, seed);
+  if (kind === 'altar') altarGlow(ctx, p, PAD_R);
+  plainPad(ctx, p, PAD_R, seed);
+  if (kind === 'altar') altarRunes(ctx, p, PAD_R);
 }
 
 /** Paints the whole map in world units (0..w, 0..h). */
 export function paintMap(ctx: CanvasRenderingContext2D, map: MapData): void {
   const pal = THEMES[map.theme];
-  const ground = ctx.createLinearGradient(0, 0, map.w, map.h);
-  ground.addColorStop(0, pal.ground[0]);
-  ground.addColorStop(1, pal.ground[1]);
-  ctx.fillStyle = ground;
-  ctx.fillRect(0, 0, map.w, map.h);
-  const n = Math.round((map.w * map.h) / 2200);
-  for (let i = 0; i < n; i++) {
-    const x = hash01(i * 7 + 1) * map.w;
-    const y = hash01(i * 13 + 5) * map.h;
-    ctx.fillStyle = i % 3 === 0 ? pal.speck : 'rgba(120,90,50,0.2)';
-    ctx.fillRect(x, y, 1.5 + hash01(i) * 2.5, 1.5 + hash01(i + 3) * 2.5);
-  }
+  paintPaper(ctx, map, pal);
   drawLiquids(ctx, map, pal);
   scatter(ctx, map, pal);
   roads(ctx, map, pal);
-  drawProps(ctx, map);
-  map.spawns.forEach((s) => entrance(ctx, s));
-  camp(ctx, map.camp);
-  map.slots.forEach((s, i) => pad(ctx, s, i, map.slotKind[i]));
+  // The red cords between paired 双生台 lie on the ground, under everything standing.
+  map.twin.forEach((j, i) => {
+    if (j > i) twinCord(ctx, map.slots[i], map.slots[j], PAD_R);
+  });
+  // Reason: rocks, trees, entrances, the camp and the pads are drawn back to front by where they touch the ground,
+  // so a tall tree in front of a pad overlaps it instead of being covered by it.
+  const standing: Array<{ y: number; draw: () => void }> = [];
+  map.decor.forEach((d, i) => {
+    if (d.kind !== 'water') standing.push({ y: d.y + TILE / 3, draw: () => drawProp(ctx, d, i, pal) });
+  });
+  map.spawns.forEach((s, i) => standing.push({ y: s.y + 20, draw: () => entrance(ctx, s, i) }));
+  standing.push({ y: map.camp.y + 30, draw: () => camp(ctx, map.camp) });
+  map.slots.forEach((s, i) => standing.push({ y: s.y + PAD_SIDE, draw: () => pad(ctx, s, i, map.slotKind[i]) }));
+  standing.sort((a, b) => a.y - b.y).forEach((it) => it.draw());
   vignette(ctx, map);
+  paperGrain(ctx, map.w, map.h);
 }
 
 const cache = new WeakMap<MapData, Map<number, HTMLCanvasElement>>();

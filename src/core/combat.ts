@@ -8,7 +8,7 @@ import { applySlow, applyStun, damage, dist2, knock } from './effects.ts';
 import type { Pt } from './map.ts';
 import { pulseMirror } from './mirror.ts';
 import { routeOf, spawnMinions } from './monsters.ts';
-import { slotDamage, slotRange } from './slots.ts';
+import { cofferBonus, slotDamage, slotRange, twinHaste } from './slots.ts';
 import { fxScale, tileInterval } from './stats.ts';
 import { applyPoison, applyRoot, canRoot } from './status.ts';
 import type { Enemy, GameState, Projectile, TargetMode, Tile } from './types.ts';
@@ -86,7 +86,7 @@ function fireBeam(g: GameState, t: Tile, cell: number, p: Pt, target: Enemy, dmg
   hits.sort((a, b) => a.along - b.along || a.e.uid - b.e.uid);
   const count = Math.round(fx.count * (t.divine ? DIVINE.fx : 1));
   for (const h of hits.slice(0, count)) {
-    damage(g, h.e, dmg, t.id);
+    damage(g, h.e, dmg, t.id, cell);
     knock(g, h.e, def.knockback);
   }
   g.events.push({ t: 'shot', kind: 'beam', unit: t.id, cell, x: p.x, y: p.y, tx: p.x + ux * reach, ty: p.y + uy * reach, divine: t.divine });
@@ -109,7 +109,7 @@ function fire(g: GameState, t: Tile, cell: number): boolean {
     for (const e of g.enemies) {
       if (e.hp <= 0 || e.gone) continue;
       if (e.air && !def.hitsAir) continue;
-      damage(g, e, dmg, t.id);
+      damage(g, e, dmg, t.id, cell);
       any = true;
     }
     if (any) g.events.push({ t: 'shot', kind: 'dragon', unit: t.id, cell, x: p.x, y: p.y, tx: p.x, ty: p.y, divine: t.divine });
@@ -148,13 +148,13 @@ function fire(g: GameState, t: Tile, cell: number): boolean {
       if (e.hp <= 0 || e.gone || dist2(e, target.x, target.y) > r2) continue;
       // The slam shakes the ground: flyers overhead don't feel it.
       if (e.air && !def.hitsAir) continue;
-      damage(g, e, e === target ? dmg : dmg * 0.6, t.id);
+      damage(g, e, e === target ? dmg : dmg * 0.6, t.id, cell);
       applyStun(e, dur);
       knock(g, e, def.knockback);
     }
     return true;
   }
-  damage(g, target, dmg, t.id);
+  damage(g, target, dmg, t.id, cell);
   knock(g, target, def.knockback);
   return true;
 }
@@ -165,19 +165,19 @@ function impact(g: GameState, pr: Projectile, target: Enemy | null): void {
   g.events.push({ t: 'impact', kind: pr.kind, unit: pr.unit, x: pr.tx, y: pr.ty });
   if (fx.t === 'splash') {
     // Reason: a fireball still bursts where it lands even if its target already died.
-    if (target) damage(g, target, pr.dmg, pr.unit);
+    if (target) damage(g, target, pr.dmg, pr.unit, pr.cell);
     const radius = fx.radius * g.mods.splashRadiusMul;
     const r2 = radius * radius;
     const pct = Math.min(1, fx.pct * pr.fxK);
     // Splash only reaches flyers when the unit that fired it can hit the air.
     const air = UNITS[pr.unit].hitsAir;
     for (const e of g.enemies) {
-      if (e !== target && e.hp > 0 && !e.gone && (air || !e.air) && dist2(e, pr.tx, pr.ty) <= r2) damage(g, e, pr.dmg * pct, pr.unit);
+      if (e !== target && e.hp > 0 && !e.gone && (air || !e.air) && dist2(e, pr.tx, pr.ty) <= r2) damage(g, e, pr.dmg * pct, pr.unit, pr.cell);
     }
     return;
   }
   if (!target) return;
-  damage(g, target, pr.dmg, pr.unit);
+  damage(g, target, pr.dmg, pr.unit, pr.cell);
   if (fx.t === 'slow') applySlow(target, fx.pct * pr.fxK, fx.dur * pr.fxK);
   if (fx.t === 'poison') applyPoison(target, pr.unit, pr.dmg);
   if (fx.t === 'root') applyRoot(target, fx.dur * pr.fxK);
@@ -281,6 +281,11 @@ function removeDead(g: GameState): void {
     g.gongde += e.bounty;
     g.kills++;
     g.events.push({ t: 'kill', def: e.def, x: e.x, y: e.y, bounty: e.bounty });
+    const extra = cofferBonus(g, e);
+    if (extra > 0) {
+      g.gongde += extra;
+      g.events.push({ t: 'coffer', cell: e.hitBy, amount: extra });
+    }
     if (tr?.t === 'split') splits.push(e);
   }
   list.length = w;
@@ -304,7 +309,8 @@ export function stepCombat(g: GameState): void {
       continue;
     }
     if (kind !== 'attack' && kind !== 'hero') continue;
-    t.cd -= DT * (1 + haste[i]);
+    // A pair of 双生台 holding the same fighter speeds both up on top of their 速 and 鼓 (outside HASTE_CAP).
+    t.cd -= DT * (1 + haste[i] + twinHaste(g, i));
     if (t.cd > 0) continue;
     const wasReady = kind === 'hero' && isUltimateReady(t);
     const fired = fire(g, t, i);

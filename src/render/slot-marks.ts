@@ -1,46 +1,95 @@
 // Live marks on the pads and cards, drawn by the renderer every frame (the pads' own looks are painted into the
-// map image by pad-art.ts): the slowly turning rune ring over each unlocked 法阵, the name of a locked special
-// pad, a special pad's label while a card is dragged over it, and the badge of a fighter's 瞄准.
-import type { SlotKind } from '../config/maps.ts';
+// map image by pad-art.ts): the slowly turning rune ring round each unlocked 法阵, the paper seal strip with the price
+// over a locked pad, the ring on the ground under a pad, a special pad's label while a card is dragged over it, and
+// the badge of a fighter's 瞄准.
+import { SLOT_NAME, type SlotKind } from '../config/maps.ts';
 import type { Pt } from '../core/map.ts';
 import type { GameState, TargetMode } from '../core/types.ts';
-import { roundRect, text } from './draw.ts';
+import { drawCoin, roundRect, text } from './draw.ts';
 import { sans } from './fonts.ts';
-
-/** Colour of a special pad's name on its locked overlay. */
-export const PAD_TAG_COLOR: Readonly<Record<SlotKind, string>> = {
-  plain: 'rgba(255,235,200,0.85)',
-  altar: '#ffd166',
-  high: '#f6ead2',
-  mire: '#c9e6a0',
-};
+import { CINNABAR, INK, ink, PAPER } from './ink.ts';
+import { PAD_SIDE, PAD_TILT } from './pad-art.ts';
 
 /**
- * The faint golden rune ring over every unlocked 法阵, radius `r` (a little wider than the pad, so it shows
- * around a card standing there). One path and one dashed stroke for all of them. Only the map and which pads are
- * unlocked are read, so the map editor draws them too.
+ * Traces the ring on the ground round a pad's foot, `r` across (an ellipse like the pads' top faces), ready to stroke.
+ * It sits a little below the pad's centre so it shows round the bottom and sides of a card standing there.
+ */
+export function padRing(ctx: CanvasRenderingContext2D, p: Pt, r: number): void {
+  ctx.beginPath();
+  ctx.ellipse(p.x, p.y + PAD_SIDE * 0.6, r, r * PAD_TILT, 0, 0, Math.PI * 2);
+}
+
+/**
+ * The faint golden rune ring round every unlocked 法阵, `r` across (a little wider than the pad, so it shows round a
+ * card standing there). One path and one dashed stroke for all of them. Only the map and which pads are unlocked are
+ * read, so the map editor draws them too.
  */
 export function drawRuneRings(ctx: CanvasRenderingContext2D, g: Pick<GameState, 'map' | 'unlocked'>, r: number, time: number): void {
   const { slots, slotKind } = g.map;
+  const rx = r + 2;
+  const ry = rx * PAD_TILT;
   let any = false;
   ctx.beginPath();
   for (let i = 0; i < slots.length; i++) {
     if (slotKind[i] !== 'altar' || !g.unlocked[i]) continue;
-    const p = slots[i];
-    ctx.moveTo(p.x + r, p.y);
-    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    const cx = slots[i].x;
+    const cy = slots[i].y + PAD_SIDE * 0.6;
+    ctx.moveTo(cx + rx, cy);
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
     any = true;
   }
   if (!any) return;
   ctx.save();
   // Long and short dashes read as a band of runes.
   ctx.setLineDash([7, 3, 2, 3]);
-  // Reason: sliding the dash pattern along the circle turns the ring without a transform (about 20 s a turn);
+  // Reason: sliding the dash pattern along the ring turns it without a transform (about 20 s a turn);
   // `time` is the scene's animation clock, so the ring stands still while the game is paused.
   ctx.lineDashOffset = -time * 9;
   ctx.lineWidth = 2;
-  ctx.strokeStyle = 'rgba(255,200,80,0.55)';
+  ctx.strokeStyle = 'rgba(214,160,60,0.7)';
   ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * A locked pad: its stone dimmed under an ink wash, and a paper seal strip across it carrying the price (after the
+ * name of a special pad). The price turns cinnabar while it can't be paid; with no price (the map editor) a plain pad's
+ * strip shows a "+" instead. `k` = 1 / zoom keeps the strip readable.
+ */
+export function drawLockedPad(ctx: CanvasRenderingContext2D, p: Pt, kind: SlotKind, price: number | null, affordable: boolean, r: number, k: number): void {
+  ctx.beginPath();
+  ctx.ellipse(p.x, p.y, r, r * PAD_TILT, 0, 0, Math.PI * 2);
+  ctx.fillStyle = ink(0.4);
+  ctx.fill();
+  const nameFont = sans(Math.round(10 * k), 800);
+  const priceFont = sans(Math.round(10 * k), 800);
+  const name = kind !== 'plain' ? SLOT_NAME[kind] : price === null ? '+' : '';
+  ctx.font = nameFont;
+  const nameW = name ? ctx.measureText(name).width + 4 * k : 0;
+  ctx.font = priceFont;
+  const priceW = price === null ? 0 : ctx.measureText(String(price)).width;
+  const coin = price === null ? 0 : 4 * k;
+  const w = nameW + (price === null ? -4 * k : coin * 2 + 3 * k + priceW) + 14 * k;
+  const h = 16 * k;
+  ctx.save();
+  ctx.translate(p.x, p.y + 1);
+  // Reason: a slight tilt makes it read as a strip of paper pasted on by hand rather than a button.
+  ctx.rotate(-0.1);
+  roundRect(ctx, -w / 2, -h / 2, w, h, 2 * k);
+  ctx.fillStyle = PAPER;
+  ctx.fill();
+  ctx.lineWidth = 1.4 * k;
+  ctx.strokeStyle = CINNABAR;
+  ctx.stroke();
+  let x = -w / 2 + 7 * k;
+  if (name) {
+    text(ctx, name, x + (nameW - 4 * k) / 2, 0.5 * k, nameFont, INK);
+    x += nameW;
+  }
+  if (price !== null) {
+    drawCoin(ctx, x + coin, 0, coin);
+    text(ctx, String(price), x + coin * 2 + 3 * k, 0.6 * k, priceFont, affordable ? INK : CINNABAR, 'left');
+  }
   ctx.restore();
 }
 

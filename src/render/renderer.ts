@@ -2,26 +2,29 @@
 // the shop or battle bar, the dragged card and any banner or modal in screen space.
 import { unlockCost } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
-import { SLOT_NAME } from '../config/maps.ts';
 import { UNITS } from '../config/units.ts';
 import { pathDir, type Pt } from '../core/map.ts';
 import { routeOf } from '../core/monsters.ts';
-import { padAllows, padRange, slotRange } from '../core/slots.ts';
+import { beaconMul, padAllows, padRange, slotRange } from '../core/slots.ts';
 import { isRooted } from '../core/status.ts';
 import type { Enemy, EnemyDef, GameState, Tile, UnitId } from '../core/types.ts';
 import type { Stage } from '../platform/env.ts';
 import type { Camera } from './camera.ts';
 import { CARD, cardSprite } from './cards.ts';
-import { drawBar, drawCoin, drawStar, outlined, roundRect, text } from './draw.ts';
+import { drawReadyRing, drawTroop } from './troops.ts';
+import { drawBar, outlined, roundRect, text } from './draw.ts';
 import { drawEncounterPanel } from './encounter-panel.ts';
 import { brush, sans } from './fonts.ts';
 import { drawNetOver, drawPoisonBubbles } from './fx-cards.ts';
+import { inkStar } from './fx-toon.ts';
 import { L, viewRect, W, type Rect } from './layout.ts';
 import { drawMap, PAD_R } from './map-art.ts';
 import { FLY_LIFT, FOOT, makePose, monsterPose, type Gait, type MonsterPose } from './monster-pose.ts';
-import { monsterSprite } from './monsters-art.ts';
+import { monsterHead, monsterSprite, monsterTop } from './monsters-art.ts';
+import { CINNABAR, INK, inkBar, PAPER } from './ink.ts';
 import { drawBanner, drawBattleBar, drawHud, drawShop, type PanelUi } from './panels.ts';
-import { drawAimBadge, drawPadLabel, drawRuneRings, PAD_TAG_COLOR } from './slot-marks.ts';
+import { drawBeaconMark, drawPadMarks } from './pad-marks.ts';
+import { drawAimBadge, drawLockedPad, drawPadLabel, drawRuneRings, padRing } from './slot-marks.ts';
 import { blit } from './sprites.ts';
 import type { Vfx } from './vfx.ts';
 
@@ -130,18 +133,9 @@ export class GameRenderer {
   private drawSlots(ctx: CanvasRenderingContext2D, g: GameState, ui: GameUi, time: number, k: number): void {
     const price = unlockCost(g.unlockCount);
     drawRuneRings(ctx, g, PAD_R + 4, time);
+    drawPadMarks(ctx, g, PAD_R, time, k);
     g.map.slots.forEach((p, i) => {
-      if (g.unlocked[i]) return;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, PAD_R - 1, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(45,28,12,0.6)';
-      ctx.fill();
-      // A locked special pad says what it is where a plain one shows its "+".
-      const kind = g.map.slotKind[i];
-      if (kind === 'plain') text(ctx, '+', p.x, p.y - 6 * k, sans(Math.round(18 * k), 800), PAD_TAG_COLOR.plain);
-      else text(ctx, SLOT_NAME[kind], p.x, p.y - 6 * k, sans(Math.round(10 * k), 800), PAD_TAG_COLOR[kind]);
-      drawCoin(ctx, p.x - 8 * k, p.y + 9 * k, 4 * k);
-      text(ctx, String(price), p.x - 3 * k, p.y + 9.5 * k, sans(Math.round(9 * k), 800), g.gongde >= price ? '#ffe9b0' : 'rgba(255,200,190,0.85)', 'left');
+      if (!g.unlocked[i]) drawLockedPad(ctx, p, g.map.slotKind[i], price, g.gongde >= price, PAD_R, k);
     });
     // Range preview for the dragged card (over a slot) or a tapped tile.
     let ringCell = -1;
@@ -172,8 +166,7 @@ export class GameRenderer {
       const p = g.map.slots[ui.hoverCell];
       if (ui.hoverHint) this.drawCombineHint(ctx, p, ui.hoverHint, time, k);
       else {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, PAD_R + 3, 0, Math.PI * 2);
+        padRing(ctx, p, PAD_R + 5);
         ctx.lineWidth = 3 * k;
         ctx.strokeStyle = ui.hoverValid ? '#7dff9a' : '#ff6a5a';
         ctx.stroke();
@@ -185,8 +178,7 @@ export class GameRenderer {
   /** A spinning golden ring around the target card plus a label saying what releasing will do. */
   private drawCombineHint(ctx: CanvasRenderingContext2D, p: Pt, hint: string, time: number, k: number): void {
     ctx.save();
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, PAD_R + 6, 0, Math.PI * 2);
+    padRing(ctx, p, PAD_R + 7);
     ctx.setLineDash([9 * k, 7 * k]);
     ctx.lineDashOffset = -time * 45 * k;
     ctx.lineWidth = 3.5 * k;
@@ -207,34 +199,30 @@ export class GameRenderer {
     text(ctx, hint, p.x, cy + 0.5 * k, sans(Math.round(10 * k), 800), '#ffe9a8');
   }
 
+  /**
+   * Every tile as its troop (troops.ts): a banner and a squad on the pad, facing where it last shot. A hero with full
+   * rage stands in a breathing golden ring with its rage bar under it; a fighter with a 瞄准 other than 打最前 carries
+   * its badge by the pad's right edge. A tile being dragged shows faintly where it was picked up.
+   */
   private drawTiles(ctx: CanvasRenderingContext2D, g: GameState, ui: GameUi, vfx: Vfx, time: number): void {
+    const troops = vfx.troops;
     g.slots.forEach((t, i) => {
       if (!t) return;
       const p = g.map.slots[i];
-      const x = p.x;
-      // Reason: cards stand a little above the pad's centre so the pad shows underneath like a plinth.
-      const y = p.y - 6;
       const shake = vfx.shakes[i] > 0 ? Math.sin(vfx.shakes[i] * 80) * 3 : 0;
-      const scale = 1 + vfx.pops[i] * 0.9 + vfx.recoil[i] * 0.7;
-      const { img, size } = cardSprite(t.id, t.level, t.divine);
-      const dragging = ui.drag?.kind === 'cell' && ui.drag.index === i;
+      const scale = 1 + vfx.pops[i] * 0.9;
       const hero = UNITS[t.id].kind === 'hero';
       const ready = hero && t.rage >= 1;
       ctx.save();
-      if (dragging) ctx.globalAlpha = 0.3;
-      if (ready) {
-        // Full rage: the card glows until the next attack unleashes the ultimate.
-        ctx.shadowColor = 'rgba(255,200,60,1)';
-        ctx.shadowBlur = 16 + Math.sin(time * 9) * 6;
-        roundRect(ctx, x - CARD / 2, y - CARD / 2, CARD, CARD, 9);
-        ctx.fillStyle = 'rgba(255,215,90,0.8)';
-        ctx.fill();
-        ctx.shadowBlur = 0;
-      }
-      blit(ctx, img, x + shake, y, size, size, scale);
-      if (hero) drawBar(ctx, x - 19, y + CARD / 2 - 5, 38, 4.5, t.rage, ready ? '#ffd166' : '#ff7a2a');
-      // 瞄准 other than 打最前: a badge on the bottom-right corner, clear of the level badge and the 金 seal up top.
-      if (t.target) drawAimBadge(ctx, t.target, x + shake + 23 * scale, y + 21 * scale, 7.5 * scale);
+      if (ui.drag?.kind === 'cell' && ui.drag.index === i) ctx.globalAlpha = 0.3;
+      ctx.translate(p.x + shake, p.y);
+      // Reason: a pop grows the troop from where it stands, so a merge looks like the squad drawing itself up.
+      if (scale !== 1) ctx.scale(scale, scale);
+      if (ready) drawReadyRing(ctx, 0, 0, time);
+      // Reason: each pad's clock is offset a little, so neighbouring banners and squads don't sway in step.
+      drawTroop(ctx, t, 0, 0, troops.face[i], troops.since[i], troops.shooter[i], time + i * 0.77);
+      if (hero) drawBar(ctx, -19, 17, 38, 4.5, t.rage, ready ? '#ffd166' : '#ff7a2a');
+      if (t.target) drawAimBadge(ctx, t.target, 22, 13, 7);
       ctx.restore();
     });
   }
@@ -252,7 +240,7 @@ export class GameRenderer {
     this.drawGround(ctx, e, def, time);
     this.drawBody(ctx, e, def, pose, vfx, lift);
     this.drawStatus(ctx, e, def, time, lift);
-    this.drawTags(ctx, e, def, lift);
+    this.drawTags(ctx, g, e, def, lift);
   }
 
   /** This frame's pose of `e` (the shared scratch object), carrying its facing over from the previous frame. */
@@ -290,9 +278,11 @@ export class GameRenderer {
     ctx.fillStyle = 'rgba(40,20,5,0.25)';
     ctx.fill();
     if (def.boss) {
+      // A pulsing patch of red light on the ground round the boss's feet.
+      const k = 1.3 + Math.sin(time * 4) * 0.06;
       ctx.beginPath();
-      ctx.arc(e.x, e.y, def.radius * (1.25 + Math.sin(time * 4) * 0.05), 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,90,40,0.16)';
+      ctx.ellipse(e.x, e.y + def.radius * FOOT, def.radius * k, def.radius * k * 0.4, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(220,60,40,0.2)';
       ctx.fill();
     }
   }
@@ -302,21 +292,18 @@ export class GameRenderer {
    * `lift` raises a flyer's whole body.
    */
   private drawBody(ctx: CanvasRenderingContext2D, e: Enemy, def: EnemyDef, pose: MonsterPose, vfx: Vfx, lift: number): void {
-    const { img, flash, box } = monsterSprite(e.def);
+    const { img, flash, w, h, ax, ay } = monsterSprite(e.def);
     const foot = def.radius * FOOT;
-    // Sprite corner relative to the feet: unposed, the sprite is centred on the enemy's position.
-    const left = -box / 2;
-    const top = -foot - box / 2;
     ctx.save();
     ctx.translate(e.x, e.y + foot - lift);
     // Reason: the rotation sits outside the mirror, so `lean` is in world terms — a monster walking left tips left.
     ctx.rotate(pose.lean);
     ctx.scale(pose.flip ? -pose.sx : pose.sx, pose.sy);
-    ctx.drawImage(img, left, top, box, box);
+    ctx.drawImage(img, -ax, -ay, w, h);
     const f = vfx.flash.get(e.uid);
     if (f !== undefined) {
       ctx.globalAlpha = Math.min(1, f / 0.12) * 0.85;
-      ctx.drawImage(flash, left, top, box, box);
+      ctx.drawImage(flash, -ax, -ay, w, h);
     }
     ctx.restore();
   }
@@ -336,23 +323,31 @@ export class GameRenderer {
       ctx.stroke();
       snowflake(ctx, x + def.radius * 0.9, y - def.radius * 0.9, 5);
     }
+    const feet = y + def.radius * FOOT;
     if (e.stunT > 0) {
+      // The stars circle the head.
+      const head = monsterHead(e.def);
+      const sy = feet - head.up - head.r * 1.15;
       for (let i = 0; i < 3; i++) {
         const a = time * 6 + (i * Math.PI * 2) / 3;
-        drawStar(ctx, x + Math.cos(a) * def.radius * 0.8, y - def.radius * 1.2 + Math.sin(a) * 3, 3.5, '#ffe45a');
+        inkStar(ctx, x + Math.cos(a) * head.r * 1.3, sy + Math.sin(a) * 2.5, 3.8, 5, 0.45, '#ffe45a', 0.9);
       }
     }
-    if (isRooted(e)) drawNetOver(ctx, x, y, def.radius, time, e.uid);
+    // Reason: the net is thrown over the whole figure, so it centres halfway up it rather than on the shadow.
+    if (isRooted(e)) drawNetOver(ctx, x, feet - monsterTop(e.def) / 2, def.radius * 1.15, time, e.uid);
     if (e.poison) drawPoisonBubbles(ctx, x, y, def.radius, e.poison.stacks, time, e.uid);
   }
 
-  /** HP bar above the monster (a flyer's lifted body), plus the name under bosses and elites. */
-  private drawTags(ctx: CanvasRenderingContext2D, e: Enemy, def: EnemyDef, lift: number): void {
+  /** A cinnabar HP bar in a paper groove just over the head (a flyer's lifted head), with the name above for bosses and elites. */
+  private drawTags(ctx: CanvasRenderingContext2D, g: GameState, e: Enemy, def: EnemyDef, lift: number): void {
     const barW = Math.max(22, def.radius * 2);
-    const y = e.y - lift;
-    drawBar(ctx, e.x - barW / 2, y - def.radius - 9, barW, 4, e.hp / e.maxHp, def.boss ? '#ff5a3a' : '#6fdc5a');
+    const h = def.boss ? 6 : 4.5;
+    const bar = e.y + def.radius * FOOT - lift - monsterTop(e.def) - 4 - h;
+    inkBar(ctx, e.x - barW / 2, bar, barW, h, e.hp / e.maxHp, CINNABAR);
+    // A lit 烽火台 marks the monsters it makes take more: a little flame left of the bar.
+    if (beaconMul(g, e) > 1) drawBeaconMark(ctx, e.x - barW / 2 - 5, bar + h);
     if (def.boss || def.elite) {
-      outlined(ctx, def.name, e.x, y + def.radius + 12, brush(def.boss ? 14 : 12), def.boss ? '#ffd166' : '#ffb0a0', 'rgba(20,10,4,0.9)', 3);
+      outlined(ctx, def.name, e.x, bar - 8, brush(def.boss ? 14 : 12), def.boss ? CINNABAR : INK, PAPER, 3);
     }
   }
 

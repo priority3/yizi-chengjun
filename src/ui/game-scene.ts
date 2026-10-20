@@ -364,7 +364,7 @@ export class GameScene implements Scene {
   }
 
   private handleEvents(events: readonly SimEvent[]): void {
-    this.vfx.consume(events);
+    this.vfx.consume(events, this.g.slots);
     this.sfx.consume(events);
     for (const e of events) {
       if (e.t === 'invalid') this.toasts.push(e.msg);

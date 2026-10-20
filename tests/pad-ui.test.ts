@@ -44,6 +44,20 @@ group('descriptions on special pads', () => {
     expect(describe(card('钱'), mods)).toBe('钱 · 战斗时每 4 秒产出铜钱');
   });
 
+  it("name the later pads, with a 灵泉's layers and a 双生台's haste while it holds", () => {
+    expect(describe(card('箭'), mods, 'coffer')).toBe('箭 · 射程最远，对空伤害 ×1.3（伤害 8，射程 200，聚宝台）');
+    expect(describe(card('箭'), mods, 'beacon')).toContain('（伤害 8，射程 200，烽火台）');
+    expect(describe(card('箭'), mods, 'spring')).toContain('（伤害 8，射程 200，灵泉）');
+    expect(describe({ ...card('箭'), spring: 2 }, mods, 'spring')).toContain('（伤害 9，射程 200，灵泉 2 层 +16%）');
+    expect(describe(card('箭'), mods, 'twin')).toContain('，双生台）');
+    const twins: MapDef = { theme: 'ridge', rows: ['D...D', '1###E'] };
+    const g = emptyGame(1, 1, twins);
+    put(g, 0, '箭');
+    put(g, 1, '箭');
+    expect(describe(card('箭'), mods, 'twin', { g, cell: 0 })).toContain('，双生攻速 +25%）');
+    expect(describe(card('钱'), mods, 'spring')).toBe('钱 · 战斗时每 4 秒产出铜钱（灵泉）');
+  });
+
   it('labels the three 瞄准 modes', () => {
     expect(AIM_LABEL).toEqual({ first: '打最前', strong: '打最强', weak: '打最弱' });
   });
@@ -57,6 +71,12 @@ group('pad labels while dragging', () => {
     expect(padLabel('mire', '雷')).toBe('泥沼：放不了兵字和英雄');
     expect(padLabel('mire', '钱')).toBe('泥沼：只能放辅助、碎片和金');
     expect(padLabel('altar', '速')).toBe('法阵：兵字和英雄伤害 +20%');
+    expect(padLabel('coffer', '箭')).toBe('聚宝台：每击败一只 +1 铜钱，Boss +10');
+    expect(padLabel('beacon', '钱')).toBe('烽火台：周围的妖怪挨打多掉 15%');
+    expect(padLabel('twin', '火')).toBe('双生台：两台同字，攻速各 +25%');
+    expect(padLabel('twin', '钱')).toBe('双生台：两台放同一个兵字，攻速各 +25%');
+    expect(padLabel('spring', '雷')).toBe('灵泉：每守住一波伤害 +8%，最多 3 层');
+    expect(padLabel('spring', '钱')).toBe('灵泉：兵字和英雄每守住一波伤害 +8%');
   });
 });
 

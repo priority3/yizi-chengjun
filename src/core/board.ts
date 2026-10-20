@@ -1,5 +1,6 @@
 // Tile combination rules and drag-and-drop between camp cells (merge, awaken, 鎏金, move, swap, sell), which pads
-// a tile may stand on (a 泥沼 refuses fighters), and each fighter's target priority (瞄准).
+// a tile may stand on (a 泥沼 refuses fighters), and each fighter's target priority (瞄准). A tile that changes pads
+// leaves its 灵泉 layers behind (see `moved`); one upgraded or gilded where it stands keeps them.
 import { heroFor } from '../config/combos.ts';
 import { SELL_REFUND } from '../config/chapters.ts';
 import type { SlotKind } from '../config/maps.ts';
@@ -32,6 +33,12 @@ export function makeTile(g: GameState, id: UnitId, invested: number): Tile {
   const t: Tile = { uid: g.nextUid++, id, level: 1, divine: false, cd: 0, invested, rage: 0 };
   // Reason: attackers may fire at once, but pulsing supports (钱/疗) must wait a full cycle so they can't be spammed.
   if (UNITS[id].kind === 'support') t.cd = tileInterval(t);
+  return t;
+}
+
+/** `t` just changed pads: whatever 灵泉 layers it had soaked up stay behind (挪走清零). */
+function moved(t: Tile): Tile {
+  delete t.spring;
   return t;
 }
 
@@ -74,7 +81,8 @@ export function combineInto(g: GameState, a: Tile, to: number, from: number): Ac
     if (!canPlace(g, to, target.id)) return invalid(g, to, MIRE_MSG);
     target.divine = true;
     target.invested += god.invested;
-    g.slots[to] = target;
+    // A fighter dropped onto a 金 card comes over from its own pad; one that the 金 is dropped on stays put.
+    g.slots[to] = target === a ? moved(a) : target;
     g.events.push({ t: 'divine', cell: to });
     return 'divine';
   }
@@ -128,7 +136,7 @@ export function resolveDrop(g: GameState, from: number, to: number | 'sell'): Ac
   const b = g.slots[to];
   if (!b) {
     if (!canPlace(g, to, a.id)) return invalid(g, to, MIRE_MSG);
-    g.slots[to] = a;
+    g.slots[to] = moved(a);
     g.slots[from] = null;
     return 'move';
   }
@@ -141,8 +149,8 @@ export function resolveDrop(g: GameState, from: number, to: number | 'sell'): Ac
   // A swap puts each tile on the other's pad: neither may land a fighter in a 泥沼.
   if (!canPlace(g, to, a.id)) return invalid(g, to, MIRE_MSG);
   if (!canPlace(g, from, b.id)) return invalid(g, from, MIRE_MSG);
-  g.slots[to] = a;
-  g.slots[from] = b;
+  g.slots[to] = moved(a);
+  g.slots[from] = moved(b);
   return 'swap';
 }
 

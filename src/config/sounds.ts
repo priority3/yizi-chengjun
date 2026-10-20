@@ -290,7 +290,7 @@ const ULT_SOUND: Record<HeroId, SoundId> = { 悟空: 'ultWukong', 八戒: 'ultBa
  * The silent-event table: event types that never make a sound, because they come too often to be worth a
  * voice each (every hit, every 疗 pulse...). Impacts other than 火 are silent too (the shot already sounded).
  */
-export const SILENT_EVENTS: ReadonlyArray<SimEvent['t']> = ['hit', 'heal', 'split', 'summon'];
+export const SILENT_EVENTS: ReadonlyArray<SimEvent['t']> = ['hit', 'heal', 'split', 'summon', 'spring'];
 
 /** Compile-time exhaustiveness guard: an unknown event at runtime is simply silent. */
 function unhandled(e: never): null {
@@ -309,6 +309,8 @@ export function soundFor(e: SimEvent): SoundId | null {
     case 'heal':
     case 'split':
     case 'summon':
+    // A 灵泉 layer comes with the wave-clear fanfare; a sound of its own would only muddy it.
+    case 'spring':
       return null;
     case 'kill':
       return ENEMIES[e.def]?.boss ? 'bossKill' : 'kill';
@@ -328,6 +330,7 @@ export function soundFor(e: SimEvent): SoundId | null {
       return 'divine';
     case 'sell':
     case 'income':
+    case 'coffer':
     case 'refresh':
     case 'chest':
       return 'coin';

@@ -4,14 +4,16 @@ import { ENEMIES } from '../config/enemies.ts';
 import { GOLD_GLYPH } from '../config/terms.ts';
 import type { ShotKind } from '../core/types.ts';
 import { platform } from '../platform/env.ts';
-import { drawCoin, drawStar, hash01, outlined, roundRect, text } from './draw.ts';
+import { drawCoin, hash01, outlined, roundRect, text } from './draw.ts';
 import { drawNeedleShot, drawNetShot } from './fx-cards.ts';
+import { drawBoom, drawPoof, drawPow, inkStar } from './fx-toon.ts';
 import { brush, sans } from './fonts.ts';
 import { drawPortrait } from './heroes-art.ts';
+import { INK } from './ink.ts';
 import { corpseHeight, corpsePose, FOOT, makeCorpsePose } from './monster-pose.ts';
 import { monsterSprite } from './monsters-art.ts';
 
-export type FxKind = 'swing' | 'bolt' | 'beam' | 'slam' | 'dragon' | 'ring' | 'burst' | 'seal' | 'slash';
+export type FxKind = 'swing' | 'bolt' | 'beam' | 'slam' | 'dragon' | 'ring' | 'burst' | 'seal' | 'slash' | 'streak' | 'pow' | 'boom' | 'poof';
 
 export interface Fx {
   kind: FxKind;
@@ -26,7 +28,7 @@ export interface Fx {
   seed: number;
 }
 
-export type ParticleShape = 'dot' | 'ink' | 'star' | 'snow' | 'coin' | 'ember';
+export type ParticleShape = 'dot' | 'star' | 'snow' | 'coin' | 'ember';
 
 export interface Particle {
   x: number;
@@ -66,8 +68,13 @@ export interface Corpse {
 
 /** Reason: one scratch pose shared by every corpse, so drawing them allocates nothing per frame. */
 const corpseScratch = makeCorpsePose();
-/** A falling body pivots on the edge it falls towards, this many radii right of its centre, so it ends up lying on the ground. */
-const TOPPLE_EDGE = 0.85;
+/**
+ * A falling body pivots on the edge it falls towards, this many radii right of its centre, so it ends up lying on the
+ * ground: about half a robe's width (a figure is half a radius thick either side of its middle).
+ */
+const TOPPLE_EDGE = 0.5;
+/** How far right of where it stood a body lies once it is flat, in radii: the middle of a figure about 2.6 radii tall. */
+const LIE_MID = 1.8;
 
 /**
  * The monster's sprite toppling to the right, sinking and fading; a flyer's drops out of the air while it topples.
@@ -76,7 +83,7 @@ const TOPPLE_EDGE = 0.85;
 export function drawCorpse(ctx: CanvasRenderingContext2D, c: Corpse): void {
   const def = ENEMIES[c.def];
   const r = def.radius;
-  const { img, box } = monsterSprite(c.def);
+  const { img, w, h, ax, ay } = monsterSprite(c.def);
   const k = c.t / c.life;
   const p = corpsePose(corpseScratch, k);
   const foot = r * FOOT;
@@ -91,16 +98,16 @@ export function drawCorpse(ctx: CanvasRenderingContext2D, c: Corpse): void {
   ctx.save();
   ctx.globalAlpha = p.alpha * (0.64 + 0.36 * near);
   ctx.beginPath();
-  ctx.ellipse(c.x + r * 1.6 * lying, ground, r * (0.9 + 0.2 * lying) * shade, r * 0.28 * shade, 0, 0, Math.PI * 2);
+  ctx.ellipse(c.x + r * LIE_MID * lying, ground, r * (0.9 + 0.5 * lying) * shade, r * 0.28 * shade, 0, 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(40,20,5,0.25)';
   ctx.fill();
   ctx.globalAlpha = p.alpha;
   ctx.translate(c.x + r * TOPPLE_EDGE, ground + p.sink - height);
   ctx.rotate(p.angle);
   // Sprite corner relative to the pivot: upright, the sprite sits exactly where the living monster stood.
-  ctx.drawImage(img, -r * TOPPLE_EDGE - box / 2, -foot - box / 2, box, box);
+  ctx.drawImage(img, -r * TOPPLE_EDGE - ax, -ay, w, h);
   ctx.restore();
-  if (def.boss && p.landed > 0) drawShockwave(ctx, c.x + r * 1.6, ground, r, p.landed);
+  if (def.boss && p.landed > 0) drawShockwave(ctx, c.x + r * LIE_MID, ground, r, p.landed);
 }
 
 /** A ring racing out along the ground from where a boss's body landed; `k` runs 0..1 from the landing. */
@@ -266,6 +273,18 @@ export function drawFx(ctx: CanvasRenderingContext2D, f: Fx): void {
       text(ctx, GOLD_GLYPH, 0, 1, brush(22), '#fff4ec');
       break;
     }
+    case 'streak': {
+      // A blur from the striker to the hit, thinning and fading as it goes: a staff blow's reach.
+      ctx.globalAlpha = 1 - k;
+      ctx.beginPath();
+      ctx.moveTo(f.x + (f.x2 - f.x) * k * 0.6, f.y + (f.y2 - f.y) * k * 0.6);
+      ctx.lineTo(f.x2, f.y2);
+      ctx.lineWidth = f.size * (1 - k) + 0.5;
+      ctx.strokeStyle = f.color;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      break;
+    }
     case 'slash':
       ctx.globalAlpha = 1 - k;
       ctx.beginPath();
@@ -274,6 +293,15 @@ export function drawFx(ctx: CanvasRenderingContext2D, f: Fx): void {
       ctx.strokeStyle = f.color;
       ctx.lineCap = 'round';
       ctx.stroke();
+      break;
+    case 'pow':
+      drawPow(ctx, f, k);
+      break;
+    case 'boom':
+      drawBoom(ctx, f, k);
+      break;
+    case 'poof':
+      drawPoof(ctx, f, k);
       break;
   }
   ctx.restore();
@@ -284,7 +312,7 @@ export function drawParticle(ctx: CanvasRenderingContext2D, p: Particle): void {
   ctx.globalAlpha = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4;
   switch (p.shape) {
     case 'star':
-      drawStar(ctx, p.x, p.y, p.size, p.color);
+      inkStar(ctx, p.x, p.y, p.size, 5, 0.45, p.color, 0.8);
       break;
     case 'coin':
       drawCoin(ctx, p.x, p.y, p.size);
@@ -305,19 +333,24 @@ export function drawParticle(ctx: CanvasRenderingContext2D, p: Particle): void {
     }
     default:
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.shape === 'ink' ? p.size * (1 + k * 0.6) : p.size, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
       ctx.fillStyle = p.color;
       ctx.fill();
   }
   ctx.globalAlpha = 1;
 }
 
-/** `textScale` multiplies the font size (the renderer passes 1 / zoom so text keeps its on-screen size). */
+/**
+ * Floating text, outlined thick in ink; numbers are set in the heaviest sans so they read as bold cartoon digits.
+ * It pops in past full size and settles. `textScale` multiplies the font size (the renderer passes 1 / zoom so text
+ * keeps its on-screen size).
+ */
 export function drawFloater(ctx: CanvasRenderingContext2D, f: Floater, textScale = 1): void {
   const k = f.t / f.life;
   ctx.globalAlpha = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
-  const pop = (k < 0.12 ? 0.6 + (k / 0.12) * 0.4 : 1) * textScale;
-  outlined(ctx, f.msg, f.x, f.y - k * 26 * textScale, f.brushFont ? brush(Math.round(f.px * pop)) : sans(Math.round(f.px * pop), 800), f.color, 'rgba(30,15,5,0.85)', 3 * textScale);
+  const pop = (k < 0.1 ? 0.5 + (k / 0.1) * 0.75 : k < 0.2 ? 1.25 - ((k - 0.1) / 0.1) * 0.25 : 1) * textScale;
+  const font = f.brushFont ? brush(Math.round(f.px * pop)) : sans(Math.round(f.px * pop), 900);
+  outlined(ctx, f.msg, f.x, f.y - k * 26 * textScale, font, f.color, INK, 3.6 * textScale);
   ctx.globalAlpha = 1;
 }
 
@@ -333,8 +366,22 @@ export function drawProjectile(ctx: CanvasRenderingContext2D, kind: ShotKind, x:
   }
   switch (kind) {
     case 'arrow':
+      // Three white speed lines trail the arrow.
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.beginPath();
+      for (const [o, l] of [
+        [-3.5, 6],
+        [0, 9],
+        [3.5, 6],
+      ] as const) {
+        ctx.moveTo(-17, o);
+        ctx.lineTo(-17 - l, o);
+      }
+      ctx.stroke();
       ctx.lineWidth = 2;
-      ctx.strokeStyle = '#6b4a2a';
+      ctx.strokeStyle = '#8a5a32';
       ctx.beginPath();
       ctx.moveTo(-12, 0);
       ctx.lineTo(6, 0);
@@ -344,23 +391,37 @@ export function drawProjectile(ctx: CanvasRenderingContext2D, kind: ShotKind, x:
       ctx.lineTo(4, -3.5);
       ctx.lineTo(4, 3.5);
       ctx.closePath();
-      ctx.fillStyle = '#3a3a3a';
+      ctx.fillStyle = '#6a7078';
       ctx.fill();
-      ctx.fillStyle = '#e8e2d0';
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = INK;
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
       ctx.fillRect(-13, -3, 5, 2);
       ctx.fillRect(-13, 1, 5, 2);
       break;
-    case 'fire': {
-      const g = ctx.createRadialGradient(0, 0, 1, 0, 0, 9);
-      g.addColorStop(0, '#fff6c8');
-      g.addColorStop(0.5, '#ff9a2a');
-      g.addColorStop(1, 'rgba(220,50,10,0)');
-      ctx.fillStyle = g;
+    case 'fire':
+      // A cartoon fireball: an outlined orange teardrop streaming back, a yellow core and a glint.
       ctx.beginPath();
-      ctx.arc(0, 0, 9, 0, Math.PI * 2);
+      ctx.moveTo(-15, 0);
+      ctx.quadraticCurveTo(-5, -7, 2, -5.5);
+      ctx.arc(2, 0, 5.5, -Math.PI / 2, Math.PI / 2);
+      ctx.quadraticCurveTo(-5, 7, -15, 0);
+      ctx.closePath();
+      ctx.fillStyle = '#ff8a2a';
+      ctx.fill();
+      ctx.lineWidth = 1.3;
+      ctx.strokeStyle = INK;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(2.5, 0, 3.4, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffe066';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(3.6, -1.4, 1.2, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
       ctx.fill();
       break;
-    }
     case 'ice':
       ctx.beginPath();
       ctx.moveTo(9, 0);

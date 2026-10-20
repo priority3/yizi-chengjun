@@ -5,7 +5,7 @@
 import { CHAPTERS } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
 import { ENDLESS_CHAPTER } from '../config/endless.ts';
-import type { MapDef } from '../config/maps.ts';
+import { SPRING, type MapDef } from '../config/maps.ts';
 import { MAX_LEVEL, UNITS } from '../config/units.ts';
 import { TARGET_MODES } from './board.ts';
 import { ENCOUNTERS } from './encounters.ts';
@@ -75,7 +75,9 @@ const unitId = keyOf(UNITS);
 const targetMode: Check = (x) => x === undefined || TARGET_MODES.some((m) => m === x);
 /** The leak damage a 镜 carries into the next wave; older saves and every other tile have none. */
 const charge: Check = (x) => x === undefined || (num(x) && (x as number) >= 0);
-const tile = shape<Tile>({ uid: count, id: unitId, level: intIn(1, MAX_LEVEL), divine: bool, cd: num, invested: num, rage: num, target: targetMode, charge });
+/** 灵泉 layers a tile soaked up; older saves and tiles off a 灵泉 have none. */
+const spring: Check = (x) => x === undefined || intIn(1, SPRING.max)(x);
+const tile = shape<Tile>({ uid: count, id: unitId, level: intIn(1, MAX_LEVEL), divine: bool, cd: num, invested: num, rage: num, target: targetMode, charge, spring });
 const offer = shape<ShopOffer>({ id: unitId, price: num, sold: bool });
 const waveMods = shape<WaveMods>({
   speedMul: num,
@@ -185,7 +187,8 @@ export function restore(s: RunSnapshot, def?: MapDef): GameState | null {
   const map = buildMap(layout);
   const cells = map.slots.length;
   if (state.slots.length !== cells || state.unlocked.length !== cells || !wavesFit(mode, state)) return null;
-  // No fighter can have been standing in a 泥沼.
+  // No fighter can have been standing in a 泥沼, nor a tile off a 灵泉 have kept layers from one.
   if (state.slots.some((t, i) => t !== null && !padAllows(map.slotKind[i], t.id))) return null;
+  if (state.slots.some((t, i) => t?.spring !== undefined && map.slotKind[i] !== 'spring')) return null;
   return { ...state, map, events: [] };
 }

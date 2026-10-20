@@ -8,7 +8,7 @@ import { offscreen } from '../platform/env.ts';
 import { fitPx, roundRect, text } from './draw.ts';
 import { brush, sans } from './fonts.ts';
 import type { Rect } from './layout.ts';
-import { monsterSprite } from './monsters-art.ts';
+import { monsterPortrait } from './monsters-art.ts';
 import { NUMERALS } from './panels.ts';
 import { drawStarRow } from './rating-art.ts';
 import { THEMES } from './scenery.ts';
@@ -232,13 +232,13 @@ function drawLock(ctx: CanvasRenderingContext2D, x: number, y: number, r: number
   ctx.restore();
 }
 
-/** The boss line: its sprite as a small icon, then its name (red until the chapter is beaten). */
+/** The boss line: its masked face as a small icon, then its name (red until the chapter is beaten). */
 function drawBoss(ctx: CanvasRenderingContext2D, boss: string, x: number, y: number, w: number, open: boolean, beaten: boolean): void {
   const icon = 20;
-  const { img, box } = monsterSprite(boss);
+  const img = monsterPortrait(boss, icon);
   ctx.save();
   if (!open) ctx.globalAlpha = 0.4;
-  blit(ctx, img, x + icon / 2 - 1, y, box, box, icon / box);
+  blit(ctx, img, x + icon / 2 - 1, y, icon, icon);
   ctx.restore();
   const name = ENEMIES[boss].name;
   const px = fitPx(ctx, name, w - icon - 1, 11, (n) => sans(n, 700));
