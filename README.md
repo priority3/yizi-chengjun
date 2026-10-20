@@ -4,6 +4,15 @@
 
 线上地址：https://zidou-xiyou.vercel.app （推 `main` 自动部署；国内网络可能打不开）。首页右下角的浅色小字是版本号、构建提交和当前域名，反馈问题时截图带上。
 
+<p align="center">
+  <img src="docs/screenshots/title.jpg" width="19%" alt="首页">
+  <img src="docs/screenshots/chapters.jpg" width="19%" alt="选章页">
+  <img src="docs/screenshots/build.jpg" width="19%" alt="构筑期：字旗小兵、双生台、灵泉和宣纸商店">
+  <img src="docs/screenshots/battle.jpg" width="19%" alt="战斗：脸谱小鬼、点着的烽火台、命中和击败特效">
+  <img src="docs/screenshots/boss.jpg" width="19%" alt="Boss 战：牛魔王">
+</p>
+<p align="center"><sub>首页 · 选章 · 构筑期（字旗小兵、双生台、灵泉、宣纸商店） · 战斗（脸谱小鬼、点着的烽火台、命中和击败） · Boss 战（牛魔王，悟空的金箍棒扫过）</sub></p>
+
 ## 运行
 
 ```bash
@@ -95,6 +104,8 @@ C/c  聚宝台（击败多得铜钱）  B/b 烽火台（周围妖怪挨打 +15%�
 | `src/render/` | 画面：自适应布局、镜头（`camera.ts`）、地图与景物绘制（`map-art.ts`、`scenery.ts`，各种景物的画法在 `scenery-props.ts`，国潮青绿的墨色、石青石绿朱砂配色、淡彩晕染和宣纸纹理在 `ink.ts`）、商店和拖动中带材质边框和按等级变化插画的字卡（`cards.ts`、`unit-art.ts`，毒网鼓镜在 `unit-art-extra.ts`、它们的特效在 `fx-cards.ts`）、地图上的字旗和小兵（`troops.ts` 排兵布阵和画旗，兵的身体、帽子和兵器在 `troop-parts.ts`，英雄在 `troop-heroes.ts`，朝向、轮流出手和弹道起点在 `troop-anim.ts`）、英雄头像、脸谱小鬼妖怪（`monsters-art.ts` 拼装每种妖怪并缓存，身体和头饰在 `monster-figure.ts`，兵器在 `monster-gear.ts`，脸谱在 `monster-masks.ts`，朝向、步态和 Boss 倒地在 `monster-pose.ts`）、石台（`pad-art.ts`，斜看的石墩，台面是椭圆；聚宝台、烽火台、双生台、灵泉的样子在 `pad-art-extra.ts`，点着的烽火和范围圈、亮起的红绳和灵泉的珠子在 `pad-marks.ts`；符文环、锁台封条、地面圈、瞄准角标和拖卡提示在 `slot-marks.ts`）、选章卡片和地图缩略图（`chapter-card.ts`、`map-thumb.ts`、星星在 `rating-art.ts`）、无尽和每日的入口卡片（`mode-card.ts`）、适龄标识（`age-badge.ts`）、中文换行（`text-wrap.ts`）、战报卡片（`share-card.ts`，宣纸、边框和印章在 `share-art.ts`）、应用图标（`app-icon.ts`）和新版本横幅（`update-banner.ts`）、特效与大招动画（买卡、合成、觉醒、卖出和产钱回血这些棋盘事件的特效在 `vfx-board.ts`，命中星、白烟和火团爆炸这些卡通特效在 `fx-toon.ts`）、把事件变成音效的 `sfx.ts`、HUD、商店、奇遇面板（宣纸卷轴，手卷、立轴、按钮和垃圾桶在 `widgets.ts`）、法宝图标、引导用的手（`hand.ts`） |
 | `src/ui/` | 输入（点、拖、双指捏合、滚轮）、各场景（标题、选章、对局与结算、法宝页）、拖卡与镜头手势（`map-controls.ts`）、字卡说明（`describe.ts`）、新手引导动画（`tutorial.ts`）、选章页排版（`chapter-layout.ts`）、无尽结算面板（`endless-result.ts`）、开局横幅（`run-banners.ts`）、启动合规屏（`splash-scene.ts`、计时在 `splash-clock.ts`）、关于页（`about-scene.ts`、`about-layout.ts`、滚动在 `scroller.ts`）、首页排版（`title-layout.ts`）、生成战报数据并分享（`share-result.ts`）、结算记账（`run-end.ts`）；地图编辑器在 `editor-scene.ts`，编辑模型、检查、导入导出和界面分别在 `editor-model.ts`、`editor-check.ts`、`editor-text.ts`、`editor-panels.ts`、`editor-layout.ts`，画法在 `render/editor-draw.ts` |
 | `src/platform/` | `env.ts` 是平台接口（屏幕与离屏画布、时钟与帧、指针输入、书法字体、存储、音频、前后台、分享），游戏只通过 `platform()` 用设备能力；`web.ts` 是它的网页实现（画布适配、移动端手势屏蔽），指针事件在 `web-input.ts`；`progress.ts` 长期存档（章节进度、星级、法宝库、声音设置、无尽和每日记录，兼容旧存档）；`save.ts` 局中存档；`audio.ts` 音频引擎（解锁、总线、限幅）；`music.ts` 五声音阶背景音乐；`pwa.ts` 注册离线缓存并提示新版本；`share.ts` 系统分享和保存图片层（游戏里唯一的 DOM 界面）；`today.ts` 每日挑战用的本地日期；`editor-io.ts` 编辑器的网址、剪贴板和输入框 |
+| `fonts/` | 书法字体原文件 `MaShanZheng-Regular.ttf` 和 OFL 协议，只给 `pnpm font` 裁剪子集用，不打包 |
+| `docs/screenshots/` | README 里的游戏截图：开发服务器里摆好局面，从画布按 3 倍分辨率导出，再缩到 540 宽存成 JPEG |
 | `build/` | 打包插件：`sw-plugin.ts` 在打包时把手写的 `sw-template.js` 填上预缓存清单和缓存名，写成 `dist/sw.js`；`precache.ts` 是可测的纯函数。应用图标不进预缓存 |
 
 改完数值后跑 `pnpm sim` 看胜率表，`--leaks` 找崩盘的波。当前不带法宝的机器人胜率从第 1 章约 98% 逐章降到第 10 章约 13%（`pnpm sim 40`：100/88/83/65/70/53/38/33/25/5；200 局更稳，是 98/88/78/72/66/54/47/42/21/13；1000 局是 97/89/79/75/67/57/46/48/21/13）；`tests/sim.test.ts` 用 20 个固定种子把关：第 1 章不低于 85%、第 10 章不高于 20%、后一章不会比前一章高出 30 个百分点以上。带三件一阶法宝（`pnpm sim 40 金刚琢,照妖镜,定风珠`）各章再涨约 10～25 个百分点，第 10 章涨得最少（100 局里 10% 到 18%）。无尽模式机器人平均倒在第 14 波左右（`pnpm sim --endless 80`，约九成落在 12～25 波）。每多一种兵字，机器人的合成就更分散，所以加新卡后要重调各图的 `hp`。四种新石台只让机器人各章涨了 0～3 个点（它不会特意把同一个字摆上双生台，也很少挪字），第 3、5、6、8、10 章的 `hp` 因此调高了 2%～3%。真人会摆位、会凑合成、会挑奇遇，一般比机器人打得好。
