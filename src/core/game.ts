@@ -13,6 +13,7 @@ import { makeEnemy, moveEnemies } from './monsters.ts';
 import { mixSeed } from './rng.ts';
 import { buy, refresh, restock, unlock } from './shop.ts';
 import { defaultMods } from './treasures.ts';
+import { soakSprings } from './slots.ts';
 import { buildWave } from './waves.ts';
 import type { Action, ActionResult, GameMode, GameState, RunMods } from './types.ts';
 
@@ -132,6 +133,7 @@ function endWave(g: GameState): void {
   g.phase = 'build';
   g.refreshes = 0;
   restock(g);
+  soakSprings(g);
   g.events.push({ t: 'waveClear', wave: g.wave, bonus });
   if (g.chest) openChest(g);
   if (encounterDue(g.wave, g.totalWaves)) offerEncounter(g);
@@ -209,6 +211,8 @@ export function hashState(g: GameState): number {
     mix(TARGET_MODES.indexOf(t.target ?? 'first'));
     // Reason: only once a 镜 has caught something, so every other board hashes as it always did.
     if (t.charge) mix(Math.round(t.charge * 100));
+    // 灵泉 layers likewise.
+    if (t.spring) mix(t.spring);
   }
   for (const e of g.enemies) {
     mix(e.uid);

@@ -24,7 +24,7 @@ export function castUltimate(g: GameState, t: Tile, cell: number, target: Enemy)
   const targets: Array<{ x: number; y: number }> = [];
   const hit = (e: Enemy, amount: number) => {
     targets.push({ x: e.x, y: e.y });
-    damage(g, e, amount, t.id);
+    damage(g, e, amount, t.id, cell);
   };
   switch (hero) {
     case '悟空':

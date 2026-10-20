@@ -43,6 +43,7 @@ export function makeEnemy(g: GameState, def: string, path: number, hp: number, s
     dashT: 0,
     bounty,
     gone: false,
+    hitBy: -1,
   };
   placeOnRoad(g, e);
   return e;

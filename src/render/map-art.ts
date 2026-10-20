@@ -10,6 +10,7 @@ import { drawPortrait } from './heroes-art.ts';
 import { blobPts, CINNABAR, inkGrass, INK, PAPER, paperGrain, rng, smoothPath, wash } from './ink.ts';
 import { L, W } from './layout.ts';
 import { altarGlow, altarRunes, drum, highPlinth, mirePad, PAD_SIDE, plainPad } from './pad-art.ts';
+import { beaconPad, cofferPad, springPad, twinCord, twinPad } from './pad-art-extra.ts';
 import { drawLiquids, drawProp, paintPaper, scatter, THEMES, vignette, type Palette } from './scenery.ts';
 
 /** Slot pad radius (world px). */
@@ -232,11 +233,16 @@ function camp(ctx: CanvasRenderingContext2D, p: Pt): void {
 
 /**
  * A stone pad a card can stand on (its locked look is drawn live by the renderer), in pad-art.ts's looks:
- * a plain drum, a taller 高台, a 法阵 with rings cut into its top, or a 泥沼 of mud.
+ * a plain drum, a taller 高台, a 法阵 with rings cut into its top, or a 泥沼 of mud; and pad-art-extra.ts's 聚宝台,
+ * 烽火台, 双生台 and 灵泉.
  */
 export function pad(ctx: CanvasRenderingContext2D, p: Pt, seed: number, kind: SlotKind = 'plain'): void {
   if (kind === 'mire') return mirePad(ctx, p, PAD_R, seed);
   if (kind === 'high') return highPlinth(ctx, p, PAD_R, seed);
+  if (kind === 'coffer') return cofferPad(ctx, p, PAD_R, seed);
+  if (kind === 'beacon') return beaconPad(ctx, p, PAD_R, seed);
+  if (kind === 'twin') return twinPad(ctx, p, PAD_R, seed);
+  if (kind === 'spring') return springPad(ctx, p, PAD_R, seed);
   if (kind === 'altar') altarGlow(ctx, p, PAD_R);
   plainPad(ctx, p, PAD_R, seed);
   if (kind === 'altar') altarRunes(ctx, p, PAD_R);
@@ -249,6 +255,10 @@ export function paintMap(ctx: CanvasRenderingContext2D, map: MapData): void {
   drawLiquids(ctx, map, pal);
   scatter(ctx, map, pal);
   roads(ctx, map, pal);
+  // The red cords between paired 双生台 lie on the ground, under everything standing.
+  map.twin.forEach((j, i) => {
+    if (j > i) twinCord(ctx, map.slots[i], map.slots[j], PAD_R);
+  });
   // Reason: rocks, trees, entrances, the camp and the pads are drawn back to front by where they touch the ground,
   // so a tall tree in front of a pad overlaps it instead of being covered by it.
   const standing: Array<{ y: number; draw: () => void }> = [];

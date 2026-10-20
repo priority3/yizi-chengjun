@@ -1,7 +1,7 @@
 // 特殊石台: the A/H/M pad letters, the 法阵 / 高台 bonuses wherever a tile fights or is rated, and the 泥沼 rule
 // (no fighters) at every way a tile can land on a pad — shop, drag, swap, awakening, 鎏金, encounters, chest, bot.
 import { describe, expect, it } from 'vitest';
-import { MAPS, SLOT_BONUS, type MapDef } from '../src/config/maps.ts';
+import { MAPS, SLOT_BONUS, type MapDef, type SlotKind } from '../src/config/maps.ts';
 import { UNITS } from '../src/config/units.ts';
 import { canPlace, MIRE_MSG, previewDrop, resolveDrop } from '../src/core/board.ts';
 import { botBuildAction, DEFAULT_BOT } from '../src/core/bot.ts';
@@ -59,17 +59,29 @@ describe('pad letters', () => {
     expect(bestOpenSlot(high)).toBe(1);
   });
 
-  it('keeps every chapter map within the rules: a 法阵 or 高台 each, 泥沼 from chapter 5, at most a third special', () => {
+  it('keeps every chapter map within the rules: a 法阵 or 高台 each, 泥沼 from chapter 5, at most two fifths special', () => {
     MAPS.forEach((def, i) => {
       const m = buildMap(def);
       const kinds = m.slotKind;
       const special = kinds.filter((k) => k !== 'plain').length;
       expect(kinds.some((k) => k === 'altar' || k === 'high'), `chapter ${i + 1}`).toBe(true);
       expect(kinds.includes('mire'), `chapter ${i + 1}`).toBe(i + 1 >= 5);
-      expect(special * 3, `chapter ${i + 1}`).toBeLessThanOrEqual(kinds.length);
+      expect(special * 5, `chapter ${i + 1}`).toBeLessThanOrEqual(kinds.length * 2);
+      // Twin pads always come in pairs.
+      expect(kinds.filter((k) => k === 'twin').length % 2, `chapter ${i + 1}`).toBe(0);
       // The starter 箭 always has a pad to stand on.
       expect(kinds[bestOpenSlot(m)], `chapter ${i + 1}`).not.toBe('mire');
     });
+  });
+
+  it('brings the later pads in one chapter at a time: 聚宝台 in 2, 烽火台 in 3, 双生台 in 4, 灵泉 in 6', () => {
+    const debut = (kind: SlotKind): number => MAPS.findIndex((def) => buildMap(def).slotKind.includes(kind)) + 1;
+    expect([debut('coffer'), debut('beacon'), debut('twin'), debut('mire'), debut('spring')]).toEqual([2, 3, 4, 5, 6]);
+    // Each one shows up again later on.
+    for (const kind of ['coffer', 'beacon', 'twin', 'spring'] as SlotKind[]) {
+      const later = MAPS.filter((def, i) => i + 1 > debut(kind) && buildMap(def).slotKind.includes(kind)).length;
+      expect(later, kind).toBeGreaterThan(0);
+    }
   });
 });
 

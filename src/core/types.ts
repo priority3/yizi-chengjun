@@ -90,6 +90,11 @@ export interface Tile {
   target?: TargetMode;
   /** 镜 only: camp damage from leaks caught since its last pulse; absent until the first leak it sees. */
   charge?: number;
+  /**
+   * 灵泉 layers (1..SPRING.max) soaked up on the spring it stands on, one per wave cleared there; absent for none.
+   * Reason: kept on the tile, so moving it anywhere (core/board.ts) is what clears them — upgrading it in place doesn't.
+   */
+  spring?: number;
 }
 
 export type BossTrait =
@@ -171,6 +176,8 @@ export interface Enemy {
   bounty: number;
   /** Left the field without dying (reached the camp, or a thief that got away): removed, no bounty. */
   gone: boolean;
+  /** Cell of the card whose hit landed on it last (-1 before any): the one a 聚宝台 pays for finishing it off. */
+  hitBy: number;
 }
 
 export interface Projectile {
@@ -310,6 +317,10 @@ export type SimEvent =
   | { t: 'sell'; cell: number; amount: number }
   | { t: 'invalid'; cell: number; msg: string }
   | { t: 'income'; cell: number; amount: number }
+  /** The card on the 聚宝台 `cell` finished a monster off and brought in `amount` extra 铜钱. */
+  | { t: 'coffer'; cell: number; amount: number }
+  /** The card on the 灵泉 `cell` stayed through a wave and now has `layers` layers. */
+  | { t: 'spring'; cell: number; layers: number }
   | { t: 'heal'; cell: number; amount: number }
   /** The 镜 on `cell` sent `dmg` back from the camp (x, y) at every monster on the field: `targets`. */
   | { t: 'mirror'; cell: number; x: number; y: number; dmg: number; targets: Array<{ uid: number; x: number; y: number }> }

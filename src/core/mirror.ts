@@ -36,5 +36,5 @@ export function pulseMirror(g: GameState, t: Tile, cell: number): void {
   t.charge = 0;
   const camp = g.map.camp;
   g.events.push({ t: 'mirror', cell, x: camp.x, y: camp.y, dmg, targets: hit.map((e) => ({ uid: e.uid, x: e.x, y: e.y })) });
-  for (const e of hit) damage(g, e, dmg, t.id);
+  for (const e of hit) damage(g, e, dmg, t.id, cell);
 }

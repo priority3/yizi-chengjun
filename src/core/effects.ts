@@ -4,17 +4,21 @@ import { SLOW_CAP, UNITS } from '../config/units.ts';
 import { pathPoint } from './map.ts';
 import { enraged } from './modes.ts';
 import { routeOf } from './monsters.ts';
+import { beaconMul } from './slots.ts';
 import type { Enemy, GameState, UnitId } from './types.ts';
 
 /**
- * Deals one hit of `amount` from `unit` to `e`. This is the one place a unit's anti-air bonus (UnitDef.airMul)
- * applies, so shots, splashes, beams and ultimates all agree; it comes before a boss's flat armour.
+ * Deals one hit of `amount` from `unit` standing on `cell` (-1 when no pad fired it) to `e`. This is the one place a
+ * unit's anti-air bonus (UnitDef.airMul) and a lit 烽火台's bonus apply, so shots, splashes, beams, ultimates and a
+ * 镜's pulse all agree; both come before a boss's flat armour. The hit also marks `cell` as the last to strike `e`
+ * (Enemy.hitBy), for the 聚宝台.
  */
-export function damage(g: GameState, e: Enemy, amount: number, unit: UnitId): void {
+export function damage(g: GameState, e: Enemy, amount: number, unit: UnitId, cell: number): void {
   const tr = ENEMIES[e.def].trait;
-  const hit = e.air ? amount * (UNITS[unit].airMul ?? 1) : amount;
+  const hit = (e.air ? amount * (UNITS[unit].airMul ?? 1) : amount) * beaconMul(g, e);
   const dealt = tr?.t === 'armor' ? Math.max(1, hit - tr.flat) : hit;
   e.hp -= dealt;
+  e.hitBy = cell;
   g.events.push({ t: 'hit', uid: e.uid, x: e.x, y: e.y, unit, dmg: dealt });
 }
 

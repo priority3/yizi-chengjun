@@ -1,5 +1,6 @@
 // Visual effects of the events about the pads and the purse: buying and unlocking, the 宝箱, merging, awakening a
-// hero, 鎏金, selling, a refused drop, a new 瞄准, and the pay-outs of 钱 and 疗 (whose squads lift what they hold).
+// hero, 鎏金, selling, a refused drop, a new 瞄准, the pay-outs of 钱 and 疗 (whose squads lift what they hold), a
+// 聚宝台's extra 铜钱 and a 灵泉's new layer.
 // Split out of vfx.ts, which handles the fighting and the banners.
 import { ULTIMATES } from '../config/ultimates.ts';
 import { glyphOf, UNITS } from '../config/units.ts';
@@ -80,6 +81,20 @@ export function boardEvent(v: Vfx, e: SimEvent): boolean {
       const p = v.cell(e.cell);
       v.float(p.x, p.y - 20, `+${e.amount}`, COLORS.heal, 13);
       v.burst(p.x, p.y, 6, 'star', '#8ff0a0', 60, 2.6, 0.5);
+      return true;
+    }
+    case 'coffer': {
+      // The pad's own coin: it pops off the 聚宝台, beside the monster's bounty floating where it fell.
+      const p = v.cell(e.cell);
+      v.float(p.x + 14, p.y - 12, `+${e.amount}`, COLORS.gold, e.amount > 1 ? 16 : 12);
+      v.burst(p.x, p.y + 6, e.amount > 1 ? 10 : 2, 'coin', '', 70, 3, 0.5, 140);
+      return true;
+    }
+    case 'spring': {
+      const p = v.cell(e.cell);
+      v.pops[e.cell] = 0.25;
+      v.float(p.x, p.y - 30, `灵泉 ${e.layers} 层`, '#bfeaf6', 14, true, 1.2);
+      v.burst(p.x, p.y + 8, 7, 'star', '#d8f4ff', 60, 2.6, 0.6);
       return true;
     }
     default:

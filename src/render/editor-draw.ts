@@ -24,6 +24,22 @@ const PAD_FACE: Readonly<Record<SlotKind, [string, string]>> = {
   altar: ['#f1dca6', '#c9a660'],
   high: ['#e4d2ac', '#b59a6c'],
   mire: ['#7a6a44', '#4f4428'],
+  coffer: ['#f6dc8a', '#c99a2e'],
+  beacon: ['#f2c2a0', '#c0644a'],
+  twin: ['#f0cfc8', '#b8706a'],
+  spring: ['#cfe8ec', '#6fa8b8'],
+};
+
+/** Outline of a pad swatch, by kind. */
+const PAD_EDGE: Readonly<Record<SlotKind, string>> = {
+  plain: '#7a5a30',
+  altar: '#c8901c',
+  high: '#7a5a30',
+  mire: '#3a3220',
+  coffer: '#a8740c',
+  beacon: '#8a2a1a',
+  twin: '#9a3a32',
+  spring: '#2b6585',
 };
 
 /**
@@ -121,7 +137,7 @@ function padSwatch(ctx: CanvasRenderingContext2D, ch: string, cx: number, cy: nu
   ctx.fillStyle = face;
   ctx.fill();
   ctx.lineWidth = Math.max(1, s * 0.04);
-  ctx.strokeStyle = kind === 'altar' ? '#c8901c' : kind === 'mire' ? '#3a3220' : '#7a5a30';
+  ctx.strokeStyle = PAD_EDGE[kind];
   ctx.stroke();
   if (kind === 'altar') {
     ctx.beginPath();

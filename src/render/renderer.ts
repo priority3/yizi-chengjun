@@ -5,7 +5,7 @@ import { ENEMIES } from '../config/enemies.ts';
 import { UNITS } from '../config/units.ts';
 import { pathDir, type Pt } from '../core/map.ts';
 import { routeOf } from '../core/monsters.ts';
-import { padAllows, padRange, slotRange } from '../core/slots.ts';
+import { beaconMul, padAllows, padRange, slotRange } from '../core/slots.ts';
 import { isRooted } from '../core/status.ts';
 import type { Enemy, EnemyDef, GameState, Tile, UnitId } from '../core/types.ts';
 import type { Stage } from '../platform/env.ts';
@@ -23,6 +23,7 @@ import { FLY_LIFT, FOOT, makePose, monsterPose, type Gait, type MonsterPose } fr
 import { monsterHead, monsterSprite, monsterTop } from './monsters-art.ts';
 import { CINNABAR, INK, inkBar, PAPER } from './ink.ts';
 import { drawBanner, drawBattleBar, drawHud, drawShop, type PanelUi } from './panels.ts';
+import { drawBeaconMark, drawPadMarks } from './pad-marks.ts';
 import { drawAimBadge, drawLockedPad, drawPadLabel, drawRuneRings, padRing } from './slot-marks.ts';
 import { blit } from './sprites.ts';
 import type { Vfx } from './vfx.ts';
@@ -132,6 +133,7 @@ export class GameRenderer {
   private drawSlots(ctx: CanvasRenderingContext2D, g: GameState, ui: GameUi, time: number, k: number): void {
     const price = unlockCost(g.unlockCount);
     drawRuneRings(ctx, g, PAD_R + 4, time);
+    drawPadMarks(ctx, g, PAD_R, time, k);
     g.map.slots.forEach((p, i) => {
       if (!g.unlocked[i]) drawLockedPad(ctx, p, g.map.slotKind[i], price, g.gongde >= price, PAD_R, k);
     });
@@ -238,7 +240,7 @@ export class GameRenderer {
     this.drawGround(ctx, e, def, time);
     this.drawBody(ctx, e, def, pose, vfx, lift);
     this.drawStatus(ctx, e, def, time, lift);
-    this.drawTags(ctx, e, def, lift);
+    this.drawTags(ctx, g, e, def, lift);
   }
 
   /** This frame's pose of `e` (the shared scratch object), carrying its facing over from the previous frame. */
@@ -337,11 +339,13 @@ export class GameRenderer {
   }
 
   /** A cinnabar HP bar in a paper groove just over the head (a flyer's lifted head), with the name above for bosses and elites. */
-  private drawTags(ctx: CanvasRenderingContext2D, e: Enemy, def: EnemyDef, lift: number): void {
+  private drawTags(ctx: CanvasRenderingContext2D, g: GameState, e: Enemy, def: EnemyDef, lift: number): void {
     const barW = Math.max(22, def.radius * 2);
     const h = def.boss ? 6 : 4.5;
     const bar = e.y + def.radius * FOOT - lift - monsterTop(e.def) - 4 - h;
     inkBar(ctx, e.x - barW / 2, bar, barW, h, e.hp / e.maxHp, CINNABAR);
+    // A lit 烽火台 marks the monsters it makes take more: a little flame left of the bar.
+    if (beaconMul(g, e) > 1) drawBeaconMark(ctx, e.x - barW / 2 - 5, bar + h);
     if (def.boss || def.elite) {
       outlined(ctx, def.name, e.x, bar - 8, brush(def.boss ? 14 : 12), def.boss ? CINNABAR : INK, PAPER, 3);
     }

@@ -47,7 +47,7 @@ export interface DraftCheck {
   warnings: string[];
 }
 
-const noPads = (): PadStats => ({ open: 0, locked: 0, special: 0, kinds: { plain: 0, altar: 0, high: 0, mire: 0 } });
+const noPads = (): PadStats => ({ open: 0, locked: 0, special: 0, kinds: { plain: 0, altar: 0, high: 0, mire: 0, coffer: 0, beacon: 0, twin: 0, spring: 0 } });
 
 /** A draft that doesn't build: why, and where. */
 function failed(error: string, faults: Cell[] = []): DraftCheck {
@@ -121,6 +121,8 @@ function warningsOf(d: Draft, map: MapData): string[] {
   if (twice.length > 0) out.push(`入口 ${twice.join('、')} 不止一个`);
   if (map.slots.length === 0) out.push('还没有石台：放几个 O 才能试玩');
   else if (!map.slots.some((_, i) => map.open[i] && SLOT_BONUS[map.slotKind[i]].fighters)) out.push('没有开局可用的兵字石台，开局送的箭没处放');
+  // Twin pads pair up in reading order, so an odd one has no partner and does nothing.
+  if (map.slotKind.filter((k) => k === 'twin').length % 2 === 1) out.push('双生台要成对放：多出来的一个没有搭档');
   const blocks = roadBlocks(map);
   if (blocks > 0) out.push(`有 ${blocks} 处 2×2 的路块：路要一格宽`);
   const idle = idleRoad(map);
