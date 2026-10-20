@@ -2,9 +2,11 @@
 """Builds src/assets/fonts/yzcj-brush.woff2: the Ma Shan Zheng brush font (SIL OFL 1.1), subset to the
 characters the game actually draws, so the web font stays tiny. Re-run after adding new Chinese text:
 
-    pnpm font /path/to/MaShanZheng-Regular.ttf
+    pnpm font                      # cuts from the committed fonts/MaShanZheng-Regular.ttf
+    pnpm font /path/to/other.ttf   # or from another copy
 
-The source TTF comes from https://github.com/google/fonts/tree/main/ofl/mashanzheng
+The source TTF (kept in fonts/ with its OFL.txt, never shipped to players) comes from
+https://github.com/google/fonts/tree/main/ofl/mashanzheng
 """
 import pathlib
 import re
@@ -14,6 +16,8 @@ from fontTools import subset
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "src" / "assets" / "fonts" / "yzcj-brush.woff2"
+# The full source font, committed so a re-cut needs no download; only the subset above reaches the game.
+SOURCE = ROOT / "fonts" / "MaShanZheng-Regular.ttf"
 # Digits and punctuation brush text may use, besides the CJK characters found in the source files.
 EXTRA = "0123456789·：！？，。「」（）+-× "
 # Characters brush text asks for that Ma Shan Zheng simply has no glyph for: the source font cannot provide them, so
@@ -51,7 +55,7 @@ def collect() -> str:
 def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "--check":
         sys.exit(check())
-    src = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else "/tmp/MaShanZheng-Regular.ttf")
+    src = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else SOURCE
     if not src.exists():
         sys.exit(f"source font not found: {src}")
     text = collect()
@@ -83,7 +87,7 @@ def check() -> int:
     the wrong typeface. Without this check the only way to notice is spotting one odd glyph on a real device.
     """
     if not OUT.exists():
-        print(f"{OUT.relative_to(ROOT)} is missing — run `pnpm font <MaShanZheng-Regular.ttf>`")
+        print(f"{OUT.relative_to(ROOT)} is missing — run `pnpm font`")
         return 1
     try:
         have = built_chars()
@@ -93,7 +97,7 @@ def check() -> int:
     missing = sorted(ch for ch in collect() if ch not in have and ch not in NO_GLYPH_IN_SOURCE)
     if missing:
         print(f"{len(missing)} character(s) missing from the brush subset: {''.join(missing)}")
-        print("run `pnpm font <MaShanZheng-Regular.ttf>` and commit the new woff2")
+        print("run `pnpm font` and commit the new woff2")
         return 1
     print(f"OK: the brush subset covers all {len(set(collect()))} characters the source draws")
     return 0

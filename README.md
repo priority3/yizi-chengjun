@@ -17,7 +17,7 @@ pnpm sim --chapter 3 --trace --seed 123   # 重放一局，逐波看出怪、漏
 pnpm sim --endless 40            # 机器人打无尽模式，平均和最好倒在第几波（加 --trace --seed S 逐波看）
 pnpm build        # 类型检查 + 打包到 dist/，可部署到任意静态服务器
 pnpm preview      # 本地跑打包后的版本，验证安装、离线和新版本提示（离线缓存只在打包后的版本里启用）
-pnpm font <ttf>   # 新增中文文字后，重新裁剪书法字体子集
+pnpm font         # 新增中文文字后，用 fonts/ 里的原字体重新裁剪书法字体子集
 ```
 
 ## 玩法
@@ -107,6 +107,6 @@ C/c  聚宝台（击败多得铜钱）  B/b 烽火台（周围妖怪挨打 +15%�
 
 ## 字体
 
-书法字用的是马善政楷书（Ma Shan Zheng），SIL Open Font License 1.1，协议见 `public/fonts/OFL.txt`。仓库里只放按游戏用字裁剪出来的子集 `src/assets/fonts/yzcj-brush.woff2`（只用普通字体显示的协议文本不参与裁剪），打包时按内容加哈希命名，这样新版本的字不会被旧的离线缓存挡住。
+书法字用的是马善政楷书（Ma Shan Zheng），SIL Open Font License 1.1，协议见 `public/fonts/OFL.txt`。游戏只加载按用字裁剪出来的子集 `src/assets/fonts/yzcj-brush.woff2`（只用普通字体显示的协议文本不参与裁剪），打包时按内容加哈希命名，这样新版本的字不会被旧的离线缓存挡住。原字体 `fonts/MaShanZheng-Regular.ttf`（约 5.6 MB，旁边放着同一份 OFL.txt）也放在仓库里，只给 `pnpm font` 裁剪用，不打包、不上线。
 
 应用图标在 `public/icons/`，是 `src/render/app-icon.ts` 用代码画的：开发环境里在控制台执行 `__yzcjIcon(尺寸, 是否满版)` 得到 PNG，改了图标画法后重新导出这四张。
