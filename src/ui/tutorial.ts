@@ -3,8 +3,9 @@
 import { UNITS } from '../config/units.ts';
 import { coverage } from '../core/map.ts';
 import type { GameState } from '../core/types.ts';
+import { tr } from '../i18n/lang.ts';
 import type { Camera } from '../render/camera.ts';
-import { roundRect, text } from '../render/draw.ts';
+import { fitPx, roundRect, text } from '../render/draw.ts';
 import { sans } from '../render/fonts.ts';
 import { drawHand, drawPinch } from '../render/hand.ts';
 import { inRect, L, viewRect } from '../render/layout.ts';
@@ -23,6 +24,13 @@ const LABEL: Record<TutorialStep, string> = {
   drag: '把商店里的卡拖到路边的石台上',
   start: '摆好了就点「出战」',
   merge: '同名同级的卡叠在一起会升级',
+  done: '',
+};
+const LABEL_EN: Record<TutorialStep, string> = {
+  look: 'Drag the ground to move · Pinch or scroll to zoom',
+  drag: 'Drag a card from the shop onto a pad by the road',
+  start: 'All set? Tap Battle',
+  merge: 'Stack two matching cards to level up',
   done: '',
 };
 
@@ -89,8 +97,11 @@ export class Tutorial {
     return null;
   }
 
-  private label(ctx: CanvasRenderingContext2D, msg: string, y: number): void {
-    ctx.font = sans(12, 700);
+  private label(ctx: CanvasRenderingContext2D, step: TutorialStep, y: number): void {
+    const msg = tr(LABEL[step], LABEL_EN[step]);
+    // Reason: the pill grows with its line; an English one shrinks a little to stay on screen.
+    const px = fitPx(ctx, msg, L.hud.w - 60, 12, (n) => sans(n, 700), 9);
+    ctx.font = sans(px, 700);
     const w = ctx.measureText(msg).width + 28;
     roundRect(ctx, (L.hud.w - w) / 2, y - 14, w, 28, 14);
     ctx.fillStyle = 'rgba(28,14,6,0.9)';
@@ -98,7 +109,7 @@ export class Tutorial {
     ctx.lineWidth = 1.5;
     ctx.strokeStyle = '#ffd166';
     ctx.stroke();
-    text(ctx, msg, L.hud.w / 2, y + 1, sans(12, 700), '#ffe9a8');
+    text(ctx, msg, L.hud.w / 2, y + 1, sans(px, 700), '#ffe9a8');
   }
 
   draw(ctx: CanvasRenderingContext2D, g: GameState, cam: Camera): void {
@@ -108,13 +119,13 @@ export class Tutorial {
     if (this.step === 'look') {
       const spread = 24 + Math.sin(this.t * 2.2) * 14;
       drawPinch(ctx, view.x + view.w / 2, view.y + view.h * 0.42, spread);
-      this.label(ctx, LABEL.look, labelY);
+      this.label(ctx, 'look', labelY);
       return;
     }
     if (this.step === 'start') {
       const b = L.btnStart;
       const k = (this.t % 1.4) / 1.4;
-      this.label(ctx, LABEL.start, labelY);
+      this.label(ctx, 'start', labelY);
       drawHand(ctx, b.x + b.w / 2 + 10, b.y + b.h / 2 + 6, 26, k < 0.25);
       return;
     }
@@ -125,7 +136,7 @@ export class Tutorial {
     const b = cam.toScreen(g.map.slots[targets.slot].x, g.map.slots[targets.slot].y - 6, view);
     if (!inRect(b.x, b.y, view)) return;
     const k = (this.t % LOOP) / LOOP;
-    this.label(ctx, LABEL[this.step], labelY);
+    this.label(ctx, this.step, labelY);
     // Dashed trail from the card to the pad.
     ctx.save();
     ctx.setLineDash([6, 6]);

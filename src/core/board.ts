@@ -6,12 +6,15 @@ import { SELL_REFUND } from '../config/chapters.ts';
 import type { SlotKind } from '../config/maps.ts';
 import { GILDING, GOLD_GLYPH } from '../config/terms.ts';
 import { MAX_LEVEL, UNITS } from '../config/units.ts';
+import { tr } from '../i18n/lang.ts';
 import { isFighter, padAllows, slotKindOf } from './slots.ts';
 import { tileInterval } from './stats.ts';
 import type { ActionResult, GameState, TargetMode, Tile, UnitId } from './types.ts';
 
 /** Why a drop or purchase was refused when it would leave a fighter standing in a 泥沼. */
-export const MIRE_MSG = '泥沼上放不了兵字和英雄';
+export function mireMsg(): string {
+  return tr('泥沼上放不了兵字和英雄', "Fighters and heroes can't stand in a Mire");
+}
 
 /** Whether a tile of `id` may stand on pad `cell`: fighters (attack and hero cards) can't stand in a 泥沼. */
 export function canPlace(g: GameState, cell: number, id: UnitId): boolean {
@@ -55,7 +58,7 @@ export function combineInto(g: GameState, a: Tile, to: number, from: number): Ac
   const b = g.slots[to];
   if (!b) return null;
   if (a.id === b.id && a.level === b.level && isStackable(a.id)) {
-    if (b.level >= MAX_LEVEL) return invalid(g, to, '已经满级啦');
+    if (b.level >= MAX_LEVEL) return invalid(g, to, tr('已经满级啦', 'Already at max level'));
     b.level++;
     b.divine = b.divine || a.divine;
     b.invested += a.invested;
@@ -66,7 +69,7 @@ export function combineInto(g: GameState, a: Tile, to: number, from: number): Ac
   const hero = heroFor(a.id, b.id);
   if (hero) {
     // Reason: the hero is born on `to`, so that pad must hold a fighter — buying 空 onto 悟 in a 泥沼 is refused.
-    if (!canPlace(g, to, hero)) return invalid(g, to, MIRE_MSG);
+    if (!canPlace(g, to, hero)) return invalid(g, to, mireMsg());
     g.slots[to] = makeTile(g, hero, a.invested + b.invested);
     g.events.push({ t: 'hero', cell: to, unit: hero, from });
     return 'hero';
@@ -74,11 +77,11 @@ export function combineInto(g: GameState, a: Tile, to: number, from: number): Ac
   if (a.id === '神' || b.id === '神') {
     const god = a.id === '神' ? a : b;
     const target = god === a ? b : a;
-    if (target.id === '神') return invalid(g, to, `两个${GOLD_GLYPH}字不能叠加`);
-    if (target.divine) return invalid(g, to, `它已经${GILDING}了`);
-    if (!canBeDivine(target)) return invalid(g, to, `${GOLD_GLYPH}字只能附在兵字或英雄上`);
+    if (target.id === '神') return invalid(g, to, tr(`两个${GOLD_GLYPH}字不能叠加`, "Two Gold cards don't stack"));
+    if (target.divine) return invalid(g, to, tr(`它已经${GILDING}了`, "It's Gold already"));
+    if (!canBeDivine(target)) return invalid(g, to, tr(`${GOLD_GLYPH}字只能附在兵字或英雄上`, 'Gold only goes on a fighter or a hero'));
     // The 金X ends up on `to`: a fighter dropped onto a 金 card waiting in a 泥沼 can't follow it in.
-    if (!canPlace(g, to, target.id)) return invalid(g, to, MIRE_MSG);
+    if (!canPlace(g, to, target.id)) return invalid(g, to, mireMsg());
     target.divine = true;
     target.invested += god.invested;
     // A fighter dropped onto a 金 card comes over from its own pad; one that the 金 is dropped on stays put.
@@ -86,7 +89,7 @@ export function combineInto(g: GameState, a: Tile, to: number, from: number): Ac
     g.events.push({ t: 'divine', cell: to });
     return 'divine';
   }
-  if (a.id === b.id && UNITS[a.id].kind === 'fragment') return invalid(g, to, '碎片要和另一半组合');
+  if (a.id === b.id && UNITS[a.id].kind === 'fragment') return invalid(g, to, tr('碎片要和另一半组合', 'A fragment joins its other half'));
   return null;
 }
 
@@ -135,7 +138,7 @@ export function resolveDrop(g: GameState, from: number, to: number | 'sell'): Ac
   if (!g.unlocked[to]) return 'locked';
   const b = g.slots[to];
   if (!b) {
-    if (!canPlace(g, to, a.id)) return invalid(g, to, MIRE_MSG);
+    if (!canPlace(g, to, a.id)) return invalid(g, to, mireMsg());
     g.slots[to] = moved(a);
     g.slots[from] = null;
     return 'move';
@@ -147,8 +150,8 @@ export function resolveDrop(g: GameState, from: number, to: number | 'sell'): Ac
   }
   if (combined) return combined;
   // A swap puts each tile on the other's pad: neither may land a fighter in a 泥沼.
-  if (!canPlace(g, to, a.id)) return invalid(g, to, MIRE_MSG);
-  if (!canPlace(g, from, b.id)) return invalid(g, from, MIRE_MSG);
+  if (!canPlace(g, to, a.id)) return invalid(g, to, mireMsg());
+  if (!canPlace(g, from, b.id)) return invalid(g, from, mireMsg());
   g.slots[to] = moved(a);
   g.slots[from] = moved(b);
   return 'swap';
@@ -164,7 +167,7 @@ export const TARGET_MODES: readonly TargetMode[] = ['first', 'strong', 'weak'];
 export function cycleTarget(g: GameState, cell: number): ActionResult {
   const t = g.slots[cell];
   if (!t) return 'none';
-  if (!isFighter(t.id)) return invalid(g, cell, '只有兵字和英雄能切换瞄准');
+  if (!isFighter(t.id)) return invalid(g, cell, tr('只有兵字和英雄能切换瞄准', 'Only fighters and heroes can aim'));
   const mode = TARGET_MODES[(TARGET_MODES.indexOf(t.target ?? 'first') + 1) % TARGET_MODES.length];
   t.target = mode;
   g.events.push({ t: 'mode', cell, mode });

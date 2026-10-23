@@ -10,7 +10,7 @@ import { drawThumb, thumbRect } from '../render/chapter-card.ts';
 import { brush, sans } from '../render/fonts.ts';
 import { inRect, L, W, type Rect } from '../render/layout.ts';
 import { peekThumb } from '../render/map-thumb.ts';
-import { NUMERALS } from '../render/panels.ts';
+import { NUMERALS } from '../i18n/names.ts';
 import { BACK, drawButton, type ButtonStyle } from '../render/widgets.ts';
 import type { DraftCheck } from './editor-check.ts';
 import {

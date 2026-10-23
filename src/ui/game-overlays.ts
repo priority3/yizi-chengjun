@@ -1,11 +1,12 @@
 // Pause and result panels of the chapter screen (kept apart from the scene so each file stays small).
 import { CHAPTERS } from '../config/chapters.ts';
-import { ENEMIES } from '../config/enemies.ts';
 import { DEFEAT, FINAL_WIN } from '../config/terms.ts';
 import { MAX_STARS, THREE_STAR_PCT, type StarAward } from '../core/rating.ts';
 import type { EndlessAward } from '../core/records.ts';
 import { effectText, type ClearRewards } from '../core/treasures.ts';
 import type { GameState } from '../core/types.ts';
+import { tr } from '../i18n/lang.ts';
+import { enemyName, treasureName } from '../i18n/names.ts';
 import { roundRect, text } from '../render/draw.ts';
 import { brush, sans } from '../render/fonts.ts';
 import { inRect, L, W, type Rect } from '../render/layout.ts';
@@ -58,8 +59,8 @@ export function pausePanel(buttons: number): Rect {
 export function drawPause(ctx: CanvasRenderingContext2D, buttons: readonly OverlayButton[]): void {
   const r = pausePanel(buttons.length);
   drawPanel(ctx, r);
-  text(ctx, '暂停', W / 2, r.y + 52, brush(34), '#6b1c1c');
-  text(ctx, '妖怪也在原地等你', W / 2, r.y + 94, sans(13, 500), '#7a6248');
+  text(ctx, tr('暂停', 'Paused'), W / 2, r.y + 52, brush(34), '#6b1c1c');
+  text(ctx, tr('妖怪也在原地等你', 'The monsters are waiting too'), W / 2, r.y + 94, sans(13, 500), '#7a6248');
   drawButtons(ctx, r, buttons);
 }
 
@@ -137,7 +138,7 @@ function drawResultStars(ctx: CanvasRenderingContext2D, y: number, earned: numbe
 
 /** 三星奖励 with a small gold star in front, fading in once the third star has landed. */
 function drawStarBonus(ctx: CanvasRenderingContext2D, y: number, bonus: number, t: number): void {
-  const label = `三星奖励 +${bonus} 灵石`;
+  const label = tr(`三星奖励 +${bonus} 灵石`, `3-star bonus +${bonus} Spirit Stones`);
   ctx.font = sans(12, 800);
   const left = W / 2 - (ctx.measureText(label).width + 19) / 2;
   ctx.save();
@@ -150,17 +151,17 @@ function drawStarBonus(ctx: CanvasRenderingContext2D, y: number, bonus: number, 
 function drawRewards(ctx: CanvasRenderingContext2D, r: Rect, rw: ClearRewards, award: StarAward | null, t: number): void {
   let y = r.y + 202;
   drawStone(ctx, W / 2 - 44, y, 9);
-  text(ctx, `灵石 +${rw.stones}`, W / 2 - 30, y + 1, sans(14, 800), '#1b7a5a', 'left');
+  text(ctx, tr(`灵石 +${rw.stones}`, `Spirit Stones +${rw.stones}`), W / 2 - 30, y + 1, sans(14, 800), '#1b7a5a', 'left');
   if (award && award.bonus > 0) {
     y += BONUS_LINE;
     drawStarBonus(ctx, y, award.bonus, t);
   }
   if (rw.treasure) {
     drawTreasureToken(ctx, rw.treasure, 1, r.x + 50, y + 42, 20);
-    text(ctx, `首通法宝 · ${rw.treasure}`, r.x + 80, y + 33, sans(12, 800), '#8a3a22', 'left');
+    text(ctx, tr(`首通法宝 · ${rw.treasure}`, `First-clear relic · ${treasureName(rw.treasure)}`), r.x + 80, y + 33, sans(12, 800), '#8a3a22', 'left');
     text(ctx, effectText(rw.treasure, 1), r.x + 80, y + 52, sans(10, 600), '#6a4a26', 'left');
   } else {
-    text(ctx, '法宝在选章页「法宝」用灵石炼器', W / 2, y + 36, sans(10, 600), '#7a6248');
+    text(ctx, tr('法宝在选章页「法宝」用灵石炼器', 'Craft relics with Spirit Stones: Relics, on the chapter screen'), W / 2, y + 36, sans(10, 600), '#7a6248');
   }
 }
 
@@ -176,22 +177,24 @@ export function drawResult(ctx: CanvasRenderingContext2D, info: ResultInfo, butt
   }
   const { g, chapter, rewards } = info;
   const r = resultPanel(info);
-  const ch = CHAPTERS[chapter - 1];
   const won = g.phase === 'won';
   drawPanel(ctx, r);
-  const title = won ? (chapter === CHAPTERS.length ? FINAL_WIN : '章节通关！') : '阵地失守';
+  const title = won ? (chapter === CHAPTERS.length ? tr(FINAL_WIN, 'Journey Complete!') : tr('章节通关！', 'Chapter Clear!')) : tr('阵地失守', 'Camp Lost');
   text(ctx, title, W / 2, r.y + 46, brush(34), won ? '#b3261e' : '#4a3a2e');
   if (won) {
     // A win: the stars under the title push the rest down.
     const stars = info.award?.stars ?? 0;
     drawResultStars(ctx, r.y + 100, stars, info.t);
-    text(ctx, `打败了${ENEMIES[ch.boss].name}`, W / 2, r.y + 140, sans(14, 600), '#6a4a26');
-    text(ctx, `${DEFEAT} ${g.kills} · 阵地剩余 ${Math.ceil(g.campHp)}/${g.campMax}`, W / 2, r.y + 163, sans(12, 500), '#7a6248');
-    if (stars < MAX_STARS) text(ctx, `阵地剩 ${THREE_STAR_PCT}% 以上通关可得三星`, W / 2, r.y + 182, sans(10, 600), '#9a7a52');
+    const boss = enemyName(CHAPTERS[chapter - 1].boss);
+    const hp = `${Math.ceil(g.campHp)}/${g.campMax}`;
+    text(ctx, tr(`打败了${boss}`, `Defeated ${boss}`), W / 2, r.y + 140, sans(14, 600), '#6a4a26');
+    text(ctx, tr(`${DEFEAT} ${g.kills} · 阵地剩余 ${hp}`, `${g.kills} defeated · Camp HP ${hp}`), W / 2, r.y + 163, sans(12, 500), '#7a6248');
+    const third = tr(`阵地剩 ${THREE_STAR_PCT}% 以上通关可得三星`, `Clear with ${THREE_STAR_PCT}%+ camp HP for 3 stars`);
+    if (stars < MAX_STARS) text(ctx, third, W / 2, r.y + 182, sans(10, 600), '#9a7a52');
     if (rewards) drawRewards(ctx, r, rewards, info.award, info.t);
   } else {
-    text(ctx, `坚持到第 ${g.wave}/${g.totalWaves} 波`, W / 2, r.y + 88, sans(14, 600), '#6a4a26');
-    text(ctx, '多合成、多解锁格子；法宝页能炼器变强', W / 2, r.y + 116, sans(11, 500), '#7a6248');
+    text(ctx, tr(`坚持到第 ${g.wave}/${g.totalWaves} 波`, `Held to wave ${g.wave}/${g.totalWaves}`), W / 2, r.y + 88, sans(14, 600), '#6a4a26');
+    text(ctx, tr('多合成、多解锁格子；法宝页能炼器变强', 'Merge more, unlock more pads, craft relics'), W / 2, r.y + 116, sans(11, 500), '#7a6248');
   }
   if (info.share !== false) drawShareSeal(ctx, r, info.t);
   drawButtons(ctx, r, buttons);
@@ -237,7 +240,7 @@ function drawShareSeal(ctx: CanvasRenderingContext2D, panel: Rect, t: number): v
   ctx.fillStyle = 'rgba(30,10,5,0.35)';
   ctx.fill();
   ctx.restore();
-  drawSeal(ctx, 0, 0, w, h, ['分享'], tilt);
+  drawSeal(ctx, 0, 0, w, h, [tr('分享', 'Share')], tilt);
   ctx.restore();
 }
 

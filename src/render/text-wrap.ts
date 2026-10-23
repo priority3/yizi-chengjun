@@ -11,8 +11,11 @@ export type Measure = (s: string) => number;
 const NO_START = new Set(Array.from('，。、；：？！）」』】》〉”’…—～％,.;:?!)]}%'));
 /** Marks that may not end a line: opening brackets and quotes. */
 const NO_END = new Set(Array.from('（「『【《〈“‘([{'));
-/** Characters that join into one unbreakable word: Latin letters, digits and what sits inside numbers and addresses. */
-const WORD = /^[A-Za-z0-9@._\-+/:#&=?%~]$/;
+/**
+ * Characters that join into one unbreakable word: Latin letters, digits and what sits inside numbers and addresses,
+ * plus the apostrophe, the straight double quote and × of English text (don't, "Staff Sweep", ×1.3).
+ */
+const WORD = /^[A-Za-z0-9@._\-+/:#&=?%~'"×]$/;
 const SPACE = /^\s$/;
 
 /**

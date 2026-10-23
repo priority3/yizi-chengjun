@@ -13,6 +13,8 @@ import {
   TREASURES,
   type TreasureId,
 } from '../config/treasures.ts';
+import { TREASURE_EN } from '../i18n/en-tables.ts';
+import { isEn } from '../i18n/lang.ts';
 import { pickWeighted } from './rng.ts';
 import type { RunMods } from './types.ts';
 
@@ -63,7 +65,7 @@ export function effectValue(id: TreasureId, tier: number): number {
 }
 
 export function effectText(id: TreasureId, tier: number): string {
-  return TREASURES[id].text(effectValue(id, tier));
+  return isEn() ? TREASURE_EN[id].text(effectValue(id, tier)) : TREASURES[id].text(effectValue(id, tier));
 }
 
 /** Run modifiers from the equipped treasures. */

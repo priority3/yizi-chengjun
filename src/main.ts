@@ -1,8 +1,13 @@
-// Web entry point: installs the browser platform (platform/web.ts), starts the game (boot.ts), then adds what only the
-// web version has: the map editor at …/#editor, offline play and updates (service worker), and the dev console hooks.
+// Web entry point: installs the browser platform (platform/web.ts), picks the language, starts the game (boot.ts),
+// then adds what only the web version has: the map editor at …/#editor, offline play and updates (service worker),
+// and the dev console hooks. The portal build (`pnpm build:en`, vite.config.ts) is always English and leaves out the
+// launch splash, offline play, updates and the map editor: an overseas game portal hosts and updates it.
 import { startGame } from './boot.ts';
+import { allowLangSwitch, isEn, langForLocales, onLangChange, setLang, tr } from './i18n/lang.ts';
+import { gameName } from './i18n/names.ts';
 import { wantsEditor } from './platform/editor-io.ts';
 import { installPlatform, platform } from './platform/env.ts';
+import { loadLangChoice } from './platform/lang-choice.ts';
 import { registerServiceWorker } from './platform/pwa.ts';
 import { showShareOverlay } from './platform/share.ts';
 import { installGuards, webPlatform } from './platform/web.ts';
@@ -23,17 +28,42 @@ declare global {
   }
 }
 
-installPlatform(webPlatform());
-installGuards();
+/** The overseas portal build: fixed to English. */
+const PORTAL = __BUILD_LANG__ === 'en';
 
-// Every launch opens on the 健康游戏忠告 splash, except a page opened on the map editor (#editor, see below).
-const scenes = await startGame({ splash: !wantsEditor(), editor: (nav, stage) => new EditorScene(nav, stage) });
+installPlatform(webPlatform({ portal: PORTAL }));
+installGuards();
+// The player's last language switch, else the browser's language: Chinese for a Chinese browser, English otherwise.
+setLang(PORTAL ? 'en' : (loadLangChoice() ?? langForLocales(browserLanguages())));
+allowLangSwitch(!PORTAL);
+showPageLanguage();
+onLangChange(showPageLanguage);
+
+// A Chinese launch opens on the 健康游戏忠告 splash (a requirement for games in China), except a page opened on the
+// map editor (#editor, see below); an English one goes straight to the title screen.
+const scenes = await startGame({
+  splash: !isEn() && !wantsEditor(),
+  editor: PORTAL ? undefined : (nav, stage) => new EditorScene(nav, stage),
+});
 if (import.meta.env.DEV) window.__yzcj = scenes;
 // Exports public/icons/*.png from the browser console (the project has no image assets or Node canvas).
 if (import.meta.env.DEV) window.__yzcjIcon = appIconDataUrl;
 if (import.meta.env.DEV) window.__yzcjShare = devShare;
 // Offline play and the 有新版本 banner; a no-op in dev and wherever service workers are unavailable.
-registerServiceWorker();
+if (!PORTAL) registerServiceWorker();
+
+/** The browser's preferred languages, most preferred first; none where it doesn't say. */
+function browserLanguages(): readonly string[] {
+  if (typeof navigator === 'undefined') return [];
+  if (navigator.languages?.length) return navigator.languages;
+  return navigator.language ? [navigator.language] : [];
+}
+
+/** Tells the page which language the game shows: its language tag and the tab's title. */
+function showPageLanguage(): void {
+  document.documentElement?.setAttribute('lang', tr('zh-CN', 'en'));
+  document.title = gameName();
+}
 
 /**
  * The map editor (plan.md D1) has no button: the address …/#editor opens it, on load or when typed later (also in

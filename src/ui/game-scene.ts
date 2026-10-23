@@ -1,9 +1,8 @@
 // The chapter screen: runs the fixed-step simulation, moves the camera (drag to pan, pinch or wheel to zoom),
 // handles the shop, drag-and-drop onto the map's slots, encounters, pause and results.
-import { CHAPTERS, unlockCost } from '../config/chapters.ts';
-import { ENEMIES } from '../config/enemies.ts';
+import { unlockCost } from '../config/chapters.ts';
 import type { MapDef } from '../config/maps.ts';
-import { CURRENCY, MASTER, TRIAL } from '../config/terms.ts';
+import { CURRENCY } from '../config/terms.ts';
 import { UNITS } from '../config/units.ts';
 import { DT } from '../core/clock.ts';
 import { act, createGame, step } from '../core/game.ts';
@@ -15,6 +14,7 @@ import { isFighter, slotKindOf } from '../core/slots.ts';
 import { buildMods, defaultMods, type ClearRewards } from '../core/treasures.ts';
 import type { Action, ActionResult, GameMode, GameState, SimEvent, Tile } from '../core/types.ts';
 import { isBossWave } from '../core/waves.ts';
+import { tr } from '../i18n/lang.ts';
 import { audio } from '../platform/audio.ts';
 import type { Stage } from '../platform/env.ts';
 import { music, type MusicMode } from '../platform/music.ts';
@@ -23,18 +23,18 @@ import { todayKey } from '../platform/today.ts';
 import { Camera } from '../render/camera.ts';
 import { encounterCardRects } from '../render/encounter-panel.ts';
 import { hudHitZones, inRect, L, viewRect, type Rect } from '../render/layout.ts';
-import { NUMERALS } from '../render/panels.ts';
 import { GameRenderer, type GameUi } from '../render/renderer.ts';
 import { Sfx } from '../render/sfx.ts';
 import type { ShareInfo } from '../render/share-card.ts';
 import { Vfx } from '../render/vfx.ts';
-import { AIM_LABEL, describe } from './describe.ts';
+import { aimLabel, describe } from './describe.ts';
 import { drawPause, drawResult, pausePanel, tapButtons, tapResult, type OverlayButton, type ResultInfo } from './game-overlays.ts';
 import { Toasts } from './hud.ts';
 import type { Pointer } from './input.ts';
 import { CameraControls, CardDrag } from './map-controls.ts';
-import { openEndedBanner, resumeBanner, testBanner, type BannerText } from './run-banners.ts';
+import { chapterBanner, gearNote, openEndedBanner, resumeBanner, testBanner, tipText, type BannerText, type TipKey } from './run-banners.ts';
 import { settleRun } from './run-end.ts';
+import { pauseButtons, resultButtons, type PanelActions } from './panel-buttons.ts';
 import type { Nav, Scene } from './scenes.ts';
 import { runShareInfo, shareResult } from './share-result.ts';
 import { Tutorial } from './tutorial.ts';
@@ -114,18 +114,17 @@ export class GameScene implements Scene {
     const first = chapter === 1 && this.g.mode === 'chapter' && !test;
     this.tips = first;
     this.tutorial = new Tutorial(!resumed && first && !nav.progress.tutorialDone);
-    const ch = CHAPTERS[chapter - 1];
-    const gear = vault.equipped.length > 0 ? ` · 带了 ${vault.equipped.length} 件法宝` : '';
+    const gear = gearNote(vault.equipped.length);
     if (resumed) this.resumeView(resumed.camera);
     else if (test) this.showBanner(testBanner());
     else if (this.g.mode !== 'chapter') this.showBanner(openEndedBanner(this.g, gear));
-    else this.vfx.showBanner(`第${NUMERALS[chapter - 1]}章 · ${ch.name}`, `别让妖怪走到${MASTER}的营地，打败${ENEMIES[ch.boss].name}${gear}`, '#ffd166', null, 2.6);
+    else this.showBanner(chapterBanner(chapter, gear));
   }
 
-  private tip(key: string, msg: string): void {
+  private tip(key: TipKey): void {
     if (!this.tips || this.told.has(key)) return;
     this.told.add(key);
-    this.toasts.push(msg);
+    this.toasts.push(tipText(key));
   }
 
   private view(): Rect {
@@ -269,17 +268,17 @@ export class GameScene implements Scene {
     if (button === 'pause') this.pause();
     else if (button === 'speed') this.speed = this.speed === 1 ? 2 : 1;
     else if (button === 'sound') this.toggleMute();
-    else if (button === 'refresh') this.doAct({ t: 'refresh' }, `${CURRENCY}不够：刷新要 ${currentRefreshCost(g)}`);
+    else if (button === 'refresh') this.doAct({ t: 'refresh' }, tr(`${CURRENCY}不够：刷新要 ${currentRefreshCost(g)}`, `Not enough coins: a refresh costs ${currentRefreshCost(g)}`));
     else if (button === 'start') this.startWave();
     else if (g.phase === 'build' && L.shopCards.some((r) => inRect(p.x, p.y, r))) {
       const i = L.shopCards.findIndex((r) => inRect(p.x, p.y, r));
       const o = g.shop[i];
-      if (o && !o.sold) this.toasts.push(`${describe({ id: o.id, level: 1, divine: false }, g.mods, 'plain', { g, cell: -1 })} · 拖到石台上购买`);
+      if (o && !o.sold) this.toasts.push(`${describe({ id: o.id, level: 1, divine: false }, g.mods, 'plain', { g, cell: -1 })}${tr(' · 拖到石台上购买', ' · Drag onto a pad to buy')}`);
     } else {
       const cell = this.slotUnder(p.x, p.y);
       if (cell < 0) return;
       if (!g.unlocked[cell]) {
-        this.doAct({ t: 'unlock', cell }, `${CURRENCY}不够：解锁这个石台要 ${unlockCost(g.unlockCount)}`);
+        this.doAct({ t: 'unlock', cell }, tr(`${CURRENCY}不够：解锁这个石台要 ${unlockCost(g.unlockCount)}`, `Not enough coins: this pad costs ${unlockCost(g.unlockCount)}`));
       } else if (g.slots[cell]) {
         const t = g.slots[cell] as Tile;
         // Tapping the fighter that is still selected switches its 瞄准 (the 'mode' event toasts the new one).
@@ -294,7 +293,7 @@ export class GameScene implements Scene {
         // Once per run, say how to switch it.
         if (isFighter(t.id) && !this.told.has('aim')) {
           this.told.add('aim');
-          this.toasts.push('再点一下这张字，可以切换瞄准');
+          this.toasts.push(tipText('aim'));
         }
       }
     }
@@ -343,7 +342,7 @@ export class GameScene implements Scene {
 
   // ---- helpers -----------------------------------------------------------
 
-  private doAct(a: Action, poorMsg = `${CURRENCY}不够`): void {
+  private doAct(a: Action, poorMsg = tr(`${CURRENCY}不够`, 'Not enough coins')): void {
     const before = this.g.events.length;
     const r = act(this.g, a);
     if (r === 'poor') this.toasts.push(poorMsg);
@@ -357,7 +356,7 @@ export class GameScene implements Scene {
   private startWave(): void {
     const armed = this.g.slots.some((t) => t && (UNITS[t.id].kind === 'attack' || UNITS[t.id].kind === 'hero'));
     if (!armed) {
-      this.toasts.push('路边还没有能打的字：先从商店拖几张卡到石台上');
+      this.toasts.push(tr('路边还没有能打的字：先从商店拖几张卡到石台上', 'Nothing by the road can fight yet: drag a few cards from the shop onto pads'));
       return;
     }
     this.doAct({ t: 'start' });
@@ -370,17 +369,17 @@ export class GameScene implements Scene {
       if (e.t === 'invalid') this.toasts.push(e.msg);
       else if (e.t === 'buy') {
         this.tutorial.notify('buy');
-        if (UNITS[e.unit].kind === 'fragment') this.tip('frag', '名字碎片：凑齐「悟」「空」这样的另一半就能觉醒英雄');
+        if (UNITS[e.unit].kind === 'fragment') this.tip('frag');
       } else if (e.t === 'merge') this.tutorial.notify('merge');
       else if (e.t === 'waveClear') this.tutorial.notify('build');
       else if (e.t === 'waveStart') {
         this.tutorial.notify('waveStart');
-        if (e.wave === 2) this.tip('trash', '不要的字可以拖到垃圾桶卖掉');
+        if (e.wave === 2) this.tip('trash');
       }
-      else if (e.t === 'leak') this.tip('leak', '妖怪走到营地会伤到阵地：把火力摆在路的转弯处');
-      else if (e.t === 'encounterOffer') this.tip('enc', `奇遇三选一：福缘立刻生效，${TRIAL}下一波生效但赏金更多`);
-      else if (e.t === 'hero') this.tip('rage', '英雄普攻十下攒满怒气，下一击就是大招');
-      else if (e.t === 'mode') this.toasts.push(`瞄准：${AIM_LABEL[e.mode]}`);
+      else if (e.t === 'leak') this.tip('leak');
+      else if (e.t === 'encounterOffer') this.tip('enc');
+      else if (e.t === 'hero') this.tip('rage');
+      else if (e.t === 'mode') this.toasts.push(tr(`瞄准：${aimLabel(e.mode)}`, `Aim: ${aimLabel(e.mode)}`));
     }
   }
 
@@ -458,7 +457,7 @@ export class GameScene implements Scene {
     s.muted = !s.muted;
     audio.setMuted(s.muted);
     this.nav.save();
-    this.toasts.push(s.muted ? '已静音' : '声音已打开');
+    this.toasts.push(s.muted ? tr('已静音', 'Sound off') : tr('声音已打开', 'Sound on'));
   }
 
   private toggleMusic(): void {
@@ -468,29 +467,25 @@ export class GameScene implements Scene {
     this.nav.save();
   }
 
+  /** What the pause and result panels' buttons do (panel-buttons.ts). */
+  private actions(): PanelActions {
+    const nav = this.nav;
+    return {
+      resume: () => (this.paused = false),
+      toggleMusic: () => this.toggleMusic(),
+      restart: () => this.restart(),
+      abandon: () => this.abandon(),
+      play: (chapter) => nav.play(chapter),
+      treasures: () => nav.treasures(),
+      chapters: () => nav.chapters(),
+    };
+  }
+
   private pauseButtons(): OverlayButton[] {
-    return [
-      { label: '继续', go: () => (this.paused = false) },
-      { label: this.nav.progress.sound.music ? '音乐：开' : '音乐：关', go: () => this.toggleMusic() },
-      { label: '重新开始', go: () => this.restart() },
-      { label: this.test ? '返回编辑' : '返回选章', go: () => this.abandon() },
-    ];
+    return pauseButtons(this.nav.progress.sound.music, this.test !== null, this.actions());
   }
 
   private resultButtons(): OverlayButton[] {
-    // A 试玩: play the edited map again, or go back to editing it.
-    if (this.test) return [{ label: '再来一次', go: () => this.restart() }, { label: '返回编辑', go: () => this.abandon() }];
-    const out: OverlayButton[] = [];
-    // An endless or daily run: 再来一次 and 返回选章 (below).
-    if (this.g.mode !== 'chapter') out.push({ label: '再来一次', go: () => this.restart() });
-    else if (this.g.phase === 'won') {
-      if (this.chapter < CHAPTERS.length) out.push({ label: '下一章', go: () => this.nav.play(this.chapter + 1) });
-      out.push({ label: '再来一次', go: () => this.nav.play(this.chapter) });
-    } else {
-      out.push({ label: '再来一次', go: () => this.nav.play(this.chapter) });
-      out.push({ label: '法宝炼器', go: () => this.nav.treasures() });
-    }
-    out.push({ label: '返回选章', go: () => this.nav.chapters() });
-    return out;
+    return resultButtons(this.g, this.chapter, this.test !== null, this.actions());
   }
 }

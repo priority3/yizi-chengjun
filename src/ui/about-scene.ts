@@ -3,6 +3,7 @@
 // Drag it or turn the wheel to scroll, tap a button at the top of the page to jump to a section; 返回 goes back to
 // the title screen.
 import { AGE_RATING } from '../config/legal.ts';
+import { tr } from '../i18n/lang.ts';
 import type { Stage } from '../platform/env.ts';
 import { drawAgeBadge } from '../render/age-badge.ts';
 import { outlined, roundRect, text } from '../render/draw.ts';
@@ -71,8 +72,8 @@ export class AboutScene implements Scene {
     this.fit();
     backdrop(ctx, this.stage, 0.62);
     drawPanel(ctx, aboutPanel());
-    drawButton(ctx, BACK, '返回', 'ghost');
-    outlined(ctx, '关于', W / 2, 33, brush(26), '#ffd66b', 'rgba(40,14,4,0.9)', 4);
+    drawButton(ctx, BACK, tr('返回', 'Back'), 'ghost');
+    outlined(ctx, tr('关于', 'About'), W / 2, 33, brush(26), '#ffd66b', 'rgba(40,14,4,0.9)', 4);
     const view = aboutView();
     const page = this.content();
     // Screen y of the page's top edge.

@@ -1,15 +1,15 @@
 // HUD and bottom panels in the 宣纸卷轴 style: a paper strip on top with the chapter title, 铜钱, camp HP with 师父 and
 // the wave nodes; the shop as a handscroll of paper slips; a paper battle bar; banners. Endless and daily runs show
 // their mode and wave as the title and a wave counter instead of the nodes.
-import { CHAPTERS } from '../config/chapters.ts';
 import { ENDLESS } from '../config/endless.ts';
 import { CURRENCY } from '../config/terms.ts';
-import { UNITS } from '../config/units.ts';
 import { modsLabel } from '../core/encounters.ts';
 import { dayLabel, enraged, UNLIMITED } from '../core/modes.ts';
 import { wavesSurvived } from '../core/records.ts';
 import { currentRefreshCost, offerPrice } from '../core/shop.ts';
 import type { GameState } from '../core/types.ts';
+import { tr } from '../i18n/lang.ts';
+import { chapterLabel, chapterName, shopCaption } from '../i18n/names.ts';
 import { cardSprite } from './cards.ts';
 import { drawCoin, fitPx, outlined, roundRect, text } from './draw.ts';
 import { brush, sans } from './fonts.ts';
@@ -19,8 +19,6 @@ import { blit } from './sprites.ts';
 import type { Banner, Vfx } from './vfx.ts';
 import { CINNABAR, GILT, ink, INK, inkBar, PAPER } from './ink.ts';
 import { drawButton, drawHandscroll, drawIconButton, drawIconPlate, drawTrash } from './widgets.ts';
-
-export const NUMERALS = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
 
 export interface PanelUi {
   pressed: string | null;
@@ -134,9 +132,10 @@ function currentWave(g: GameState): number {
 
 /** The HUD title: the chapter, or an endless / daily run's mode and wave (无尽 · 第 12 波, 每日 · 10月8日 · 第 3 波). */
 function hudTitle(g: GameState): string {
-  if (g.mode === 'endless') return `无尽 · 第 ${currentWave(g)} 波`;
-  if (g.mode === 'daily') return `每日 · ${dayLabel(g.seed)} · 第 ${currentWave(g)} 波`;
-  return `第${NUMERALS[g.chapter - 1]}章 · ${CHAPTERS[g.chapter - 1].name}`;
+  const wave = tr(`第 ${currentWave(g)} 波`, `Wave ${currentWave(g)}`);
+  if (g.mode === 'endless') return `${tr('无尽', 'Endless')} · ${wave}`;
+  if (g.mode === 'daily') return `${tr('每日', 'Daily')} · ${dayLabel(g.seed)} · ${wave}`;
+  return `${chapterLabel(g.chapter)} · ${chapterName(g.chapter)}`;
 }
 
 /**
@@ -144,7 +143,9 @@ function hudTitle(g: GameState): string {
  * boss cycle as nodes (done in ink, the one being fought cinnabar, the boss a 王 seal).
  */
 function drawWaveCounter(ctx: CanvasRenderingContext2D, g: GameState): void {
-  text(ctx, `撑过 ${wavesSurvived(g)} 波`, 196, 45.5, sans(11, 800), INK, 'left');
+  const held = tr(`撑过 ${wavesSurvived(g)} 波`, `${wavesSurvived(g)} waves held`);
+  // Reason: the counter ends where the first of the five wave nodes starts (x0 - 6 below).
+  text(ctx, held, 196, 45.5, sans(fitPx(ctx, held, W - 16 - 15 * (ENDLESS.bossEvery - 1) - 6 - 196, 11, (n) => sans(n, 800), 8), 800), INK, 'left');
   const n = ENDLESS.bossEvery;
   const first = Math.floor((currentWave(g) - 1) / n) * n + 1;
   const x1 = W - 16;
@@ -177,7 +178,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: GameState, ui: PanelUi
   const hp = g.campHp / g.campMax;
   drawPortrait(ctx, 'master', 22, 44, 11);
   inkBar(ctx, 38, 39, 132, 11, hp, flash ? '#e0806c' : hp > 0.35 ? CINNABAR : '#e0301e', ink(0.12));
-  outlined(ctx, `阵地 ${Math.ceil(g.campHp)}/${g.campMax}`, 104, 45, sans(9, 700), PAPER, '#6b1d14', 2.4);
+  outlined(ctx, `${tr('阵地', 'Camp')} ${Math.ceil(g.campHp)}/${g.campMax}`, 104, 45, sans(9, 700), PAPER, '#6b1d14', 2.4);
 
   if (g.totalWaves === UNLIMITED) {
     drawWaveCounter(ctx, g);
@@ -215,7 +216,7 @@ function drawOffer(ctx: CanvasRenderingContext2D, g: GameState, i: number, ui: P
   ctx.stroke();
   ctx.setLineDash([]);
   if (empty) {
-    text(ctx, o?.sold ? '已买' : '', cx, r.y + r.h / 2, brush(18), ink(0.35));
+    text(ctx, o?.sold ? tr('已买', 'Sold') : '', cx, r.y + r.h / 2, brush(18), ink(0.35));
     return;
   }
   ctx.beginPath();
@@ -232,7 +233,8 @@ function drawOffer(ctx: CanvasRenderingContext2D, g: GameState, i: number, ui: P
   if (!afford) ctx.globalAlpha = 0.55;
   blit(ctx, img, cx, r.y + 38, size, size);
   ctx.restore();
-  text(ctx, UNITS[o.id].label, cx, r.y + 73, sans(10, 500), ink(0.7));
+  const caption = shopCaption(o.id);
+  text(ctx, caption, cx, r.y + 73, sans(fitPx(ctx, caption, r.w - 8, 10, (n) => sans(n, 500), 8), 500), ink(0.7));
   drawCoin(ctx, cx - 14, r.y + 87, 6);
   text(ctx, String(price), cx - 5, r.y + 87.5, sans(13, 800), !afford ? CINNABAR : discounted ? '#1b7a5a' : INK, 'left');
   if (discounted) {
@@ -243,7 +245,7 @@ function drawOffer(ctx: CanvasRenderingContext2D, g: GameState, i: number, ui: P
     ctx.lineWidth = 1;
     ctx.strokeStyle = INK;
     ctx.stroke();
-    text(ctx, '半价', r.x + r.w - 17, r.y + 16.5, sans(8, 800), '#f2fffb');
+    text(ctx, tr('半价', 'Half'), r.x + r.w - 17, r.y + 16.5, sans(8, 800), '#f2fffb');
   }
 }
 
@@ -258,20 +260,23 @@ export function drawShop(ctx: CanvasRenderingContext2D, g: GameState, ui: PanelU
   ctx.lineWidth = 1.4;
   ctx.strokeStyle = INK;
   ctx.stroke();
-  text(ctx, '商店', W / 2, s.y + 4.5, brush(17), PAPER);
+  text(ctx, tr('商店', 'Shop'), W / 2, s.y + 4.5, brush(17), PAPER);
   ctx.restore();
   for (let i = 0; i < L.shopCards.length; i++) drawOffer(ctx, g, i, ui);
   const cost = currentRefreshCost(g);
-  drawButton(ctx, L.btnRefresh, '刷新', g.gongde >= cost ? 'jade' : 'disabled', cost === 0 ? '免费' : `${cost} ${CURRENCY}`, ui.pressed === 'refresh');
-  drawButton(ctx, L.btnStart, '出战', 'primary', `迎战第 ${g.wave + 1} 波`, ui.pressed === 'start');
+  const price = cost === 0 ? tr('免费', 'Free') : tr(`${cost} ${CURRENCY}`, `${cost} coins`);
+  drawButton(ctx, L.btnRefresh, tr('刷新', 'Refresh'), g.gongde >= cost ? 'jade' : 'disabled', price, ui.pressed === 'refresh');
+  drawButton(ctx, L.btnStart, tr('出战', 'Battle'), 'primary', tr(`迎战第 ${g.wave + 1} 波`, `Wave ${g.wave + 1}`), ui.pressed === 'start');
   drawTrash(ctx, L.trash, ui.hoverTrash);
   // One line under the seal: drag help, or what the chosen encounter queued for the next wave.
   const queued = modsLabel(g.waveMods);
-  const hint = ui.dragging ? '拖到阵地空格上 · 叠到同名卡上升级' : queued ? `下一波：${queued}` : g.chest ? '宝箱：打完下一波开出一张卡' : '';
+  const drag = tr('拖到阵地空格上 · 叠到同名卡上升级', 'Drop on an empty pad, or on a twin to level up');
+  const hint = ui.dragging ? drag : queued ? tr(`下一波：${queued}`, `Next wave: ${queued}`) : g.chest ? tr('宝箱：打完下一波开出一张卡', 'Chest: beat the next wave to open a card') : '';
   if (hint) {
     // Reason: 7 px was unreadable on a phone. The floor is the ceiling here — the line holds whatever the encounter
-    // modifiers produce, so it shrinks no further than the size it is drawn at today.
-    const px = fitPx(ctx, hint, s.w - 120, 9, (n) => sans(n, 600), 9);
+    // modifiers produce, so it shrinks no further than the size it is drawn at today (English, being longer, may go
+    // to 8). It may run as wide as the room left of the bin.
+    const px = fitPx(ctx, hint, s.w - 80, 9, (n) => sans(n, 600), tr(9, 8));
     text(ctx, hint, W / 2, s.y + 24, sans(px, 600), queued && !ui.dragging ? CINNABAR : ink(0.65));
   }
 }
@@ -280,15 +285,20 @@ export function drawBattleBar(ctx: CanvasRenderingContext2D, g: GameState, ui: P
   const b = L.bar;
   paperStrip(ctx, b.y, b.h, 'top');
   const left = g.enemies.length + g.spawns.length;
-  const wave = g.totalWaves === UNLIMITED ? `第 ${g.wave} 波` : `第 ${g.wave}/${g.totalWaves} 波`;
+  const count = g.totalWaves === UNLIMITED ? String(g.wave) : `${g.wave}/${g.totalWaves}`;
+  const wave = tr(`第 ${count} 波`, `Wave ${count}`);
   text(ctx, wave, 16, b.y + 18, brush(17), INK, 'left');
   // A berserk endless wave says so for as long as it lasts, ahead of the encounter modifiers.
   const rage = enraged(g);
-  const active = [rage ? '妖怪狂暴：不吃眩晕减速击退' : '', modsLabel(g.activeMods)].filter(Boolean).join(' · ');
-  const info = active ? `剩余妖怪 ${left} · ${active}` : `剩余妖怪 ${left}`;
+  const berserk = tr('妖怪狂暴：不吃眩晕减速击退', 'Berserk: no stun, slow or knockback');
+  const active = [rage ? berserk : '', modsLabel(g.activeMods)].filter(Boolean).join(' · ');
+  const remaining = tr(`剩余妖怪 ${left}`, `Monsters left ${left}`);
+  const info = active ? `${remaining} · ${active}` : remaining;
   const px = fitPx(ctx, info, W - 160, 11, (n) => sans(n, 600), 8);
   text(ctx, info, 16, b.y + 37, sans(px, 600), rage ? CINNABAR : active ? '#a0521e' : ink(0.7), 'left');
-  text(ctx, ui.dragging ? '拖到垃圾桶卖出 →' : '可以随时拖动场上的字', W - 64, b.y + 26, sans(10, 600), ink(0.6), 'right');
+  const tip = ui.dragging ? tr('拖到垃圾桶卖出 →', 'Drop in the bin to sell →') : tr('可以随时拖动场上的字', 'Glyphs can move any time');
+  // Reason: it may reach left to the wave label's end (about x 90), which sits on the same line.
+  text(ctx, tip, W - 64, b.y + 26, sans(fitPx(ctx, tip, 150, 10, (n) => sans(n, 600), 8), 600), ink(0.6), 'right');
   drawTrash(ctx, L.barTrash, ui.hoverTrash);
 }
 
@@ -309,11 +319,11 @@ export function drawBanner(ctx: CanvasRenderingContext2D, b: Banner): void {
   if (b.portrait) {
     const pulse = 1 + Math.sin(b.t * 12) * 0.04;
     drawPortrait(ctx, b.portrait, 72, y, 30 * pulse);
-    outlined(ctx, b.title, 118, y - 12, brush(28), b.color, 'rgba(20,10,4,0.9)', 4, 'left');
+    outlined(ctx, b.title, 118, y - 12, brush(fitPx(ctx, b.title, W - 24 - 118 - 8, 28, brush, 16)), b.color, 'rgba(20,10,4,0.9)', 4, 'left');
     const px = fitPx(ctx, b.sub, W - 48 - 118 + 24 - 12, 11, (n) => sans(n, 600), 8);
     text(ctx, b.sub, 118, y + 20, sans(px, 600), '#f3e6c8', 'left');
   } else {
-    outlined(ctx, b.title, W / 2, y - (b.sub ? 9 : 0), brush(24), b.color, 'rgba(20,10,4,0.9)', 4);
+    outlined(ctx, b.title, W / 2, y - (b.sub ? 9 : 0), brush(fitPx(ctx, b.title, W - 64, 24, brush, 14)), b.color, 'rgba(20,10,4,0.9)', 4);
     if (b.sub) {
       const px = fitPx(ctx, b.sub, W - 72, 11, (n) => sans(n, 600), 8);
       text(ctx, b.sub, W / 2, y + 17, sans(px, 600), '#f3e6c8');

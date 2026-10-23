@@ -2,13 +2,14 @@
 // particles, banners, ultimates, corpses, the boss entrance). Everything here lives in world coordinates and is
 // drawn under the camera, except the boss vignette, which the renderer paints in screen space from `introDim()`;
 // nothing feeds back into the simulation, so it may use Math.random freely.
-import { ENEMIES, traitText } from '../config/enemies.ts';
+import { ENEMIES } from '../config/enemies.ts';
 import { CURRENCY, SUBDUE_MARK, TRIAL } from '../config/terms.ts';
-import { ULTIMATES } from '../config/ultimates.ts';
 import { UNITS } from '../config/units.ts';
-import { encounterName, ENCOUNTERS, KIND_LABEL } from '../core/encounters.ts';
+import { encounterDesc, encounterName, ENCOUNTERS, kindLabel } from '../core/encounters.ts';
 import type { MapData, Pt } from '../core/map.ts';
 import type { HeroId, Projectile, SimEvent, Tile } from '../core/types.ts';
+import { tr } from '../i18n/lang.ts';
+import { enemyName, traitLine, ultimateName } from '../i18n/names.ts';
 import {
   drawCorpse,
   drawFloater,
@@ -215,7 +216,7 @@ export class Vfx {
     this.ults.push({ hero: e.hero, x: p.x, y: p.y, tx: e.tx, ty: e.ty, dir: e.dir, mapW: this.map.w, mapH: this.map.h, pts: e.targets, t: 0, life: ultLife(e.hero, e.targets.length) });
     this.troops.shoot(e.cell, this.tiles[e.cell] ?? null, p, e.tx);
     this.pops[e.cell] = 0.3;
-    this.float(p.x, p.y - 36, ULTIMATES[e.hero].name, '#ffd166', 16, true, 1.2);
+    this.float(p.x, p.y - 36, ultimateName(e.hero), '#ffd166', 16, true, 1.2);
     for (const q of e.targets) this.burst(q.x, q.y, 4, 'star', '#ffe27a', 120, 3.5, 0.5);
     this.shake = Math.max(this.shake, e.hero === '沙僧' ? 2 : 6);
   }
@@ -226,7 +227,7 @@ export class Vfx {
     this.add('ring', e.x, e.y, 0, 0, '#eef4fb', 72, 0.6);
     this.add('ring', e.x, e.y, 0, 0, '#9fb3cc', 44, 0.45);
     this.burst(e.x, e.y, 10, 'star', '#eef4fb', 140, 3, 0.6);
-    this.float(e.x, e.y - 40, '反弹', '#e8f0fa', 18, true, 1);
+    this.float(e.x, e.y - 40, tr('反弹', 'Reflect!'), '#e8f0fa', 18, true, 1);
     for (const q of e.targets) this.add('ring', q.x, this.air.has(q.uid) ? q.y - FLY_LIFT : q.y, 0, 0, '#e6eef8', 22, 0.4);
   }
 
@@ -267,18 +268,18 @@ export class Vfx {
           this.campFlash = 0.3;
           this.add('ring', e.x, e.y, 0, 0, '#ff6a5a', 40, 0.5);
           this.burst(e.x, e.y, 8, 'dot', '#ff6a5a', 90, 2.5, 0.4);
-          this.float(e.x, e.y - 24, `阵地 -${e.dmg}`, '#ff6a5a', 16, true, 1.1);
+          this.float(e.x, e.y - 24, tr(`阵地 -${e.dmg}`, `Camp -${e.dmg}`), '#ff6a5a', 16, true, 1.1);
           this.shake = Math.max(this.shake, 3);
           break;
         case 'steal':
-          this.float(e.x, e.y - 12, `-${e.amount} ${CURRENCY}`, '#ff6a5a', 15, false, 1.1);
-          this.float(e.x, e.y - 34, '溜了', '#ffd166', 18, true, 1);
+          this.float(e.x, e.y - 12, tr(`-${e.amount} ${CURRENCY}`, `-${e.amount} coins`), '#ff6a5a', 15, false, 1.1);
+          this.float(e.x, e.y - 34, tr('溜了', 'Got away!'), '#ffd166', 18, true, 1);
           this.burst(e.x, e.y, 8, 'coin', '', 120, 3, 0.7, 150);
           this.shake = Math.max(this.shake, 2);
           break;
         case 'revive':
           this.add('ring', e.x, e.y, 0, 0, '#ffffff', 34, 0.5);
-          this.float(e.x, e.y - 22, '复活！', '#ffffff', 16, true);
+          this.float(e.x, e.y - 22, tr('复活！', 'Back up!'), '#ffffff', 16, true);
           break;
         case 'split':
         case 'summon':
@@ -286,20 +287,27 @@ export class Vfx {
           break;
         case 'execute':
           this.add('slash', e.x, e.y, 0, 0, '#ffffff', 22, 0.35);
-          this.float(e.x, e.y - 18, SUBDUE_MARK, '#e0302a', 30, true, 0.8);
+          // Reason: the mark is one big brush character in Chinese; the English word is set smaller to stay as wide.
+          this.float(e.x, e.y - 18, tr(SUBDUE_MARK, 'Subdued!'), '#e0302a', tr(30, 18), true, 0.8);
           break;
         default:
           boardEvent(this, e);
           break;
         case 'encounter': {
           const def = ENCOUNTERS[e.id];
-          this.showBanner(`${KIND_LABEL[def.kind]} · ${encounterName(e.id)}`, def.desc, KIND_COLOR[def.kind], null, 2.2);
+          this.showBanner(`${kindLabel(def.kind)} · ${encounterName(e.id)}`, encounterDesc(e.id), KIND_COLOR[def.kind], null, 2.2);
           break;
         }
         case 'waveStart': {
           const boss = e.boss ? ENEMIES[e.boss] : null;
-          const sub = boss ? `Boss ${boss.name}：${traitText(boss)}` : e.elite ? '魔将压阵，小心！' : e.mods ? `${TRIAL}：${e.mods}` : '妖怪从城门出发，别放它们走到营地';
-          this.showBanner(`第 ${e.wave} 波`, sub, boss ? '#ff8a5c' : e.mods ? '#ffb07a' : '#fff1c2');
+          const sub = boss
+            ? tr(`Boss ${boss.name}：${traitLine(boss)}`, `Boss ${enemyName(boss.id)}: ${traitLine(boss)}`)
+            : e.elite
+              ? tr('魔将压阵，小心！', `A ${enemyName('魔')} leads this wave. Careful!`)
+              : e.mods
+                ? tr(`${TRIAL}：${e.mods}`, `Trial: ${e.mods}`)
+                : tr('妖怪从城门出发，别放它们走到营地', 'Monsters set out from the gate: keep them from the camp');
+          this.showBanner(tr(`第 ${e.wave} 波`, `Wave ${e.wave}`), sub, boss ? '#ff8a5c' : e.mods ? '#ffb07a' : '#fff1c2');
           if (boss) {
             // Boss entrance: the ground rumbles and the corners darken once (update() holds the rumble up).
             this.bossIntro = BOSS_INTRO;
@@ -308,10 +316,10 @@ export class Vfx {
           break;
         }
         case 'waveClear':
-          this.showBanner(`击退第 ${e.wave} 波`, `+${e.bonus} ${CURRENCY} · 商店补货了`, '#aef0b8', null, 1.6);
+          this.showBanner(tr(`击退第 ${e.wave} 波`, `Wave ${e.wave} cleared`), tr(`+${e.bonus} ${CURRENCY} · 商店补货了`, `+${e.bonus} coins · The shop restocked`), '#aef0b8', null, 1.6);
           break;
         case 'enrage':
-          this.showBanner('妖怪狂暴了！', '这一波拖得太久：眩晕、减速、击退都不管用了', '#ff8a5c', null, 2.4);
+          this.showBanner(tr('妖怪狂暴了！', 'The monsters go berserk!'), tr('这一波拖得太久：眩晕、减速、击退都不管用了', 'This wave dragged on: stuns, slows and knockback stop working'), '#ff8a5c', null, 2.4);
           this.shake = Math.max(this.shake, BOSS_RUMBLE);
           break;
       }

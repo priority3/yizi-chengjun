@@ -1,24 +1,25 @@
 // Scene manager plus the title screen and the chapter select screen.
-import { GAME_NAME, TAGLINE } from '../config/brand.ts';
 import { CHAPTERS } from '../config/chapters.ts';
 import { ENDLESS, ENDLESS_CHAPTER } from '../config/endless.ts';
 import type { MapDef } from '../config/maps.ts';
 import { dailyMapIndex, dayLabel } from '../core/modes.ts';
 import { STAR_BONUS, THREE_STAR_PCT, TWO_STAR_PCT } from '../core/rating.ts';
 import { dailyBest } from '../core/records.ts';
-import type { GameMode } from '../core/types.ts';
+import type { GameMode, HeroId } from '../core/types.ts';
+import { canSwitchLang, tr } from '../i18n/lang.ts';
+import { chapterLabel, chapterName, gameName, tagline, unitName } from '../i18n/names.ts';
 import { platform, type Stage } from '../platform/env.ts';
+import { langSwitchLabel, switchLang } from '../platform/lang-choice.ts';
 import { loadProgress, saveProgress, type Progress } from '../platform/progress.ts';
 import { clearRun, loadRun, peekRun, type RunInfo } from '../platform/save.ts';
 import { todayKey } from '../platform/today.ts';
 import { ChapterCards, thumbRect, type ChapterCard } from '../render/chapter-card.ts';
 import { fitPx, outlined, text } from '../render/draw.ts';
 import { brush, sans } from '../render/fonts.ts';
-import { drawPortrait, type PortraitId } from '../render/heroes-art.ts';
+import { drawPortrait } from '../render/heroes-art.ts';
 import { inRect, L, W, type Rect } from '../render/layout.ts';
 import { peekThumb, warmThumbs } from '../render/map-thumb.ts';
 import { drawModeCard, type ModeCard } from '../render/mode-card.ts';
-import { NUMERALS } from '../render/panels.ts';
 import { drawUpdateBanner, updateBannerHit } from '../render/update-banner.ts';
 import { BACK, backdrop, drawButton, drawPanel } from '../render/widgets.ts';
 import { AboutScene } from './about-scene.ts';
@@ -26,7 +27,7 @@ import { chapterRect, entryRect } from './chapter-layout.ts';
 import { GameScene } from './game-scene.ts';
 import type { GestureHandlers, Pointer } from './input.ts';
 import { SplashScene } from './splash-scene.ts';
-import { ABOUT_BUTTON, continueButton, hintRows, startButton, versionAnchor } from './title-layout.ts';
+import { ABOUT_BUTTON, continueButton, hintRows, LANG_BUTTON, startButton, versionAnchor } from './title-layout.ts';
 import { TreasureScene } from './treasure-scene.ts';
 import { versionLabel } from './version-label.ts';
 
@@ -169,12 +170,12 @@ export class SceneManager implements Nav {
   }
 }
 
-const HEROES: PortraitId[] = ['悟空', '八戒', '沙僧', '白龙'];
+const HEROES: HeroId[] = ['悟空', '八戒', '沙僧', '白龙'];
 
-/** Where a saved run stands, e.g. 第三章 · 第 4 波, 无尽 · 第 12 波, 每日挑战 · 第 7 波. */
+/** Where a saved run stands, e.g. 第三章 · 第 4 波, 无尽 · 第 12 波, 每日挑战 · 第 7 波 (Chapter 3 · Wave 4). */
 function runLabel(run: RunInfo): string {
-  const where = run.mode === 'endless' ? '无尽' : run.mode === 'daily' ? '每日挑战' : `第${NUMERALS[run.chapter - 1]}章`;
-  return `${where} · 第 ${run.wave} 波`;
+  const where = run.mode === 'endless' ? tr('无尽', 'Endless') : run.mode === 'daily' ? tr('每日挑战', 'Daily') : chapterLabel(run.chapter);
+  return tr(`${where} · 第 ${run.wave} 波`, `${where} · Wave ${run.wave}`);
 }
 
 /** What the title screen opens besides the screens every menu reaches: the 关于 screen. */
@@ -214,9 +215,11 @@ class TitleScene implements Scene {
     ctx.save();
     ctx.shadowColor = 'rgba(255,170,60,0.6)';
     ctx.shadowBlur = 22;
-    outlined(ctx, GAME_NAME, W / 2, ty, brush(66), '#ffd66b', 'rgba(40,14,4,0.95)', 6);
+    const name = gameName();
+    outlined(ctx, name, W / 2, ty, brush(fitPx(ctx, name, W - 24, 66, brush, 40)), '#ffd66b', 'rgba(40,14,4,0.95)', 6);
     ctx.restore();
-    outlined(ctx, TAGLINE, W / 2, ty + 54, brush(22), '#fbeed2', 'rgba(40,14,4,0.9)', 4);
+    const line = tagline();
+    outlined(ctx, line, W / 2, ty + 54, brush(fitPx(ctx, line, W - 24, 22, brush, 14)), '#fbeed2', 'rgba(40,14,4,0.9)', 4);
     HEROES.forEach((h, i) => {
       const x = 60 + i * 80;
       const y = L.H * 0.47 + Math.sin(this.t * 3 + i) * 4;
@@ -225,21 +228,23 @@ class TitleScene implements Scene {
       ctx.fillStyle = 'rgba(255,240,210,0.18)';
       ctx.fill();
       drawPortrait(ctx, h, x, y, 25);
-      outlined(ctx, h, x, y + 42, brush(16), '#fbeed2', 'rgba(40,14,4,0.9)', 3);
+      outlined(ctx, unitName(h), x, y + 42, brush(16), '#fbeed2', 'rgba(40,14,4,0.9)', 3);
     });
+    const start = tr('开始游戏', 'Start');
     if (this.run) {
-      drawButton(ctx, this.continueRect(), '继续上次', 'primary', runLabel(this.run));
-      drawButton(ctx, this.startRect(), '开始游戏', 'ghost');
+      drawButton(ctx, this.continueRect(), tr('继续上次', 'Continue'), 'primary', runLabel(this.run));
+      drawButton(ctx, this.startRect(), start, 'ghost');
     } else {
-      drawButton(ctx, this.startRect(), '开始游戏', 'primary');
+      drawButton(ctx, this.startRect(), start, 'primary');
     }
     const [hint1, hint2] = hintRows();
-    text(ctx, '商店买字拖上阵地 · 同字合成升级 · 凑齐名字觉醒英雄', W / 2, hint1, sans(11, 500), '#e8d5b0');
-    text(ctx, '英雄攒满怒气放大招 · 波间奇遇三选一 · 通关得灵石炼法宝', W / 2, hint2, sans(11, 500), '#e8d5b0');
+    hintLine(ctx, tr('商店买字拖上阵地 · 同字合成升级 · 凑齐名字觉醒英雄', 'Drag glyphs onto pads · Merge pairs · Join halves into heroes'), hint1);
+    hintLine(ctx, tr('英雄攒满怒气放大招 · 波间奇遇三选一 · 通关得灵石炼法宝', 'Heroes unleash ultimates · Boons between waves · Craft relics'), hint2);
     // Faint version label for telling deployments apart when something needs debugging (version-label.ts).
     const v = versionAnchor();
     text(ctx, versionLabel(), v.x, v.y, sans(9, 500), 'rgba(255,240,210,0.45)', 'right');
-    drawButton(ctx, ABOUT_BUTTON, '关于', 'ghost');
+    drawButton(ctx, ABOUT_BUTTON, tr('关于', 'About'), 'ghost');
+    if (canSwitchLang()) drawButton(ctx, LANG_BUTTON, langSwitchLabel(), 'ghost');
     // A newer build is installed and waiting (web production builds only, see platform/pwa.ts).
     const update = platform().update;
     if (update?.ready()) drawUpdateBanner(ctx, this.t, update.applying());
@@ -255,6 +260,10 @@ class TitleScene implements Scene {
       this.nav.about();
       return;
     }
+    if (canSwitchLang() && inRect(p.x, p.y, LANG_BUTTON)) {
+      switchLang();
+      return;
+    }
     if (this.run && inRect(p.x, p.y, this.continueRect())) {
       // Reason: resume() only fails if the save went bad since the screen opened; then drop the button.
       if (!this.nav.resume()) this.run = null;
@@ -262,6 +271,11 @@ class TitleScene implements Scene {
     }
     if (inRect(p.x, p.y, this.startRect())) this.nav.chapters();
   }
+}
+
+/** One of the title screen's two hint lines, shrunk to the screen's width when it is long (English). */
+function hintLine(ctx: CanvasRenderingContext2D, s: string, y: number): void {
+  text(ctx, s, W / 2, y, sans(fitPx(ctx, s, W - 16, 11, (n) => sans(n, 500), 9), 500), '#e8d5b0');
 }
 
 /** 法宝 button, top right of the chapter screen. */
@@ -311,22 +325,22 @@ class ChapterScene implements Scene {
   update(dt: number): void {
     this.t += dt;
     // Thumbnails still missing at the current size get painted a couple per frame; placeholders show meanwhile.
-    const tr = thumbRect(chapterRect(0, this.entries()));
-    for (const ch of warmThumbs(CHAPTER_IDS, tr.w, tr.h, this.stage.pixelRatio)) this.paintedAt.set(ch, this.t);
+    const box = thumbRect(chapterRect(0, this.entries()));
+    for (const ch of warmThumbs(CHAPTER_IDS, box.w, box.h, this.stage.pixelRatio)) this.paintedAt.set(ch, this.t);
   }
 
   render(ctx: CanvasRenderingContext2D): void {
     backdrop(ctx, this.stage, 0.62);
-    drawButton(ctx, BACK, '返回', 'ghost');
-    outlined(ctx, '选择章节', W / 2, 33, brush(26), '#ffd66b', 'rgba(40,14,4,0.9)', 4);
+    drawButton(ctx, BACK, tr('返回', 'Back'), 'ghost');
+    outlined(ctx, tr('选择章节', 'Chapters'), W / 2, 33, brush(26), '#ffd66b', 'rgba(40,14,4,0.9)', 4);
     const { unlocked, wins, stars, vault } = this.nav.progress;
-    drawButton(ctx, TREASURES, '法宝', 'jade', `${vault.stones} 灵石`);
+    drawButton(ctx, TREASURES, tr('法宝', 'Relics'), 'jade', tr(`${vault.stones} 灵石`, `${vault.stones} stones`));
     const entries = this.entries();
     // The first open chapter without a clear is the one to play next.
     const next = CHAPTER_IDS.find((id) => id <= unlocked && !(wins[id - 1] > 0)) ?? 0;
     const cards = CHAPTERS.map((ch, i) => {
       const r = chapterRect(i, entries);
-      const tr = thumbRect(r);
+      const box = thumbRect(r);
       const at = this.paintedAt.get(ch.id);
       const c: ChapterCard = {
         chapter: ch.id,
@@ -334,7 +348,7 @@ class ChapterScene implements Scene {
         cleared: wins[i] > 0,
         stars: stars[i] ?? 0,
         next: ch.id === next,
-        thumb: peekThumb(ch.id, tr.w, tr.h, this.stage.pixelRatio),
+        thumb: peekThumb(ch.id, box.w, box.h, this.stage.pixelRatio),
         fade: at === undefined ? 1 : Math.min(1, (this.t - at) / THUMB_FADE),
         t: this.t,
       };
@@ -342,8 +356,9 @@ class ChapterScene implements Scene {
     });
     this.cards.draw(ctx, cards);
     if (entries) this.drawEntries(ctx);
-    text(ctx, `通关时阵地血量剩 ${THREE_STAR_PCT}% 以上得三星，${TWO_STAR_PCT}% 以上得两星`, W / 2, L.H - 38, sans(10, 500), '#b9a585');
-    text(ctx, `每章第一次拿到三星，额外奖励 ${STAR_BONUS} 灵石`, W / 2, L.H - 22, sans(10, 500), '#b9a585');
+    const rule1 = tr(`通关时阵地血量剩 ${THREE_STAR_PCT}% 以上得三星，${TWO_STAR_PCT}% 以上得两星`, `Clear with ${THREE_STAR_PCT}%+ camp HP for 3 stars, ${TWO_STAR_PCT}%+ for 2`);
+    text(ctx, rule1, W / 2, L.H - 38, sans(10, 500), '#b9a585');
+    text(ctx, tr(`每章第一次拿到三星，额外奖励 ${STAR_BONUS} 灵石`, `First 3 stars in a chapter: +${STAR_BONUS} Spirit Stones`), W / 2, L.H - 22, sans(10, 500), '#b9a585');
     if (this.asking && this.run) this.drawPrompt(ctx, this.run);
   }
 
@@ -354,17 +369,17 @@ class ChapterScene implements Scene {
    */
   private drawEntries(ctx: CanvasRenderingContext2D): void {
     const p = this.nav.progress;
-    const tr = thumbRect(chapterRect(0, true));
-    const thumb = (chapter: number) => peekThumb(chapter, tr.w, tr.h, this.stage.pixelRatio);
+    const box = thumbRect(chapterRect(0, true));
+    const thumb = (chapter: number) => peekThumb(chapter, box.w, box.h, this.stage.pixelRatio);
     // Read every frame, so the entry turns to the new day's challenge at midnight.
     const day = todayKey();
     const map = dailyMapIndex(day) + 1;
     const dailyOpen = p.wins[0] > 0;
     const daily: ModeCard = {
-      title: '每日挑战',
+      title: tr('每日挑战', 'Daily Challenge'),
       color: '#1b7a5a',
-      info: dailyOpen ? `${dayLabel(day)} · ${CHAPTERS[map - 1].name}` : '通关第一章开启',
-      record: !dailyOpen ? '' : p.daily.key === day ? `今日最佳 撑过 ${dailyBest(p, day)} 波` : '今天还没挑战',
+      info: dailyOpen ? `${dayLabel(day)} · ${chapterName(map)}` : tr('通关第一章开启', 'Clear Chapter 1 to unlock'),
+      record: !dailyOpen ? '' : p.daily.key === day ? tr(`今日最佳 撑过 ${dailyBest(p, day)} 波`, `Today's best: ${dailyBest(p, day)} waves`) : tr('今天还没挑战', 'Not played today'),
       hot: p.daily.key !== day,
       open: dailyOpen,
       chapter: map,
@@ -373,10 +388,10 @@ class ChapterScene implements Scene {
     };
     const endlessOpen = p.wins[ENDLESS_CHAPTER - 1] > 0;
     const endless: ModeCard = {
-      title: '无尽',
+      title: tr('无尽', 'Endless'),
       color: '#8a3a22',
-      info: endlessOpen ? `每 ${ENDLESS.bossEvery} 波来一个 Boss` : `通关第${NUMERALS[ENDLESS_CHAPTER - 1]}章开启`,
-      record: !endlessOpen ? '' : p.endlessBest > 0 ? `最佳 撑过 ${p.endlessBest} 波` : '还没打过',
+      info: endlessOpen ? tr(`每 ${ENDLESS.bossEvery} 波来一个 Boss`, `A boss every ${ENDLESS.bossEvery} waves`) : tr(`通关${chapterLabel(ENDLESS_CHAPTER)}开启`, `Clear ${chapterLabel(ENDLESS_CHAPTER)} to unlock`),
+      record: !endlessOpen ? '' : p.endlessBest > 0 ? tr(`最佳 撑过 ${p.endlessBest} 波`, `Best: ${p.endlessBest} waves`) : tr('还没打过', 'Not played yet'),
       hot: p.endlessBest === 0,
       open: endlessOpen,
       chapter: ENDLESS_CHAPTER,
@@ -390,13 +405,13 @@ class ChapterScene implements Scene {
   private drawPrompt(ctx: CanvasRenderingContext2D, run: RunInfo): void {
     const r = promptPanel();
     drawPanel(ctx, r);
-    text(ctx, '有一局没打完', W / 2, r.y + 46, brush(28), '#6b1c1c');
-    const msg = `${runLabel(run)}：开新局会覆盖它`;
+    text(ctx, tr('有一局没打完', 'Unfinished run'), W / 2, r.y + 46, brush(28), '#6b1c1c');
+    const msg = tr(`${runLabel(run)}：开新局会覆盖它`, `${runLabel(run)}: a new run replaces it`);
     text(ctx, msg, W / 2, r.y + 84, sans(fitPx(ctx, msg, r.w - 40, 13, (n) => sans(n, 600)), 600), '#7a6248');
     const [fresh, resume, cancel] = promptButtons();
-    drawButton(ctx, fresh, '开新局', 'danger');
-    drawButton(ctx, resume, '继续上次', 'primary');
-    drawButton(ctx, cancel, '取消', 'ghost');
+    drawButton(ctx, fresh, tr('开新局', 'New run'), 'danger');
+    drawButton(ctx, resume, tr('继续上次', 'Continue'), 'primary');
+    drawButton(ctx, cancel, tr('取消', 'Cancel'), 'ghost');
   }
 
   /** Starts a run (`start`), or first asks what to do with the unfinished run a new one would overwrite. */

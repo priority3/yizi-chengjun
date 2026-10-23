@@ -1,7 +1,11 @@
 // Layout of the 关于 screen, in design units: the parchment panel the page scrolls in, and the page itself — a block of
 // jump buttons, then 隐私政策, 用户协议, 适龄提示, 健康游戏忠告 and 版本与联系方式, every paragraph wrapped to the panel's
-// width in the sans font. Pure: text is measured through a callback, so tests/about.test.ts checks it without a canvas.
+// width in the sans font. In English the page holds the Privacy Policy, the Terms of Use and Version & Contact only:
+// the 适龄提示 and the 健康游戏忠告 are for games in China (config/legal-en.ts). Pure: text is measured through a
+// callback, so tests/about.test.ts checks it without a canvas.
 import { AGE_NOTICE, CONTACT_EMAIL, DEVELOPER, HEALTH_ADVICE, PRIVACY_POLICY, USER_AGREEMENT, type LegalDoc } from '../config/legal.ts';
+import { DEVELOPER_EN, PRIVACY_POLICY_EN, TERMS_EN } from '../config/legal-en.ts';
+import { isEn, tr } from '../i18n/lang.ts';
 import { ageBadgeHeight } from '../render/age-badge.ts';
 import { sans } from '../render/fonts.ts';
 import { L, W, type Rect } from '../render/layout.ts';
@@ -18,6 +22,18 @@ export const ABOUT_SECTIONS: ReadonlyArray<{ id: AboutSectionId; name: string }>
   { id: 'advice', name: '健康游戏忠告' },
   { id: 'contact', name: '版本与联系方式' },
 ];
+
+/** The English page's sections, with their jump buttons' names. */
+const ABOUT_SECTIONS_EN: ReadonlyArray<{ id: AboutSectionId; name: string }> = [
+  { id: 'privacy', name: 'Privacy' },
+  { id: 'terms', name: 'Terms' },
+  { id: 'contact', name: 'Contact' },
+];
+
+/** The sections the page shows in the current language. */
+export function aboutSections(): ReadonlyArray<{ id: AboutSectionId; name: string }> {
+  return isEn() ? ABOUT_SECTIONS_EN : ABOUT_SECTIONS;
+}
 
 /** The kinds of text on the page. */
 export type AboutStyle = 'title' | 'meta' | 'heading' | 'body' | 'advice';
@@ -123,9 +139,10 @@ class PageBuilder {
     this.y += gap;
   }
 
-  /** The jump buttons: the three short names on one row, the two long ones on the next. */
+  /** The jump buttons: the three short names on one row, the two long ones on the next (English: one row of three). */
   jumps(): void {
-    for (const row of [ABOUT_SECTIONS.slice(0, 3), ABOUT_SECTIONS.slice(3)]) {
+    const sections = aboutSections();
+    for (const row of [sections.slice(0, 3), sections.slice(3)].filter((r) => r.length > 0)) {
       const w = (TEXT_W - (row.length - 1) * JUMP_GAP) / row.length;
       row.forEach((s, k) => this.items.push({ kind: 'jump', id: s.id, label: s.name, rect: { x: TEXT_X + k * (w + JUMP_GAP), y: this.y, w, h: JUMP_H } }));
       this.y += JUMP_H + JUMP_GAP;
@@ -145,7 +162,7 @@ class PageBuilder {
   /** A legal text: title and date centred, the opening paragraphs, then each numbered heading with its paragraphs. */
   doc(id: AboutSectionId, doc: LegalDoc): void {
     this.section(id, doc.title);
-    this.lines(`生效日期：${doc.effective}`, 'meta', true, 10);
+    this.lines(tr(`生效日期：${doc.effective}`, `Effective ${doc.effective}`), 'meta', true, 10);
     for (const p of doc.intro) this.lines(p, 'body');
     for (const s of doc.sections) {
       this.y += 6;
@@ -165,6 +182,16 @@ class PageBuilder {
 export function layoutAbout(measure: FontMeasure, version: string): AboutPage {
   const b = new PageBuilder(measure);
   b.jumps();
+  if (isEn()) {
+    b.doc('privacy', PRIVACY_POLICY_EN);
+    b.doc('terms', TERMS_EN);
+    b.section('contact', 'Version & Contact');
+    b.lines(`Version: ${version}`, 'body');
+    b.lines(`Developer: ${DEVELOPER_EN}`, 'body');
+    b.lines(`Email: ${CONTACT_EMAIL}`, 'body');
+    b.lines('When you report a problem, please include the version above in your email.', 'meta');
+    return { items: b.items, height: b.y + PAGE_PAD, tops: b.tops };
+  }
   b.doc('privacy', PRIVACY_POLICY);
   b.doc('terms', USER_AGREEMENT);
   b.section('age', '适龄提示');

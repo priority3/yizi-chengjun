@@ -130,9 +130,13 @@ function shareUrl(): string {
   return `${location.origin}${location.pathname}`;
 }
 
-/** The browser platform. Touches nothing until its members are called, so tests install it without a page. */
-export function webPlatform(): PlatformEnv {
-  return {
+/**
+ * The browser platform. Touches nothing until its members are called, so tests install it without a page.
+ * `portal`: the game runs inside an overseas game portal's page (`pnpm build:en`), which hosts and updates it, so
+ * there is no host to print, no address to share and no update of its own.
+ */
+export function webPlatform({ portal = false }: { portal?: boolean } = {}): PlatformEnv {
+  const env: PlatformEnv = {
     createStage() {
       const root = document.getElementById('app');
       if (!root) throw new Error('#app container is missing');
@@ -155,9 +159,9 @@ export function webPlatform(): PlatformEnv {
     onVisibility: (listener) => document.addEventListener('visibilitychange', () => listener(!document.hidden)),
     shareImage: (canvas, text) => shareImage(canvas, text),
     // The page's host (e.g. zidou-xiyou.vercel.app, localhost:5173); '' where there is none (tests, a file from disk).
-    host: () => (typeof location === 'undefined' ? '' : location.host),
-    shareUrl,
-    // Production builds only: in dev no service worker registers, so no update is ever ready (pwa.ts).
-    update: { ready: pwaUpdateReady, applying: pwaUpdating, apply: applyPwaUpdate },
+    host: () => (portal || typeof location === 'undefined' ? '' : location.host),
+    shareUrl: () => (portal ? '' : shareUrl()),
   };
+  // Production builds only: in dev no service worker registers, so no update is ever ready (pwa.ts).
+  return portal ? env : { ...env, update: { ready: pwaUpdateReady, applying: pwaUpdating, apply: applyPwaUpdate } };
 }

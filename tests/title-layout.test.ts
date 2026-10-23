@@ -1,10 +1,10 @@
-// The title screen's layout (ui/title-layout.ts): the 关于 button stays on screen and clear of 开始游戏, 继续上次, the
-// hint lines, the version label, the 有新版本 banner and the game's name at every design height (640..800), and the
-// buttons that moved into title-layout.ts kept their places.
+// The title screen's layout (ui/title-layout.ts): the 关于 button and the language switch stay on screen and clear of
+// 开始游戏, 继续上次, the hint lines, the version label, the 有新版本 banner and the game's name at every design height
+// (640..800), and the buttons that moved into title-layout.ts kept their places.
 import { afterAll, describe, expect, it } from 'vitest';
 import { L, MAX_H, MIN_H, setDesignHeight, W, type Rect } from '../src/render/layout.ts';
 import { updateBannerHit, updateBannerRect } from '../src/render/update-banner.ts';
-import { ABOUT_BUTTON, continueButton, hintRows, startButton, versionAnchor } from '../src/ui/title-layout.ts';
+import { ABOUT_BUTTON, continueButton, hintRows, LANG_BUTTON, startButton, versionAnchor } from '../src/ui/title-layout.ts';
 
 const overlap = (a: Rect, b: Rect): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
@@ -21,10 +21,12 @@ const nameBox = (): Rect => ({ x: 0, y: L.H * 0.24 - 33 - 22, w: W, h: 33 + 22 +
 afterAll(() => setDesignHeight(MIN_H));
 
 describe('title screen layout', () => {
-  it('keeps the 关于 button on screen and clear of everything else at every design height', () => {
+  it.each([
+    ['关于', ABOUT_BUTTON],
+    ['language switch', LANG_BUTTON],
+  ])('keeps the %s button on screen and clear of everything else at every design height', (_, a) => {
     for (let h = MIN_H; h <= MAX_H; h++) {
       setDesignHeight(h);
-      const a = ABOUT_BUTTON;
       expect(a.x >= 0 && a.y >= 0 && a.x + a.w <= W && a.y + a.h <= L.H, `H ${h}`).toBe(true);
       const [hint1, hint2] = hintRows();
       const others: Array<[string, Rect]> = [
@@ -37,14 +39,17 @@ describe('title screen layout', () => {
         ['update banner', updateBannerRect()],
         ['update banner tap area', updateBannerHit()],
         ['name and tagline', nameBox()],
+        ['the other corner button', a === ABOUT_BUTTON ? LANG_BUTTON : ABOUT_BUTTON],
       ];
       for (const [name, r] of others) expect(overlap(a, r), `H ${h}: ${name}`).toBe(false);
     }
   });
 
   it('is as easy to hit as the menus\' 返回 button', () => {
-    expect(ABOUT_BUTTON.w).toBeGreaterThanOrEqual(60);
-    expect(ABOUT_BUTTON.h).toBeGreaterThanOrEqual(34);
+    for (const b of [ABOUT_BUTTON, LANG_BUTTON]) {
+      expect(b.w).toBeGreaterThanOrEqual(60);
+      expect(b.h).toBeGreaterThanOrEqual(34);
+    }
   });
 
   it('keeps 继续上次, 开始游戏, the hints and the version label where they were', () => {

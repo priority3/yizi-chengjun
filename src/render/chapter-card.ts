@@ -2,14 +2,14 @@
 // best star rating. Locked chapters are greyed out with a padlock over the map; the chapter to play next glows.
 // Cards that have stopped changing are drawn from a cached canvas each (see ChapterCards).
 import { CHAPTERS } from '../config/chapters.ts';
-import { ENEMIES } from '../config/enemies.ts';
 import { MAPS } from '../config/maps.ts';
+import { lang } from '../i18n/lang.ts';
+import { bossShortName, chapterLabel, chapterName } from '../i18n/names.ts';
 import { offscreen } from '../platform/env.ts';
 import { fitPx, roundRect, text } from './draw.ts';
 import { brush, sans } from './fonts.ts';
 import type { Rect } from './layout.ts';
 import { monsterPortrait } from './monsters-art.ts';
-import { NUMERALS } from './panels.ts';
 import { drawStarRow } from './rating-art.ts';
 import { THEMES } from './scenery.ts';
 import { blit } from './sprites.ts';
@@ -72,7 +72,8 @@ export class ChapterCards {
       let s: CardSprite | null = null;
       if (c.thumb && c.fade >= 1) {
         s = this.cached.get(c.chapter) ?? null;
-        const key = [c.open, c.cleared, c.stars, r.x, r.y, r.w, r.h, m.a, m.d, m.e, m.f].join();
+        // Reason: the language is part of the key, since the card's text changes with it.
+        const key = [c.open, c.cleared, c.stars, r.x, r.y, r.w, r.h, m.a, m.d, m.e, m.f, lang()].join();
         if (s?.key !== key) {
           s = budget > 0 ? paintSprite(r, c, m, key) : null;
           if (s) {
@@ -145,9 +146,11 @@ function drawChapterCard(ctx: CanvasRenderingContext2D, r: Rect, c: ChapterCard)
   const x = tr.x + tr.w + 8;
   const w = r.x + r.w - 7 - x;
   const ink = c.open ? '#3b2a1e' : '#b0a698';
-  text(ctx, `第${NUMERALS[c.chapter - 1]}章`, x, r.y + r.h * 0.19, brush(15), c.open ? '#8a3a22' : ink, 'left');
-  // Reason: a name of four characters or more would overflow the column at the default size.
-  text(ctx, ch.name, x, r.y + r.h * 0.43, brush(fitPx(ctx, ch.name, w, 22, brush)), ink, 'left');
+  const label = chapterLabel(c.chapter);
+  text(ctx, label, x, r.y + r.h * 0.19, brush(fitPx(ctx, label, w, 15, brush, 11)), c.open ? '#8a3a22' : ink, 'left');
+  // Reason: a name of four characters or more (or an English one) would overflow the column at the default size.
+  const name = chapterName(c.chapter);
+  text(ctx, name, x, r.y + r.h * 0.43, brush(fitPx(ctx, name, w, 22, brush)), ink, 'left');
   drawBoss(ctx, ch.boss, x, r.y + r.h * 0.66, w, c.open, c.cleared);
   const sr = r.h * 0.072;
   drawStarRow(ctx, x + sr, r.y + r.h * 0.85, sr, sr * 2.5, c.stars, c.open ? 'paper' : 'locked');
@@ -240,7 +243,7 @@ function drawBoss(ctx: CanvasRenderingContext2D, boss: string, x: number, y: num
   if (!open) ctx.globalAlpha = 0.4;
   blit(ctx, img, x + icon / 2 - 1, y, icon, icon);
   ctx.restore();
-  const name = ENEMIES[boss].name;
-  const px = fitPx(ctx, name, w - icon - 1, 11, (n) => sans(n, 700));
+  const name = bossShortName(boss);
+  const px = fitPx(ctx, name, w - icon - 1, 11, (n) => sans(n, 700), 7);
   text(ctx, name, x + icon + 1, y + 0.5, sans(px, 700), !open ? '#b0a698' : beaten ? '#7a6248' : '#b3261e', 'left');
 }

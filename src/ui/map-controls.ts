@@ -6,6 +6,8 @@ import { CURRENCY, GILDING } from '../config/terms.ts';
 import { previewDrop } from '../core/board.ts';
 import { offerPrice } from '../core/shop.ts';
 import type { Action, GameState } from '../core/types.ts';
+import { tr } from '../i18n/lang.ts';
+import { unitName } from '../i18n/names.ts';
 import type { Camera } from '../render/camera.ts';
 import { inRect, L, type Rect } from '../render/layout.ts';
 import type { DragUi } from '../render/renderer.ts';
@@ -74,13 +76,13 @@ export class CardDrag {
       if (cell < 0) return null;
       const o = g.shop[d.index];
       const price = o ? offerPrice(g, o) : 0;
-      if (!g.unlocked[cell]) return { toast: `这个石台还没解锁：点它花${CURRENCY}解锁` };
-      if (o && g.gongde < price) return { toast: `${CURRENCY}不够：这张卡要 ${price}` };
+      if (!g.unlocked[cell]) return { toast: tr(`这个石台还没解锁：点它花${CURRENCY}解锁`, 'This pad is locked: tap it to unlock it with coins') };
+      if (o && g.gongde < price) return { toast: tr(`${CURRENCY}不够：这张卡要 ${price}`, `Not enough coins: this card costs ${price}`) };
       return { action: { t: 'buy', offer: d.index, cell } };
     }
     if (trash) return { action: { t: 'drop', from: d.index, to: 'sell' } };
     if (cell < 0 || cell === d.index) return null;
-    if (!g.unlocked[cell]) return { toast: '这个石台还没解锁' };
+    if (!g.unlocked[cell]) return { toast: tr('这个石台还没解锁', 'This pad is locked') };
     return { action: { t: 'drop', from: d.index, to: cell } };
   }
 
@@ -122,9 +124,10 @@ export class CardDrag {
     }
     // Tell the player what letting go will do when the two cards combine.
     if (target && this.hoverValid) {
-      if (outcome === 'merge') this.hoverHint = `松开合成 ${target.level + 1} 级`;
-      else if (outcome === 'hero') this.hoverHint = `松开觉醒 ${heroFor(d.unit, target.id) ?? '英雄'}`;
-      else if (outcome === 'divine') this.hoverHint = `松开${GILDING}`;
+      const hero = heroFor(d.unit, target.id);
+      if (outcome === 'merge') this.hoverHint = tr(`松开合成 ${target.level + 1} 级`, `Release: Lv${target.level + 1}`);
+      else if (outcome === 'hero') this.hoverHint = tr(`松开觉醒 ${hero ?? '英雄'}`, `Release: awaken ${hero ? unitName(hero) : 'a hero'}`);
+      else if (outcome === 'divine') this.hoverHint = tr(`松开${GILDING}`, 'Release: make it Gold');
     }
   }
 }

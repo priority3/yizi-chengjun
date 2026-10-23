@@ -7,6 +7,7 @@
     "dev": "vite",
     "dev:host": "vite --host",
     "build": "tsc && vite build",
+    "build:en": "tsc && vite build --mode en",
     "preview": "vite preview",
     "test": "vitest run",
     "sim": "node scripts/sim.ts",

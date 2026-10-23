@@ -2,14 +2,18 @@
 // files (most phones), else a full-screen copy of the picture to long-press (phones) or right-click (desktop) and
 // save. That overlay is the game's only DOM UI besides the canvas. Web only: the web platform's shareImage
 // (platform/web.ts); a mini-game platform shares through its own share API instead.
-import { GAME_NAME } from '../config/brand.ts';
+import { tr } from '../i18n/lang.ts';
+import { gameName } from '../i18n/names.ts';
 import { SANS_STACK } from '../render/fonts.ts';
 import type { ShareOutcome } from './env.ts';
 
 /** Title of the shared picture and of the save-image overlay. */
-export const SHARE_TITLE = `${GAME_NAME}战报`;
+export function shareTitle(): string {
+  return tr(`${gameName()}战报`, `${gameName()} results`);
+}
+
 /** The overlay's instructions. */
-export const SAVE_HINT = '长按图片保存，或右键另存为';
+const saveHint = (): string => tr('长按图片保存，或右键另存为', 'Long-press the picture to save it, or right-click and save it');
 /** File name the share sheet shows for the picture. */
 export const SHARE_FILE = 'yizi-chengjun.png';
 
@@ -39,7 +43,7 @@ function browserDeps(): ShareDeps {
 /**
  * Shares the canvas as a PNG: navigator.share({ files, title, text }) where navigator.canShare accepts the file;
  * otherwise, or when sharing fails for any reason but the player closing the sheet (AbortError), shows the picture
- * full screen with SAVE_HINT. Resolves once the sheet has closed or the overlay is up.
+ * full screen with its save hint. Resolves once the sheet has closed or the overlay is up.
  */
 export async function shareImage(canvas: PngSource, text: string, deps: ShareDeps = browserDeps()): Promise<ShareOutcome> {
   // Reason: encode synchronously, in the task of the tap, and reach navigator.share before the first await. The
@@ -51,7 +55,7 @@ export async function shareImage(canvas: PngSource, text: string, deps: ShareDep
     const file = new File([blob], SHARE_FILE, { type: 'image/png' });
     if (canShareFiles(deps, file)) {
       try {
-        await deps.share({ files: [file], title: SHARE_TITLE, text });
+        await deps.share({ files: [file], title: shareTitle(), text });
         return 'shared';
       } catch (err) {
         // Reason: AbortError is the player closing the sheet on purpose; any other failure (no permission, a target
@@ -98,7 +102,7 @@ function isAbort(err: unknown): boolean {
 let closeOpen: (() => void) | null = null;
 
 /**
- * Shows `src` (an image URL) full screen over the game, with SAVE_HINT and a 关闭 button, replacing any overlay
+ * Shows `src` (an image URL) full screen over the game, with a save hint and a 关闭 button, replacing any overlay
  * already open. While it is open the game canvas ignores the pointer; 关闭 or Escape removes it.
  */
 export function showShareOverlay(src: string, alt: string): void {
@@ -108,7 +112,7 @@ export function showShareOverlay(src: string, alt: string): void {
   const root = doc.createElement('div');
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-modal', 'true');
-  root.setAttribute('aria-label', SHARE_TITLE);
+  root.setAttribute('aria-label', shareTitle());
   root.setAttribute('aria-describedby', hintId);
   Object.assign(root.style, {
     position: 'fixed',
@@ -148,13 +152,13 @@ export function showShareOverlay(src: string, alt: string): void {
 
   const hint = doc.createElement('p');
   hint.id = hintId;
-  hint.textContent = SAVE_HINT;
+  hint.textContent = saveHint();
   Object.assign(hint.style, { margin: '14px 0 10px', color: '#f3e6c8', font: `600 15px/1.4 ${SANS_STACK}`, textAlign: 'center' });
 
   const close = doc.createElement('button');
   close.type = 'button';
-  close.textContent = '关闭';
-  close.setAttribute('aria-label', '关闭战报图片');
+  close.textContent = tr('关闭', 'Close');
+  close.setAttribute('aria-label', tr('关闭战报图片', 'Close the results picture'));
   Object.assign(close.style, {
     minWidth: '128px',
     minHeight: '44px',

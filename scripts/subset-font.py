@@ -18,8 +18,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "src" / "assets" / "fonts" / "yzcj-brush.woff2"
 # The full source font, committed so a re-cut needs no download; only the subset above reaches the game.
 SOURCE = ROOT / "fonts" / "MaShanZheng-Regular.ttf"
-# Digits and punctuation brush text may use, besides the CJK characters found in the source files.
-EXTRA = "0123456789·：！？，。「」（）+-× "
+# Digits and punctuation brush text may use, besides the CJK characters found in the source files, and every
+# printable ASCII character: the English text (i18n/) is drawn in the brush font's own Latin letters.
+EXTRA = "0123456789·：！？，。「」（）+-× …" + "".join(chr(c) for c in range(0x20, 0x7F))
 # Characters brush text asks for that Ma Shan Zheng simply has no glyph for: the source font cannot provide them, so
 # the browser falls back to the system face for these marks alone. `--check` skips them instead of failing forever.
 NO_GLYPH_IN_SOURCE = "·"
@@ -40,7 +41,7 @@ def strip_comments(text: str) -> str:
 
 # Files whose Chinese is only ever drawn in the system sans font: their characters don't need brush glyphs.
 # Reason: the privacy policy and user agreement alone would add ~200 characters (~80 KB) to the brush subset.
-SANS_ONLY = {ROOT / "src" / "config" / "legal.ts"}
+SANS_ONLY = {ROOT / "src" / "config" / "legal.ts", ROOT / "src" / "config" / "legal-en.ts"}
 
 
 def collect() -> str:

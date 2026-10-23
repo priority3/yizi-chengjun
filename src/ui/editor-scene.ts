@@ -11,7 +11,7 @@ import { thumbRect } from '../render/chapter-card.ts';
 import { drawBestPads, drawEntranceTags, drawFaults, drawGridLines, drawPadMarks, drawRawGrid, PaintedMap } from '../render/editor-draw.ts';
 import { inRect, L, W, type Rect } from '../render/layout.ts';
 import { warmThumbs } from '../render/map-thumb.ts';
-import { NUMERALS } from '../render/panels.ts';
+import { NUMERALS } from '../i18n/names.ts';
 import { checkDraft, type DraftCheck } from './editor-check.ts';
 import { ACTIONS, actionRect, BACK_BTN, loadCard, mapView, PALETTE_SIZE, paletteRect, PAN_TOOL, sizeButtons, type ActionId } from './editor-layout.ts';
 import {
