@@ -3,6 +3,7 @@
 // daily challenge's day (YYYYMMDD) comes in from the UI as the run's seed.
 import { ENDLESS, ENDLESS_CHAPTER } from '../config/endless.ts';
 import { MAPS, type MapDef } from '../config/maps.ts';
+import { tr } from '../i18n/lang.ts';
 import { DT } from './clock.ts';
 import type { GameMode, GameState } from './types.ts';
 
@@ -48,7 +49,10 @@ export function enragedNow(g: Pick<GameState, 'mode' | 'phase' | 'waveTime'>): b
   return enraged(g) && g.waveTime < ENDLESS.enrageAfter + DT / 2;
 }
 
-/** "10月9日" for the day 20261009. */
+/** "10月9日" (English: "Oct 9") for the day 20261009. */
 export function dayLabel(day: number): string {
-  return `${Math.floor(day / 100) % 100}月${day % 100}日`;
+  const month = Math.floor(day / 100) % 100;
+  return tr(`${month}月${day % 100}日`, `${MONTHS_EN[month - 1]} ${day % 100}`);
 }
+
+const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

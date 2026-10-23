@@ -1,5 +1,6 @@
 // The 有新版本 banner on the title screen, shown while a newer build waits (platform/pwa.ts).
-import { roundRect, text } from './draw.ts';
+import { tr } from '../i18n/lang.ts';
+import { fitPx, roundRect, text } from './draw.ts';
 import { sans } from './fonts.ts';
 import { L, W, type Rect } from './layout.ts';
 
@@ -62,6 +63,8 @@ export function drawUpdateBanner(ctx: CanvasRenderingContext2D, t: number, busy:
   ctx.stroke();
   const cy = r.y + r.h / 2;
   reloadGlyph(ctx, r.x + 22, cy, 6, '#c5f3e6');
-  text(ctx, busy ? '正在刷新…' : '有新版本，点此刷新', r.x + r.w / 2 + 9, cy + 0.5, sans(12, 700), '#f2fffb');
+  const label = busy ? tr('正在刷新…', 'Updating…') : tr('有新版本，点此刷新', 'New version: tap to update');
+  // Reason: the label sits right of the reload glyph; an English one shrinks to the room left of the banner's end.
+  text(ctx, label, r.x + r.w / 2 + 9, cy + 0.5, sans(fitPx(ctx, label, r.w - 44, 12, (n) => sans(n, 700), 9), 700), '#f2fffb');
   ctx.restore();
 }

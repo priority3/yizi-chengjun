@@ -22,6 +22,21 @@
         "--strictPort"
       ],
       "port": 4173
+    },
+    {
+      "name": "yizi-chengjun-en-preview",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "exec",
+        "vite",
+        "preview",
+        "--mode",
+        "en",
+        "--port",
+        "4174",
+        "--strictPort"
+      ],
+      "port": 4174
     }
   ]
 }

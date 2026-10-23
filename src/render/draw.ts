@@ -1,5 +1,6 @@
 // Low-level drawing helpers shared by every art module: colours, text, shapes, icons.
 import { brush, sans } from './fonts.ts';
+import { wrapText } from './text-wrap.ts';
 
 export const COLORS = {
   ink: '#2a1a10',
@@ -79,6 +80,30 @@ export function outlined(
 
 /** Strings already reported as too wide for their box, so the dev warning fires once each instead of every frame. */
 const overflowReported = new Set<string>();
+
+/**
+ * Largest pixel size (<= maxPx, >= minPx) at which `s` wraps into at most `maxLines` lines of `maxWidth`, with those
+ * lines; at minPx it gives every line it takes, even past `maxLines`. For English text, which runs about twice as long
+ * as the Chinese it replaces in the same box.
+ */
+export function fitLines(
+  ctx: CanvasRenderingContext2D,
+  s: string,
+  maxWidth: number,
+  maxPx: number,
+  build: (px: number) => string = sans,
+  maxLines = 2,
+  minPx = 9,
+): { px: number; lines: string[] } {
+  const measure = (t: string): number => ctx.measureText(t).width;
+  for (let px = maxPx; px > minPx; px--) {
+    ctx.font = build(px);
+    const lines = wrapText(s, maxWidth, measure);
+    if (lines.length <= maxLines) return { px, lines };
+  }
+  ctx.font = build(minPx);
+  return { px: minPx, lines: wrapText(s, maxWidth, measure) };
+}
 
 /** Largest pixel size (<= maxPx) at which `s` fits in `maxWidth` using the given font builder. */
 export function fitPx(

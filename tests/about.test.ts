@@ -79,7 +79,7 @@ describe('about page layout', () => {
     for (const p of [...paragraphs(PRIVACY_POLICY), ...paragraphs(USER_AGREEMENT), ...AGE_NOTICE, ...HEALTH_ADVICE]) expect(all).toContain(squeeze(p));
     expect(textOf(page)).toEqual(expect.arrayContaining([...HEALTH_ADVICE, `联系邮箱：${CONTACT_EMAIL}`]));
     expect(all).toContain(squeeze(`版本：${VERSION}`));
-    expect(all).toContain('生效日期：2026年10月9日');
+    expect(all).toContain('生效日期：2026年10月23日');
   });
 
   it('keeps plan.md\'s wording rules', () => {

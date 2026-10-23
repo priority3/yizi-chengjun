@@ -1,7 +1,7 @@
 // Art for the shared result card (share-card.ts) and the 分享 seal on the result panel: aged paper with fibres and
 // distant ink-wash hills, a red-and-gold frame, carved red seals and a tapered ink rule. Every texture is placed by
 // hash01, so the same card always paints the same pixels.
-import { hash01, roundRect, text } from './draw.ts';
+import { fitPx, hash01, roundRect, text } from './draw.ts';
 import { brush } from './fonts.ts';
 
 /** Seal red, the same as the 金 seal on gilded cards. */
@@ -120,12 +120,15 @@ export function drawSeal(ctx: CanvasRenderingContext2D, x: number, y: number, w:
   ctx.lineWidth = Math.max(1, m * 0.035);
   ctx.strokeStyle = 'rgba(255,240,228,0.9)';
   ctx.stroke();
-  // The characters share the box inside the border line: one row per string, each glyph in a square cell.
+  // The characters share the box inside the border line: one row per string, each glyph in a square cell. A Latin
+  // word (English) is measured instead, since its letters are narrower than a cell.
   const boxW = w - 4 * inset;
   const boxH = h - 4 * inset;
   const cols = Math.max(1, ...rows.map((r) => r.length));
   const rowH = boxH / rows.length;
-  const px = Math.round(Math.min(boxW / cols, rowH) * 0.92);
+  const latin = rows.some((r) => /[A-Za-z]/.test(r));
+  const cap = Math.round(rowH * 0.8);
+  const px = latin ? Math.min(...rows.map((r) => fitPx(ctx, r, boxW, cap, brush, 6))) : Math.round(Math.min(boxW / cols, rowH) * 0.92);
   rows.forEach((row, i) => text(ctx, row, 0, (i - (rows.length - 1) / 2) * rowH + px * 0.03, brush(px), SEAL_TEXT));
   if (m >= 60) nicks(ctx, w, h, m);
   ctx.restore();

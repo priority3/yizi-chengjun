@@ -45,11 +45,15 @@ export function drawButton(ctx: CanvasRenderingContext2D, r: Rect, label: string
   ctx.stroke();
   const cx = r.x + r.w / 2;
   const cy = r.y + r.h / 2 + dy;
+  // Reason: English labels run about twice as wide as Chinese ones; they shrink to the button, Chinese ones fit as is.
+  const room = r.w - 10;
   if (sub) {
-    text(ctx, label, cx, cy - 7, brush(Math.min(22, Math.round(r.h * 0.46))), s.text);
-    text(ctx, sub, cx, cy + 11, sans(10, 500), s.sub);
+    const px = Math.min(22, Math.round(r.h * 0.46));
+    text(ctx, label, cx, cy - 7, brush(fitPx(ctx, label, room, px, brush, Math.min(px, 11))), s.text);
+    text(ctx, sub, cx, cy + 11, sans(fitPx(ctx, sub, room, 10, (n) => sans(n, 500), 8), 500), s.sub);
   } else {
-    text(ctx, label, cx, cy + 1, brush(Math.min(22, Math.round(r.h * 0.52))), s.text);
+    const px = Math.min(22, Math.round(r.h * 0.52));
+    text(ctx, label, cx, cy + 1, brush(fitPx(ctx, label, room, px, brush, Math.min(px, 11))), s.text);
   }
   ctx.restore();
 }

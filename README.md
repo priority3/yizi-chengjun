@@ -2,7 +2,7 @@
 
 以字为兵的汉字合成塔防 H5 小游戏，玩法像《王国保卫战》：每章一张手绘地图，妖怪沿着路从城门走向师父的营地，路边有一个个石台，把书法字卡拖到石台上，它就变成一面写着这个字的军旗和一队小兵，这就是一座塔。同字合成升级，凑齐名字觉醒英雄；英雄攒满怒气放大招，波间奇遇三选一，通关拿灵石炼法宝。地图比屏幕大，可以拖动和缩放。纯 Canvas 2D 绘制，运行时零依赖，美术全部由代码画出，音效和音乐全部由 WebAudio 现场合成。
 
-线上地址：https://zidou-xiyou.vercel.app （推 `main` 自动部署；国内网络可能打不开）。首页右下角的浅色小字是版本号、构建提交和当前域名，反馈问题时截图带上。
+线上地址：https://zidou-xiyou.vercel.app （推 `main` 自动部署；国内网络可能打不开）。首页右下角的浅色小字是版本号、构建提交和当前域名，反馈问题时截图带上。浏览器语言不是中文时显示英文版 **Glyph Legion**（见下面的「英文版」）。
 
 <p align="center">
   <img src="docs/screenshots/title.jpg" width="19%" alt="首页">
@@ -25,6 +25,7 @@ pnpm sim 40 --leaks              # 每章每波平均漏怪，标出第一个崩
 pnpm sim --chapter 3 --trace --seed 123   # 重放一局，逐波看出怪、漏怪、阵地血、铜钱和机器人买了什么
 pnpm sim --endless 40            # 机器人打无尽模式，平均和最好倒在第几波（加 --trace --seed S 逐波看）
 pnpm build        # 类型检查 + 打包到 dist/，可部署到任意静态服务器
+pnpm build:en     # 打海外游戏门户用的英文包到 dist-en/（固定英文，见「英文版」）
 pnpm preview      # 本地跑打包后的版本，验证安装、离线和新版本提示（离线缓存只在打包后的版本里启用）
 pnpm font         # 新增中文文字后，用 fonts/ 里的原字体重新裁剪书法字体子集
 ```
@@ -74,6 +75,19 @@ pnpm font         # 新增中文文字后，用 fonts/ 里的原字体重新裁�
 - **法宝**：通关得灵石（首通更多），每章首通固定送一件法宝；选章页的「法宝」里可以花 30 灵石随机炼器，三件同名同阶合成高一阶（最高三阶），出战最多带三件。效果包括阵地血量、开局铜钱、每波回血、全体/单字伤害、射程、溅射范围、眩晕时长、收服线、怒气积攒、妖怪移速。
 - **章节**：10 章 10 张地图，每章 5～8 波，中段有精英魔将，最后是章节 Boss。Boss 各有特性：复活、冲刺、召唤、免疫减速、护甲、回血、分裂。后面的章节有两三个入口，第 6 章起有空袭。
 
+## 英文版（Glyph Legion）
+
+英文名 Glyph Legion，副标题 Journey to the West Tower Defense，英雄和名字碎片用拼音（Wukong = Wu + Kong）。
+
+- 网页版按浏览器语言选：浏览器首选语言是中文就显示中文，否则显示英文；首页左上角和暂停面板有切换按钮（显示要切到的语言：English / 中文），选择存在本机的 `yzcj:lang`，以后打开都按它。
+- 英文模式不显示启动时的健康游戏忠告和 12+ 适龄提示（这是国内的要求），关于页换成英文的隐私政策和用户协议（`src/config/legal-en.ts`），只有 Privacy、Terms、Contact 三节。
+- `pnpm build:en` 打给海外游戏门户（itch.io、CrazyGames 一类）的包，输出到 `dist-en/`：固定英文、没有切换按钮，不带离线缓存、新版本提示和地图编辑器，版本号旁不写域名，战报不附网址，页面的 `lang` 和标题也是英文。本地看效果：`pnpm build:en` 后 `pnpm exec vite preview --mode en`。
+- 小游戏版固定中文（抖音备案不允许游戏里出现英文）：小游戏入口不打开语言切换就行。
+- 加文字的写法：界面文字直接写 `tr('中文', 'English')`（`src/i18n/lang.ts`）；字卡、妖怪、章节、法宝、大招、奇遇、石台这些数据的英文在 `src/i18n/en-tables.ts`，按 id 对应，显示时通过 `src/i18n/names.ts` 取当前语言。id 本身（棍、悟空、金刚琢、白骨精……）存档和哈希都在用，永远不翻译。
+- 字卡和字旗上的汉字、法宝圆牌上的两个字、营和妖的旗、Boss 波的王、金字印、战报印章都是美术，英文版照样画汉字；`tests/english.test.ts` 把每个画面按英文画一遍，检查除这些以外没有中文。
+- 英文比中文长一倍左右：按钮、横幅、标题会缩小字号放下，奇遇说明和提示可以折成两三行，石台说明太长时也折行。新加英文后在浏览器里用手机尺寸看一遍。
+- 书法字体自带拉丁字母（子集里包含全部可打印 ASCII），但大写 F 是花体、看着像 J，所以用书法字显示的英文尽量不以 F 开头：「出战」叫 Battle，「炼器」叫 Craft，平顶山、火云洞、火焰山译成 Tabletop Mountain、Burning Cloud Cave、Blazing Mountain。
+
 ## 自定义路线
 
 最方便的是网页版地图编辑器：网址后面加 `#editor`（本地是 `http://localhost:5173/#editor`，线上同样可用，首页没有入口）。底部选画笔，包括路、各种石台、入口 1～4、营地、水、岩石、树、擦除和平移，在地图上点或拖着画；入口和营地再放一次就是移动，双指或滚轮缩放。停手约 0.1 秒后按游戏画法重画，画不通时顶栏变红写出原因；顶栏显示每条路的路程、hpScale 和石台数，金圈标出覆盖路最多的 5 个石台。「撤销」最多 20 步，「尺寸」8～20 格，「载入」选十章地图之一，「导出」复制成能直接替换 `maps.ts` 里 `rows:` 的文字，「导入」粘贴回来，「试玩」用第一章的妖怪和经济开一局（不带法宝、不存档、不计奖励）。草稿自动存在浏览器里。
@@ -103,7 +117,8 @@ C/c  聚宝台（击败多得铜钱）  B/b 烽火台（周围妖怪挨打 +15%�
 | `src/core/` | 纯逻辑，固定步长 1/60 秒，带种子随机数，同种子可完全重放；`map.ts` 把 ASCII 图变成路线、航线和石台，`monsters.ts` 的 `routeOf` 取妖怪实际走的路线，`slots.ts` 是特殊石台的放置规则和加成（聚宝台的赏金、烽火台的增伤、双生台的攻速、灵泉的层数也在这里；每一下伤害记着出手的石台，供聚宝台认账），`rating.ts` 是星级和三星奖励，`modes.ts` 是无尽和每日的规则（无限波、每日地图、狂暴），`records.ts` 是它们的记录和灵石，`status.ts` 是毒和网的状态，`buffs.ts` 是速和鼓的加成，`mirror.ts` 是镜的反弹，`ultimates.ts` 大招、`encounters.ts` 奇遇、`treasures.ts` 法宝库、`snapshot.ts` 局中存档的序列化与逐字段校验；`bot.ts` 是给模拟用的机器人（新字卡的估值在 `bot-cards.ts`），`sim.ts`、`sim-trace.ts` 跑胜率表和逐波追踪 |
 | `src/render/` | 画面：自适应布局、镜头（`camera.ts`）、地图与景物绘制（`map-art.ts`、`scenery.ts`，各种景物的画法在 `scenery-props.ts`，国潮青绿的墨色、石青石绿朱砂配色、淡彩晕染和宣纸纹理在 `ink.ts`）、商店和拖动中带材质边框和按等级变化插画的字卡（`cards.ts`、`unit-art.ts`，毒网鼓镜在 `unit-art-extra.ts`、它们的特效在 `fx-cards.ts`）、地图上的字旗和小兵（`troops.ts` 排兵布阵和画旗，兵的身体、帽子和兵器在 `troop-parts.ts`，英雄在 `troop-heroes.ts`，朝向、轮流出手和弹道起点在 `troop-anim.ts`）、英雄头像、脸谱小鬼妖怪（`monsters-art.ts` 拼装每种妖怪并缓存，身体和头饰在 `monster-figure.ts`，兵器在 `monster-gear.ts`，脸谱在 `monster-masks.ts`，朝向、步态和 Boss 倒地在 `monster-pose.ts`）、石台（`pad-art.ts`，斜看的石墩，台面是椭圆；聚宝台、烽火台、双生台、灵泉的样子在 `pad-art-extra.ts`，点着的烽火和范围圈、亮起的红绳和灵泉的珠子在 `pad-marks.ts`；符文环、锁台封条、地面圈、瞄准角标和拖卡提示在 `slot-marks.ts`）、选章卡片和地图缩略图（`chapter-card.ts`、`map-thumb.ts`、星星在 `rating-art.ts`）、无尽和每日的入口卡片（`mode-card.ts`）、适龄标识（`age-badge.ts`）、中文换行（`text-wrap.ts`）、战报卡片（`share-card.ts`，宣纸、边框和印章在 `share-art.ts`）、应用图标（`app-icon.ts`）和新版本横幅（`update-banner.ts`）、特效与大招动画（买卡、合成、觉醒、卖出和产钱回血这些棋盘事件的特效在 `vfx-board.ts`，命中星、白烟和火团爆炸这些卡通特效在 `fx-toon.ts`）、把事件变成音效的 `sfx.ts`、HUD、商店、奇遇面板（宣纸卷轴，手卷、立轴、按钮和垃圾桶在 `widgets.ts`）、法宝图标、引导用的手（`hand.ts`） |
 | `src/ui/` | 输入（点、拖、双指捏合、滚轮）、各场景（标题、选章、对局与结算、法宝页）、拖卡与镜头手势（`map-controls.ts`）、字卡说明（`describe.ts`）、新手引导动画（`tutorial.ts`）、选章页排版（`chapter-layout.ts`）、无尽结算面板（`endless-result.ts`）、开局横幅（`run-banners.ts`）、启动合规屏（`splash-scene.ts`、计时在 `splash-clock.ts`）、关于页（`about-scene.ts`、`about-layout.ts`、滚动在 `scroller.ts`）、首页排版（`title-layout.ts`）、生成战报数据并分享（`share-result.ts`）、结算记账（`run-end.ts`）；地图编辑器在 `editor-scene.ts`，编辑模型、检查、导入导出和界面分别在 `editor-model.ts`、`editor-check.ts`、`editor-text.ts`、`editor-panels.ts`、`editor-layout.ts`，画法在 `render/editor-draw.ts` |
-| `src/platform/` | `env.ts` 是平台接口（屏幕与离屏画布、时钟与帧、指针输入、书法字体、存储、音频、前后台、分享），游戏只通过 `platform()` 用设备能力；`web.ts` 是它的网页实现（画布适配、移动端手势屏蔽），指针事件在 `web-input.ts`；`progress.ts` 长期存档（章节进度、星级、法宝库、声音设置、无尽和每日记录，兼容旧存档）；`save.ts` 局中存档；`audio.ts` 音频引擎（解锁、总线、限幅）；`music.ts` 五声音阶背景音乐；`pwa.ts` 注册离线缓存并提示新版本；`share.ts` 系统分享和保存图片层（游戏里唯一的 DOM 界面）；`today.ts` 每日挑战用的本地日期；`editor-io.ts` 编辑器的网址、剪贴板和输入框 |
+| `src/i18n/` | 中英文切换：`lang.ts` 是当前语言、`tr()` 和切换开关，`en-tables.ts` 是数据表的英文，`names.ts` 按当前语言取名字和说明 |
+| `src/platform/` | `env.ts` 是平台接口（屏幕与离屏画布、时钟与帧、指针输入、书法字体、存储、音频、前后台、分享），游戏只通过 `platform()` 用设备能力；`web.ts` 是它的网页实现（画布适配、移动端手势屏蔽），指针事件在 `web-input.ts`；`progress.ts` 长期存档（章节进度、星级、法宝库、声音设置、无尽和每日记录，兼容旧存档）；`lang-choice.ts` 记住玩家选的语言；`save.ts` 局中存档；`audio.ts` 音频引擎（解锁、总线、限幅）；`music.ts` 五声音阶背景音乐；`pwa.ts` 注册离线缓存并提示新版本；`share.ts` 系统分享和保存图片层（游戏里唯一的 DOM 界面）；`today.ts` 每日挑战用的本地日期；`editor-io.ts` 编辑器的网址、剪贴板和输入框 |
 | `fonts/` | 书法字体原文件 `MaShanZheng-Regular.ttf` 和 OFL 协议，只给 `pnpm font` 裁剪子集用，不打包 |
 | `docs/screenshots/` | README 里的游戏截图：开发服务器里摆好局面，从画布按 3 倍分辨率导出，再缩到 540 宽存成 JPEG |
 | `build/` | 打包插件：`sw-plugin.ts` 在打包时把手写的 `sw-template.js` 填上预缓存清单和缓存名，写成 `dist/sw.js`；`precache.ts` 是可测的纯函数。应用图标不进预缓存 |
@@ -118,6 +133,6 @@ C/c  聚宝台（击败多得铜钱）  B/b 烽火台（周围妖怪挨打 +15%�
 
 ## 字体
 
-书法字用的是马善政楷书（Ma Shan Zheng），SIL Open Font License 1.1，协议见 `public/fonts/OFL.txt`。游戏只加载按用字裁剪出来的子集 `src/assets/fonts/yzcj-brush.woff2`（只用普通字体显示的协议文本不参与裁剪），打包时按内容加哈希命名，这样新版本的字不会被旧的离线缓存挡住。原字体 `fonts/MaShanZheng-Regular.ttf`（约 5.6 MB，旁边放着同一份 OFL.txt）也放在仓库里，只给 `pnpm font` 裁剪用，不打包、不上线。
+书法字用的是马善政楷书（Ma Shan Zheng），SIL Open Font License 1.1，协议见 `public/fonts/OFL.txt`。游戏只加载按用字裁剪出来的子集 `src/assets/fonts/yzcj-brush.woff2`（另加全部可打印 ASCII，给英文版用；只用普通字体显示的协议文本不参与裁剪），打包时按内容加哈希命名，这样新版本的字不会被旧的离线缓存挡住。原字体 `fonts/MaShanZheng-Regular.ttf`（约 5.6 MB，旁边放着同一份 OFL.txt）也放在仓库里，只给 `pnpm font` 裁剪用，不打包、不上线。
 
 应用图标在 `public/icons/`，是 `src/render/app-icon.ts` 用代码画的：开发环境里在控制台执行 `__yzcjIcon(尺寸, 是否满版)` 得到 PNG，改了图标画法后重新导出这四张。

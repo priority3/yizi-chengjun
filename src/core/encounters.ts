@@ -4,6 +4,8 @@ import { CHAPTERS } from '../config/chapters.ts';
 import { ENEMIES } from '../config/enemies.ts';
 import { CURRENCY, ENC_FORTUNE, ENC_GOLD_DROP, ENC_PEDDLER, ENC_RENEWAL, GOLD_GLYPH, TRIAL } from '../config/terms.ts';
 import { UNITS } from '../config/units.ts';
+import { ENCOUNTER_EN, ENCOUNTER_KIND_EN, ENEMY_EN } from '../i18n/en-tables.ts';
+import { isEn, tr } from '../i18n/lang.ts';
 import { canPlace, makeTile } from './board.ts';
 import { UNLIMITED } from './modes.ts';
 import { rand } from './rng.ts';
@@ -38,9 +40,19 @@ export const ENCOUNTER_IDS = Object.keys(ENCOUNTERS) as EncounterId[];
 export const OFFER_SIZE = 3;
 export const KIND_LABEL: Record<EncounterKind, string> = { boon: '福缘', trade: '机缘', challenge: TRIAL };
 
-/** The name a 奇遇 card, its banner and the sim trace show: the def's name, else the id. */
+/** The name a 奇遇 card, its banner and the sim trace show: the def's name, else the id (in English, its English name). */
 export function encounterName(id: EncounterId): string {
-  return ENCOUNTERS[id].name ?? id;
+  return isEn() ? ENCOUNTER_EN[id].name : (ENCOUNTERS[id].name ?? id);
+}
+
+/** What a 奇遇 card does, on the card and its banner. */
+export function encounterDesc(id: EncounterId): string {
+  return isEn() ? ENCOUNTER_EN[id].desc : ENCOUNTERS[id].desc;
+}
+
+/** The chip on a 奇遇 card: 福缘, 机缘 or 考验 (Blessing, Chance, Trial). */
+export function kindLabel(kind: EncounterKind): string {
+  return isEn() ? ENCOUNTER_KIND_EN[kind] : KIND_LABEL[kind];
 }
 
 export function defaultWaveMods(): WaveMods {
@@ -50,13 +62,13 @@ export function defaultWaveMods(): WaveMods {
 /** Short HUD text for queued or active wave modifiers; '' when the wave is plain. */
 export function modsLabel(m: WaveMods): string {
   const parts: string[] = [];
-  if (m.wolves) parts.push('全是狼 ×1.5');
-  if (m.speedMul !== 1) parts.push(`移速 ×${m.speedMul}`);
-  if (m.hpMul !== 1) parts.push(`血量 ×${m.hpMul}`);
-  if (m.thief) parts.push('盗宝妖混入');
-  if (m.miniBoss) parts.push(`妖王${ENEMIES[m.miniBoss].name}压阵`);
-  if (m.bountyMul !== 1) parts.push(`赏金 ×${m.bountyMul}`);
-  if (m.bonusMul !== 1) parts.push(`波次奖励 ×${m.bonusMul}`);
+  if (m.wolves) parts.push(tr('全是狼 ×1.5', 'All wolves ×1.5'));
+  if (m.speedMul !== 1) parts.push(tr(`移速 ×${m.speedMul}`, `Speed ×${m.speedMul}`));
+  if (m.hpMul !== 1) parts.push(tr(`血量 ×${m.hpMul}`, `HP ×${m.hpMul}`));
+  if (m.thief) parts.push(tr('盗宝妖混入', 'A thief sneaks in'));
+  if (m.miniBoss) parts.push(tr(`妖王${ENEMIES[m.miniBoss].name}压阵`, `${ENEMY_EN[m.miniBoss]} brings up the rear`));
+  if (m.bountyMul !== 1) parts.push(tr(`赏金 ×${m.bountyMul}`, `Bounty ×${m.bountyMul}`));
+  if (m.bonusMul !== 1) parts.push(tr(`波次奖励 ×${m.bonusMul}`, `Wave bonus ×${m.bonusMul}`));
   return parts.join(' · ');
 }
 

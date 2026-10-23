@@ -30,13 +30,13 @@ describe('legal texts', () => {
   });
 
   it('name the game, the effective date, the contact email and the 12+ rating', () => {
-    expect([CONTACT_EMAIL, EFFECTIVE_DATE, AGE_RATING, AGE_LABEL]).toEqual(['1832052104@qq.com', '2026年10月9日', 12, '12+']);
+    expect([CONTACT_EMAIL, EFFECTIVE_DATE, AGE_RATING, AGE_LABEL]).toEqual(['1832052104@qq.com', '2026年10月23日', 12, '12+']);
     for (const [d, name] of [
       [PRIVACY_POLICY, '隐私政策'],
       [USER_AGREEMENT, '用户协议'],
     ] as const) {
       expect(d.title).toBe(`《${GAME_NAME}》${name}`);
-      expect(d.effective).toBe('2026年10月9日');
+      expect(d.effective).toBe('2026年10月23日');
       const t = docText(d);
       expect(t).toContain('1832052104@qq.com');
       expect(t).toContain('12+');
@@ -64,6 +64,7 @@ describe('legal texts', () => {
       '托管服务器可能按惯例记录访问日志',
       '游戏包由平台下发',
       '只保存在这台设备的本地存储里',
+      '声音和语言设置',
       '没打完的那一局的存档',
       '地图编辑器的草稿',
       '清除浏览器的网站数据、清理小游戏的缓存，或者删除小游戏，都会删除这些数据',

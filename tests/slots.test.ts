@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { MAPS, SLOT_BONUS, type MapDef, type SlotKind } from '../src/config/maps.ts';
 import { UNITS } from '../src/config/units.ts';
-import { canPlace, MIRE_MSG, previewDrop, resolveDrop } from '../src/core/board.ts';
+import { canPlace, mireMsg, previewDrop, resolveDrop } from '../src/core/board.ts';
 import { botBuildAction, DEFAULT_BOT } from '../src/core/bot.ts';
 import { findTarget, stepCombat } from '../src/core/combat.ts';
 import { applyEncounter, openChest } from '../src/core/encounters.ts';
@@ -158,7 +158,7 @@ describe('泥沼 placement', () => {
   };
   const refused = (g: GameState, r: ActionResult) => {
     expect(r).toBe('invalid');
-    expect(g.events.at(-1)).toMatchObject({ t: 'invalid', msg: MIRE_MSG });
+    expect(g.events.at(-1)).toMatchObject({ t: 'invalid', msg: mireMsg() });
   };
 
   it('refuses buying a fighter onto an empty 泥沼, without charging; supports, fragments and the 金 card may go there', () => {

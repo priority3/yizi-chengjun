@@ -1,18 +1,25 @@
 // One-line descriptions of cards for toasts (tapping a shop card or a tile on the map), the label of a special
-// pad while a card is dragged over it, and how each 瞄准 reads.
-import { BEACON, COFFER_BOUNTY, SLOT_BONUS, SLOT_NAME, SPRING, TWIN_HASTE, type SlotKind } from '../config/maps.ts';
-import { CURRENCY, DEFEAT, gilded, GOLD_GLYPH } from '../config/terms.ts';
-import { ULTIMATES } from '../config/ultimates.ts';
-import { DRUM_DMG_CAP, glyphOf, UNITS } from '../config/units.ts';
+// pad while a card is dragged over it, and how each 瞄准 reads, in Chinese or English (i18n/lang.ts).
+import { BEACON, COFFER_BOUNTY, SLOT_BONUS, SPRING, TWIN_HASTE, type SlotKind } from '../config/maps.ts';
+import { CURRENCY, DEFEAT, GOLD_GLYPH } from '../config/terms.ts';
+import { DRUM_DMG_CAP, UNITS } from '../config/units.ts';
 import { drumMul } from '../core/buffs.ts';
 import { mirrorRate } from '../core/mirror.ts';
 import { isFighter, padDamage, padRange, twinHaste } from '../core/slots.ts';
 import { fxScale } from '../core/stats.ts';
 import { poisonDps } from '../core/status.ts';
 import type { GameState, HeroId, RunMods, TargetMode, Tile, UnitId } from '../core/types.ts';
+import { isEn, tr } from '../i18n/lang.ts';
+import { gildedName, padName, ultimateDesc, ultimateName, unitDesc, unitName } from '../i18n/names.ts';
 
 /** How each target priority reads in toasts. */
 export const AIM_LABEL: Readonly<Record<TargetMode, string>> = { first: '打最前', strong: '打最强', weak: '打最弱' };
+const AIM_LABEL_EN: Readonly<Record<TargetMode, string>> = { first: 'First', strong: 'Strongest', weak: 'Weakest' };
+
+/** A target priority in the current language. */
+export function aimLabel(mode: TargetMode): string {
+  return isEn() ? AIM_LABEL_EN[mode] : AIM_LABEL[mode];
+}
 
 /** Where a described card is, for the numbers only the run knows: the 鼓 beside a tile, a 镜's reflection this wave. */
 export interface BoardSpot {
@@ -27,47 +34,59 @@ const altarPct = (): number => Math.round((SLOT_BONUS.altar.dmgMul - 1) * 100);
 const pct = (k: number): number => Math.round(k * 100);
 /** A number with at most one decimal, e.g. 4.4 or 2. */
 const short = (v: number): string => String(Math.round(v * 10) / 10);
+/** What starts each note inside a description's brackets: "，" in Chinese, ", " in English. */
+const sep = (): string => tr('，', ', ');
 
 /**
- * What the pad under a fighter adds, appended inside its stats, e.g. "，法阵 +20%" or "，灵泉 2 层 +16%"; '' on plain
- * stone. `twin` is the 双生台 haste it gets right now (0 when its pair holds something else).
+ * What the pad under a fighter adds, appended inside its stats, e.g. "，法阵 +20%" or "，灵泉 2 层 +16%" (", Rune
+ * Circle +20%"); '' on plain stone. `twin` is the 双生台 haste it gets right now (0 when its pair holds something else).
  */
 function padNote(kind: SlotKind, t: Pick<Tile, 'id' | 'spring'>, twin: number): string {
+  const name = padName(kind);
   switch (kind) {
     case 'altar':
-      return `，法阵 +${altarPct()}%`;
+      return `${sep()}${name} +${altarPct()}%`;
     case 'high':
       // Reason: 白龙 reaches the whole field already; a 高台 can't add to that.
       if (!Number.isFinite(UNITS[t.id].range)) return '';
-      return UNITS[t.id].kind === 'hero' ? `，高台射程 +${SLOT_BONUS.high.range}` : `，高台 +${SLOT_BONUS.high.range}`;
+      if (UNITS[t.id].kind !== 'hero') return `${sep()}${name} +${SLOT_BONUS.high.range}`;
+      return tr(`，高台射程 +${SLOT_BONUS.high.range}`, `, ${name} range +${SLOT_BONUS.high.range}`);
     case 'spring':
-      return t.spring ? `，灵泉 ${t.spring} 层 +${pct(SPRING.dmg * t.spring)}%` : '，灵泉';
+      if (!t.spring) return `${sep()}${name}`;
+      return tr(`，灵泉 ${t.spring} 层 +${pct(SPRING.dmg * t.spring)}%`, `, ${name} ×${t.spring} +${pct(SPRING.dmg * t.spring)}%`);
     case 'twin':
-      return twin > 0 ? `，双生攻速 +${pct(twin)}%` : '，双生台';
+      return twin > 0 ? tr(`，双生攻速 +${pct(twin)}%`, `, twin speed +${pct(twin)}%`) : `${sep()}${name}`;
     case 'coffer':
     case 'beacon':
-      return `，${SLOT_NAME[kind]}`;
+      return `${sep()}${name}`;
     default:
       return '';
   }
 }
 
-/** What the 鼓 around a fighter add to its damage, e.g. "，鼓 +15%"; '' without any. */
-const drumNote = (mul: number): string => (mul > 1 ? `，鼓 +${Math.round((mul - 1) * 100)}%` : '');
+/** What the 鼓 around a fighter add to its damage, e.g. "，鼓 +15%" (", Drum +15%"); '' without any. */
+const drumNote = (mul: number): string => (mul > 1 ? `${sep()}${unitName('鼓')} +${Math.round((mul - 1) * 100)}%` : '');
 
 /** What a 毒 or 网 does besides its hit (`dmg` is the hit where it stands): poison per stack, the hold. */
 function fxNote(t: Tile, dmg: number): string {
   const fx = UNITS[t.id].fx;
-  if (fx.t === 'poison') return `，每层每秒 ${short(poisonDps(t.id, dmg))}`;
-  if (fx.t === 'root') return `，定身 ${short(fx.dur * fxScale(t))} 秒`;
+  if (fx.t === 'poison') return tr(`，每层每秒 ${short(poisonDps(t.id, dmg))}`, `, ${short(poisonDps(t.id, dmg))}/s per stack`);
+  if (fx.t === 'root') return tr(`，定身 ${short(fx.dur * fxScale(t))} 秒`, `, holds ${short(fx.dur * fxScale(t))} s`);
   return '';
 }
 
 /** A support's numbers that its blurb can't give: a 鼓's bonus at its level, a 镜's reflection in this wave. */
 function supportNote(t: Tile, spot?: BoardSpot): string | null {
   const fx = UNITS[t.id].fx;
-  if (fx.t === 'drum' && t.level > 1) return `现在伤害 +${Math.round(Math.min(DRUM_DMG_CAP, fx.dmg * t.level) * 100)}%、攻速 +${Math.round(fx.speed * t.level * 100)}%`;
-  if (fx.t === 'mirror' && spot) return `每 1 血反弹 ${short(mirrorRate(spot.g, t))}，最多存 ${fx.cap}`;
+  if (fx.t === 'drum' && t.level > 1) {
+    const dmg = Math.round(Math.min(DRUM_DMG_CAP, fx.dmg * t.level) * 100);
+    const speed = Math.round(fx.speed * t.level * 100);
+    return tr(`现在伤害 +${dmg}%、攻速 +${speed}%`, `now +${dmg}% damage, +${speed}% speed`);
+  }
+  if (fx.t === 'mirror' && spot) {
+    const rate = short(mirrorRate(spot.g, t));
+    return tr(`每 1 血反弹 ${rate}，最多存 ${fx.cap}`, `throws back ${rate} per 1 HP lost, stores up to ${fx.cap}`);
+  }
   return null;
 }
 
@@ -78,24 +97,32 @@ function supportNote(t: Tile, spot?: BoardSpot): string | null {
  */
 export function describe(t: Pick<Tile, 'id' | 'level' | 'divine' | 'spring'>, mods: RunMods, pad: SlotKind = 'plain', spot?: BoardSpot): string {
   const def = UNITS[t.id];
-  const glyph = glyphOf(t.id);
-  const name = `${t.divine ? gilded(glyph) : glyph}${t.level > 1 ? ` ${t.level}级` : ''}`;
+  const plain = unitName(t.id);
+  const name = `${t.divine ? gildedName(plain) : plain}${t.level > 1 ? tr(` ${t.level}级`, ` Lv${t.level}`) : ''}`;
   const tile: Tile = { uid: 0, cd: 0, invested: 0, rage: 0, ...t };
   const onBoard = spot !== undefined && spot.cell >= 0;
   const drum = onBoard && isFighter(t.id) ? drumMul(spot.g, spot.cell) : 1;
   const twin = onBoard ? twinHaste(spot.g, spot.cell) : 0;
   const dmg = padDamage(tile, pad, mods) * drum;
   if (def.kind === 'hero') {
-    const u = ULTIMATES[t.id as HeroId];
-    return `${name} · 大招「${u.name}」：${u.desc}（伤害 ${Math.round(dmg)}${padNote(pad, tile, twin)}${drumNote(drum)}）`;
+    const hero = t.id as HeroId;
+    const notes = `${Math.round(dmg)}${padNote(pad, tile, twin)}${drumNote(drum)}`;
+    return tr(
+      `${name} · 大招「${ultimateName(hero)}」：${ultimateDesc(hero)}（伤害 ${notes}）`,
+      `${name} · Ultimate "${ultimateName(hero)}": ${ultimateDesc(hero)} (damage ${notes})`,
+    );
   }
   if (def.kind === 'attack') {
     const range = padRange(tile, pad, mods);
-    const reach = Number.isFinite(range) ? Math.round(range) : '全场';
-    return `${name} · ${def.desc}（伤害 ${Math.round(dmg)}${fxNote(tile, dmg)}，射程 ${reach}${padNote(pad, tile, twin)}${drumNote(drum)}）`;
+    const reach = Number.isFinite(range) ? String(Math.round(range)) : tr('全场', 'all');
+    const after = `${padNote(pad, tile, twin)}${drumNote(drum)}`;
+    return tr(
+      `${name} · ${def.desc}（伤害 ${Math.round(dmg)}${fxNote(tile, dmg)}，射程 ${reach}${after}）`,
+      `${name} · ${unitDesc(t.id)} (damage ${Math.round(dmg)}${fxNote(tile, dmg)}, range ${reach}${after})`,
+    );
   }
-  const notes = [supportNote(tile, spot), pad === 'plain' ? null : SLOT_NAME[pad]].filter((s) => s !== null);
-  return `${name} · ${def.desc}${notes.length > 0 ? `（${notes.join('，')}）` : ''}`;
+  const notes = [supportNote(tile, spot), pad === 'plain' ? null : padName(pad)].filter((s) => s !== null);
+  return `${name} · ${unitDesc(t.id)}${notes.length > 0 ? tr(`（${notes.join('，')}）`, ` (${notes.join(', ')})`) : ''}`;
 }
 
 /**
@@ -103,7 +130,10 @@ export function describe(t: Pick<Tile, 'id' | 'level' | 'divine' | 'spring'>, mo
  * combines into), shown next to the pad while dragging; null for plain stone.
  */
 export function padLabel(kind: SlotKind, id: UnitId): string | null {
-  const fighter = isFighter(id);
+  return isEn() ? padLabelEn(kind, isFighter(id)) : padLabelZh(kind, isFighter(id));
+}
+
+function padLabelZh(kind: SlotKind, fighter: boolean): string | null {
   switch (kind) {
     case 'plain':
       return null;
@@ -123,5 +153,28 @@ export function padLabel(kind: SlotKind, id: UnitId): string | null {
       return fighter
         ? `灵泉：每守住一波伤害 +${pct(SPRING.dmg)}%，最多 ${SPRING.max} 层`
         : `灵泉：兵字和英雄每守住一波伤害 +${pct(SPRING.dmg)}%`;
+  }
+}
+
+function padLabelEn(kind: SlotKind, fighter: boolean): string | null {
+  switch (kind) {
+    case 'plain':
+      return null;
+    case 'altar':
+      return fighter ? `Rune Circle: damage +${altarPct()}%` : `Rune Circle: fighters and heroes +${altarPct()}% damage`;
+    case 'high':
+      return fighter ? `High Ground: range +${SLOT_BONUS.high.range}` : `High Ground: fighters and heroes +${SLOT_BONUS.high.range} range`;
+    case 'mire':
+      return fighter ? 'Mire: no fighters or heroes' : 'Mire: supports, fragments and Gold only';
+    case 'coffer':
+      return `Coffer: +${COFFER_BOUNTY.minion} coins per monster defeated, boss +${COFFER_BOUNTY.boss}`;
+    case 'beacon':
+      return `Beacon: monsters around take ${pct(BEACON.amp)}% more damage`;
+    case 'twin':
+      return fighter ? `Twin Pad: same glyph on both, +${pct(TWIN_HASTE)}% speed each` : `Twin Pad: same fighter on both, +${pct(TWIN_HASTE)}% speed each`;
+    case 'spring':
+      return fighter
+        ? `Spirit Spring: +${pct(SPRING.dmg)}% damage per wave held, up to ${SPRING.max} layers`
+        : `Spirit Spring: fighters and heroes +${pct(SPRING.dmg)}% damage per wave held`;
   }
 }

@@ -1,8 +1,9 @@
 // The 奇遇 modal: three event cards to pick from between waves.
 import { TRIAL } from '../config/terms.ts';
-import { encounterName, ENCOUNTERS, KIND_LABEL, type EncounterKind } from '../core/encounters.ts';
+import { encounterDesc, encounterName, ENCOUNTERS, kindLabel, type EncounterKind } from '../core/encounters.ts';
 import type { EncounterId } from '../core/types.ts';
-import { fitPx, roundRect, text } from './draw.ts';
+import { isEn, tr } from '../i18n/lang.ts';
+import { fitLines, fitPx, roundRect, text } from './draw.ts';
 import { brush, sans } from './fonts.ts';
 import { L, W, type Rect } from './layout.ts';
 import { drawPanel } from './widgets.ts';
@@ -28,8 +29,9 @@ export function encounterCardRects(): Rect[] {
 export function drawEncounterPanel(ctx: CanvasRenderingContext2D, options: readonly EncounterId[], pressed: string | null): void {
   const p = encounterPanel();
   drawPanel(ctx, p);
-  text(ctx, '奇  遇', W / 2, p.y + 40, brush(30), '#8a3a22');
-  text(ctx, `三选一 · 福缘立刻生效，${TRIAL}下一波生效`, W / 2, p.y + 68, sans(11, 600), '#7a6248');
+  text(ctx, tr('奇  遇', 'Encounter'), W / 2, p.y + 40, brush(30), '#8a3a22');
+  const rule = tr(`三选一 · 福缘立刻生效，${TRIAL}下一波生效`, 'Pick one · Blessings work now, Trials on the next wave');
+  text(ctx, rule, W / 2, p.y + 68, sans(fitPx(ctx, rule, p.w - 24, 11, (n) => sans(n, 600), 9), 600), '#7a6248');
   const rects = encounterCardRects();
   options.forEach((id, i) => {
     const def = ENCOUNTERS[id];
@@ -45,12 +47,31 @@ export function drawEncounterPanel(ctx: CanvasRenderingContext2D, options: reado
     ctx.lineWidth = 2;
     ctx.strokeStyle = st.edge;
     ctx.stroke();
-    roundRect(ctx, r.x + 10, r.y + dy + 12, 40, 20, 6);
+    // Reason: the English kinds (Blessing, Chance, Trial) need a wider chip than two Chinese characters.
+    const chipW = tr(40, 58);
+    roundRect(ctx, r.x + 10, r.y + dy + 12, chipW, 20, 6);
     ctx.fillStyle = st.chip;
     ctx.fill();
-    text(ctx, KIND_LABEL[def.kind], r.x + 30, r.y + dy + 22.5, sans(10, 800), '#fff8e8');
-    text(ctx, encounterName(id), r.x + 58, r.y + dy + 23, brush(21), '#3b2a1e', 'left');
-    const px = fitPx(ctx, def.desc, r.w - 22, 11, (n) => sans(n, 600), 8);
-    text(ctx, def.desc, r.x + 11, r.y + dy + 52, sans(px, 600), '#5a4028', 'left');
+    const kind = kindLabel(def.kind);
+    text(ctx, kind, r.x + 10 + chipW / 2, r.y + dy + 22.5, sans(fitPx(ctx, kind, chipW - 6, 10, (n) => sans(n, 800), 8), 800), '#fff8e8');
+    const name = encounterName(id);
+    const nameX = r.x + 18 + chipW;
+    text(ctx, name, nameX, r.y + dy + 23, brush(fitPx(ctx, name, r.x + r.w - 10 - nameX, 21, brush, 14)), '#3b2a1e', 'left');
+    drawDesc(ctx, encounterDesc(id), r, dy);
   });
+}
+
+/**
+ * A card's description under its name: one line, shrunk to fit, in Chinese; up to two lines in English, whose
+ * descriptions run about twice as long.
+ */
+function drawDesc(ctx: CanvasRenderingContext2D, desc: string, r: Rect, dy: number): void {
+  const font = (n: number) => sans(n, 600);
+  if (!isEn()) {
+    text(ctx, desc, r.x + 11, r.y + dy + 52, font(fitPx(ctx, desc, r.w - 22, 11, font, 8)), '#5a4028', 'left');
+    return;
+  }
+  const { px, lines } = fitLines(ctx, desc, r.w - 22, 11, font, 2, 8);
+  const lineH = px + 3;
+  lines.forEach((line, i) => text(ctx, line, r.x + 11, r.y + dy + 52 + (i - (lines.length - 1) / 2) * lineH, font(px), '#5a4028', 'left'));
 }

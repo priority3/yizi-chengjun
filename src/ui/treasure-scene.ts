@@ -1,8 +1,10 @@
 // 法宝 screen: equip up to three treasures, forge new ones with 灵石, merge three of a kind into a higher tier.
-import { EQUIP_SLOTS, FORGE_COST, MERGE_COUNT, RARITY_LABEL, TREASURE_IDS, TREASURES, type TreasureId } from '../config/treasures.ts';
+import { EQUIP_SLOTS, FORGE_COST, MERGE_COUNT, TREASURE_IDS, TREASURES, type TreasureId } from '../config/treasures.ts';
 import { effectText, forge, mergeAll, ownedTier, toggleEquip, type Vault } from '../core/treasures.ts';
+import { tr } from '../i18n/lang.ts';
+import { rarityName, treasureName } from '../i18n/names.ts';
 import type { Stage } from '../platform/env.ts';
-import { outlined, roundRect, text } from '../render/draw.ts';
+import { fitPx, outlined, roundRect, text } from '../render/draw.ts';
 import { brush, sans } from '../render/fonts.ts';
 import { inRect, L, W, type Rect } from '../render/layout.ts';
 import { drawStone, drawTreasureToken } from '../render/treasure-art.ts';
@@ -72,20 +74,23 @@ export class TreasureScene implements Scene {
   render(ctx: CanvasRenderingContext2D): void {
     const v = this.vault;
     backdrop(ctx, this.stage, 0.62);
-    drawButton(ctx, BACK, '返回', 'ghost');
-    outlined(ctx, '法宝', W / 2, 33, brush(26), '#ffd66b', 'rgba(40,14,4,0.9)', 4);
+    drawButton(ctx, BACK, tr('返回', 'Back'), 'ghost');
+    outlined(ctx, tr('法宝', 'Relics'), W / 2, 33, brush(26), '#ffd66b', 'rgba(40,14,4,0.9)', 4);
     drawStone(ctx, W - 74, 33, 9);
     text(ctx, String(v.stones), W - 60, 34, sans(15, 800), '#bfe8d0', 'left');
 
-    text(ctx, `出战法宝 ${v.equipped.length}/${EQUIP_SLOTS}`, W / 2, top() + 6, sans(11, 700), '#e8d5b0');
+    const worn = `${v.equipped.length}/${EQUIP_SLOTS}`;
+    text(ctx, tr(`出战法宝 ${worn}`, `Relics equipped ${worn}`), W / 2, top() + 6, sans(11, 700), '#e8d5b0');
     for (let i = 0; i < EQUIP_SLOTS; i++) this.drawSlot(ctx, i, v.equipped[i]);
-    text(ctx, '点一下装备或卸下 · 三件同阶可合成', W / 2, top() + 110, sans(10, 600), '#b9a585');
+    text(ctx, tr('点一下装备或卸下 · 三件同阶可合成', 'Tap to equip or unequip · Three of a tier merge'), W / 2, top() + 110, sans(10, 600), '#b9a585');
     TREASURE_IDS.forEach((id, i) => this.drawOwned(ctx, id, i));
 
     const forgeOk = v.stones >= FORGE_COST;
-    drawButton(ctx, forgeRect(), '炼器', forgeOk ? 'primary' : 'disabled', `${FORGE_COST} 灵石随机炼一件`, this.pressed === 'forge');
-    drawButton(ctx, mergeRect(), '合成', canMerge(v) ? 'jade' : 'disabled', '三件同阶合为高阶', this.pressed === 'merge');
-    text(ctx, '通关章节得灵石，首通送法宝 · 高阶法宝效果更强', W / 2, forgeRect().y + 62, sans(10, 500), '#b9a585');
+    const forgeSub = tr(`${FORGE_COST} 灵石随机炼一件`, `${FORGE_COST} stones: a random relic`);
+    drawButton(ctx, forgeRect(), tr('炼器', 'Craft'), forgeOk ? 'primary' : 'disabled', forgeSub, this.pressed === 'forge');
+    drawButton(ctx, mergeRect(), tr('合成', 'Merge'), canMerge(v) ? 'jade' : 'disabled', tr('三件同阶合为高阶', 'Three of a tier: one tier up'), this.pressed === 'merge');
+    const foot = tr('通关章节得灵石，首通送法宝 · 高阶法宝效果更强', 'Clear chapters for Spirit Stones; a first clear gives a relic · Higher tiers are stronger');
+    text(ctx, foot, W / 2, forgeRect().y + 62, sans(fitPx(ctx, foot, W - 16, 10, (n) => sans(n, 500), 8), 500), '#b9a585');
     this.toasts.draw(ctx, L.H - 40);
   }
 
@@ -102,9 +107,10 @@ export class TreasureScene implements Scene {
     if (id) {
       const tier = ownedTier(this.vault, id);
       drawTreasureToken(ctx, id, tier, r.x + r.w / 2, r.y + r.h / 2 - 2, 22);
-      outlined(ctx, id, r.x + r.w / 2, r.y + r.h + 10, sans(9, 700), '#fbeed2', 'rgba(20,10,4,0.9)', 3);
+      const name = treasureName(id);
+      outlined(ctx, name, r.x + r.w / 2, r.y + r.h + 10, sans(fitPx(ctx, name, r.w + SLOT_GAP - 2, 9, (n) => sans(n, 700), 7), 700), '#fbeed2', 'rgba(20,10,4,0.9)', 3);
     } else {
-      text(ctx, '空', r.x + r.w / 2, r.y + r.h / 2 + 1, brush(20), 'rgba(255,230,190,0.4)');
+      text(ctx, tr('空', 'Empty'), r.x + r.w / 2, r.y + r.h / 2 + 1, brush(tr(20, 15)), 'rgba(255,230,190,0.4)');
     }
   }
 
@@ -131,10 +137,14 @@ export class TreasureScene implements Scene {
       ctx.arc(r.x + r.w - 14, r.y + 14 + dy, 8, 0, Math.PI * 2);
       ctx.fillStyle = '#f0c24a';
       ctx.fill();
-      text(ctx, '合', r.x + r.w - 14, r.y + 15 + dy, brush(11), '#4a2204');
+      // The mark of a stack that can merge: 合, or ×3 in English.
+      text(ctx, tr('合', `×${MERGE_COUNT}`), r.x + r.w - 14, r.y + 15 + dy, tr(brush(11), sans(8, 800)), '#4a2204');
     }
-    outlined(ctx, id, cx, r.y + 62 + dy, sans(id.length > 4 ? 8.5 : 9.5, 700), owned ? '#fbeed2' : '#9a8f80', 'rgba(20,10,4,0.9)', 3);
-    const state = owned ? `${TIER_NAME[tier - 1]}阶 ×${countAtTop(v, id, tier)}` : RARITY_LABEL[TREASURES[id].rarity];
+    const name = treasureName(id);
+    const px = tr(id.length > 4 ? 8.5 : 9.5, fitPx(ctx, name, r.w - 6, 9.5, (n) => sans(n, 700), 7));
+    outlined(ctx, name, cx, r.y + 62 + dy, sans(px, 700), owned ? '#fbeed2' : '#9a8f80', 'rgba(20,10,4,0.9)', 3);
+    const count = countAtTop(v, id, tier);
+    const state = owned ? tr(`${TIER_NAME[tier - 1]}阶 ×${count}`, `Tier ${tier} ×${count}`) : rarityName(TREASURES[id].rarity);
     text(ctx, state, cx, r.y + 75 + dy, sans(8.5, 600), owned ? '#ffe9b0' : '#8a8078');
   }
 
@@ -163,21 +173,22 @@ export class TreasureScene implements Scene {
       // Reason: the meta game is not part of the deterministic run, so plain Math.random is fine here.
       const id = forge(v, Math.random(), Math.random());
       if (!id) {
-        this.toasts.push(`灵石不够：炼器要 ${FORGE_COST}，通关章节可以获得`);
+        this.toasts.push(tr(`灵石不够：炼器要 ${FORGE_COST}，通关章节可以获得`, `Not enough Spirit Stones: crafting costs ${FORGE_COST}; clear chapters to earn them`));
         return;
       }
       this.nav.save();
-      this.toasts.push(`炼出 ${RARITY_LABEL[TREASURES[id].rarity]}法宝「${id}」：${effectText(id, 1)}`);
+      const rarity = rarityName(TREASURES[id].rarity);
+      this.toasts.push(tr(`炼出 ${rarity}法宝「${id}」：${effectText(id, 1)}`, `Crafted ${treasureName(id)} (${rarity}): ${effectText(id, 1)}`));
       return;
     }
     if (inRect(p.x, p.y, mergeRect())) {
       const n = mergeAll(v);
       if (n === 0) {
-        this.toasts.push('没有可以合成的：三件同名同阶的法宝才能合成');
+        this.toasts.push(tr('没有可以合成的：三件同名同阶的法宝才能合成', 'Nothing to merge: it takes three of one relic at one tier'));
         return;
       }
       this.nav.save();
-      this.toasts.push(`合成了 ${n} 件高阶法宝`);
+      this.toasts.push(tr(`合成了 ${n} 件高阶法宝`, `Merged ${n} ${n === 1 ? 'relic' : 'relics'} up a tier`));
       return;
     }
     for (let i = 0; i < EQUIP_SLOTS; i++) {
@@ -185,7 +196,7 @@ export class TreasureScene implements Scene {
       if (id && inRect(p.x, p.y, slotRect(i))) {
         toggleEquip(v, id);
         this.nav.save();
-        this.toasts.push(`卸下了「${id}」`);
+        this.toasts.push(unequipped(id));
         return;
       }
     }
@@ -194,18 +205,23 @@ export class TreasureScene implements Scene {
     const id = TREASURE_IDS[k];
     const tier = ownedTier(v, id);
     if (tier === 0) {
-      this.toasts.push(`「${id}」还没获得 · ${effectText(id, 1)}`);
+      this.toasts.push(tr(`「${id}」还没获得 · ${effectText(id, 1)}`, `${treasureName(id)}: not found yet · ${effectText(id, 1)}`));
       return;
     }
     if (v.equipped.includes(id)) {
       toggleEquip(v, id);
-      this.toasts.push(`卸下了「${id}」`);
+      this.toasts.push(unequipped(id));
     } else if (toggleEquip(v, id)) {
-      this.toasts.push(`装备了「${id}」：${effectText(id, tier)}`);
+      this.toasts.push(tr(`装备了「${id}」：${effectText(id, tier)}`, `Equipped ${treasureName(id)}: ${effectText(id, tier)}`));
     } else {
-      this.toasts.push(`最多带 ${EQUIP_SLOTS} 件：先点上面的槽位卸下一件`);
+      this.toasts.push(tr(`最多带 ${EQUIP_SLOTS} 件：先点上面的槽位卸下一件`, `${EQUIP_SLOTS} relics at most: tap a slot above to take one off`));
       return;
     }
     this.nav.save();
   }
+}
+
+/** The toast after taking 法宝 `id` off. */
+function unequipped(id: TreasureId): string {
+  return tr(`卸下了「${id}」`, `Took off ${treasureName(id)}`);
 }

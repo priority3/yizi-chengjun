@@ -2,7 +2,7 @@
 // nothing more when the player closes the sheet, and the save-image overlay in every other case. The picture is
 // encoded once, synchronously, so the share sheet is reached in the task of the tap.
 import { describe, expect, it, vi } from 'vitest';
-import { pngBlob, SHARE_FILE, SHARE_TITLE, shareImage, type PngSource, type ShareDeps } from '../src/platform/share.ts';
+import { pngBlob, SHARE_FILE, shareImage, shareTitle, type PngSource, type ShareDeps } from '../src/platform/share.ts';
 
 const TEXT = '《一字成军》第三章 · 平顶山：三星通关，击败 87 只妖怪！';
 /** What the fake canvas encodes to: a PNG data URL whose payload is the bytes of "encoded". */
@@ -44,7 +44,7 @@ describe('shareImage', () => {
     expect(asked.files?.[0].type).toBe('image/png');
     expect(await asked.files?.[0].text()).toBe('encoded');
     const sent = share.mock.calls[0][0];
-    expect(sent).toMatchObject({ title: SHARE_TITLE, text: TEXT });
+    expect(sent).toMatchObject({ title: shareTitle(), text: TEXT });
     expect(sent.files).toEqual(asked.files);
     expect(overlay).not.toHaveBeenCalled();
   });

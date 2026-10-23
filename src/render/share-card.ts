@@ -2,13 +2,14 @@
 // 分享战报 is tapped (never per frame). Top to bottom: the brush title with a red seal, the chapter (or another
 // mode's title) over its map, the outcome with its stars, the run's numbers, the 法宝 it was played with, and the
 // address, date and version of the game. The paper, frame and seal art live in share-art.ts.
-import { GAME_NAME, TAGLINE } from '../config/brand.ts';
 import { CHAPTERS } from '../config/chapters.ts';
 import { MAPS, type MapDef } from '../config/maps.ts';
 import { DEFEAT, FINAL_WIN } from '../config/terms.ts';
-import { TREASURES, type TreasureId } from '../config/treasures.ts';
+import type { TreasureId } from '../config/treasures.ts';
 import { buildMap, type MapData } from '../core/map.ts';
 import { MAX_STARS } from '../core/rating.ts';
+import { tr } from '../i18n/lang.ts';
+import { gameName, tagline, treasureName } from '../i18n/names.ts';
 import { offscreen, platform } from '../platform/env.ts';
 import { fitPx, roundRect, text } from './draw.ts';
 import { brush, sans } from './fonts.ts';
@@ -109,11 +110,12 @@ const RED = '#b3261e';
 
 /** The outcome line: 章节通关！ (FINAL_WIN for the last chapter) / 阵地失守, or 撑过第 N 波 for runs without a last wave. */
 export function shareHeadline(info: ShareInfo): string {
+  const lost = tr('阵地失守', 'Camp Lost');
   if (info.mode === 'chapter') {
-    if (!info.won) return '阵地失守';
-    return info.chapter === CHAPTERS.length ? FINAL_WIN : '章节通关！';
+    if (!info.won) return lost;
+    return info.chapter === CHAPTERS.length ? tr(FINAL_WIN, 'Journey Complete!') : tr('章节通关！', 'Chapter Clear!');
   }
-  return info.waves > 0 ? `撑过第 ${info.waves} 波` : '阵地失守';
+  return info.waves > 0 ? tr(`撑过第 ${info.waves} 波`, `Held ${info.waves} waves`) : lost;
 }
 
 /** One cell of the numbers box: a label and its value. */
@@ -125,9 +127,9 @@ export interface ShareStat {
 /** The numbers box: waves cleared (out of the total when there is one), camp HP left, kills. */
 export function shareStats(info: ShareInfo): ShareStat[] {
   return [
-    { label: '守住波数', value: info.totalWaves === undefined ? String(info.waves) : `${info.waves}/${info.totalWaves}` },
-    { label: '剩余阵地', value: `${info.campHp}/${info.campMax}` },
-    { label: `${DEFEAT}妖怪`, value: String(info.kills) },
+    { label: tr('守住波数', 'Waves held'), value: info.totalWaves === undefined ? String(info.waves) : `${info.waves}/${info.totalWaves}` },
+    { label: tr('剩余阵地', 'Camp HP'), value: `${info.campHp}/${info.campMax}` },
+    { label: tr(`${DEFEAT}妖怪`, 'Defeated'), value: String(info.kills) },
   ];
 }
 
@@ -177,7 +179,7 @@ export function renderShareCard(info: ShareInfo): HTMLCanvasElement {
 
 /** The game's name in big brush strokes with the red 战报 seal beside it, the tagline, and an ink rule. */
 function drawHeader(ctx: CanvasRenderingContext2D): void {
-  const title = GAME_NAME;
+  const title = gameName();
   ctx.font = brush(TITLE_PX);
   const { titleX, sealX } = headerLayout(ctx.measureText(title).width);
   ctx.save();
@@ -187,7 +189,8 @@ function drawHeader(ctx: CanvasRenderingContext2D): void {
   text(ctx, title, titleX, CARD_LAYOUT.titleY, brush(TITLE_PX), INK);
   ctx.restore();
   drawSeal(ctx, sealX, CARD_LAYOUT.titleY - 4, SEAL_W, SEAL_H, ['战', '报'], -0.07);
-  text(ctx, TAGLINE, CARD_W / 2, CARD_LAYOUT.taglineY, brush(44), '#8a6a44');
+  const line = tagline();
+  text(ctx, line, CARD_W / 2, CARD_LAYOUT.taglineY, brush(fitPx(ctx, line, LINE_W, 44, brush, 28)), '#8a6a44');
   inkRule(ctx, CARD_W / 2, CARD_LAYOUT.ruleY, 330);
 }
 
@@ -303,20 +306,22 @@ function drawStats(ctx: CanvasRenderingContext2D, info: ShareInfo): void {
 function drawTokens(ctx: CanvasRenderingContext2D, list: readonly ShareToken[]): void {
   const y = CARD_LAYOUT.tokensY;
   if (list.length === 0) {
-    text(ctx, '这一局没带法宝', CARD_W / 2, y + 16, sans(30, 600), '#9a7a52');
+    text(ctx, tr('这一局没带法宝', 'No relics this run'), CARD_W / 2, y + 16, sans(30, 600), '#9a7a52');
     return;
   }
   const xs = tokenXs(list.length);
   list.forEach((t, i) => {
     drawTreasureToken(ctx, t.id, t.tier, xs[i], y, TOKEN_R);
-    text(ctx, TREASURES[t.id].id, xs[i], y + TOKEN_R + 28, sans(26, 700), '#6a4a26');
+    const name = treasureName(t.id);
+    const bold = (n: number) => sans(n, 700);
+    text(ctx, name, xs[i], y + TOKEN_R + 28, bold(fitPx(ctx, name, TOKEN_GAP - 12, 26, bold, 18)), '#6a4a26');
   });
 }
 
 /** Where to play (the address this copy runs at), then the date and the version. */
 function drawFooter(ctx: CanvasRenderingContext2D, dateText: string, host: string): void {
   if (host) {
-    const line = `在线玩：${host}`;
+    const line = tr(`在线玩：${host}`, `Play online: ${host}`);
     const bold = (n: number) => sans(n, 700);
     text(ctx, line, CARD_W / 2, CARD_LAYOUT.hostY, bold(fitPx(ctx, line, LINE_W, 34, bold, 20)), '#8a3a22');
   }

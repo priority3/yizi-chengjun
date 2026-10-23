@@ -1,7 +1,7 @@
 // Layout of the title screen, in design units: the 继续上次 / 开始游戏 buttons, the two hint lines under them, the
-// faint version label at the bottom right and the 关于 button at the top right (the 有新版本 banner at the bottom is
-// render/update-banner.ts). Pure (no drawing), so tests/title-layout.test.ts checks at every design height that the
-// 关于 button stays on screen and clear of everything else.
+// faint version label at the bottom right, the 关于 button at the top right and the language switch at the top left
+// (the 有新版本 banner at the bottom is render/update-banner.ts). Pure (no drawing), so tests/title-layout.test.ts
+// checks at every design height that the 关于 button and the language switch stay on screen and clear of the rest.
 import { L, W, type Rect } from '../render/layout.ts';
 
 /**
@@ -33,3 +33,6 @@ export function versionAnchor(): { x: number; y: number } {
  * the update banner) at every design height, and well above the glow of the game's name.
  */
 export const ABOUT_BUTTON: Rect = { x: W - 78, y: 16, w: 66, h: 34 };
+
+/** The language switch (English / 中文), mirroring the 关于 button at the top left; only where the build allows it. */
+export const LANG_BUTTON: Rect = { x: 12, y: 16, w: 66, h: 34 };

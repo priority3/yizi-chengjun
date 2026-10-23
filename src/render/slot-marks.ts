@@ -2,13 +2,15 @@
 // map image by pad-art.ts): the slowly turning rune ring round each unlocked 法阵, the paper seal strip with the price
 // over a locked pad, the ring on the ground under a pad, a special pad's label while a card is dragged over it, and
 // the badge of a fighter's 瞄准.
-import { SLOT_NAME, type SlotKind } from '../config/maps.ts';
+import type { SlotKind } from '../config/maps.ts';
 import type { Pt } from '../core/map.ts';
 import type { GameState, TargetMode } from '../core/types.ts';
+import { padName } from '../i18n/names.ts';
 import { drawCoin, roundRect, text } from './draw.ts';
 import { sans } from './fonts.ts';
 import { CINNABAR, INK, ink, PAPER } from './ink.ts';
 import { PAD_SIDE, PAD_TILT } from './pad-art.ts';
+import { wrapText } from './text-wrap.ts';
 
 /**
  * Traces the ring on the ground round a pad's foot, `r` across (an ellipse like the pads' top faces), ready to stroke.
@@ -63,7 +65,7 @@ export function drawLockedPad(ctx: CanvasRenderingContext2D, p: Pt, kind: SlotKi
   ctx.fill();
   const nameFont = sans(Math.round(10 * k), 800);
   const priceFont = sans(Math.round(10 * k), 800);
-  const name = kind !== 'plain' ? SLOT_NAME[kind] : price === null ? '+' : '';
+  const name = kind !== 'plain' ? padName(kind) : price === null ? '+' : '';
   ctx.font = nameFont;
   const nameW = name ? ctx.measureText(name).width + 4 * k : 0;
   ctx.font = priceFont;
@@ -98,18 +100,26 @@ export function drawLockedPad(ctx: CanvasRenderingContext2D, p: Pt, kind: SlotKi
  * stand there. `k` = 1 / zoom keeps it readable at any zoom.
  */
 export function drawPadLabel(ctx: CanvasRenderingContext2D, p: Pt, label: string, ok: boolean, top: number, k: number): void {
-  const cy = p.y - top - 16 * k;
   const font = sans(Math.round(10 * k), 800);
   ctx.font = font;
-  const w = ctx.measureText(label).width + 18 * k;
-  roundRect(ctx, p.x - w / 2, cy - 10 * k, w, 20 * k, 10 * k);
+  const measure = (s: string): number => ctx.measureText(s).width;
+  // Reason: an English label runs about twice as long as a Chinese one; past this width it takes two lines, growing up.
+  const lines = measure(label) > PAD_LABEL_W * k ? wrapText(label, PAD_LABEL_W * k, measure) : [label];
+  const lineH = 13 * k;
+  const h = 20 * k + (lines.length - 1) * lineH;
+  const w = Math.max(...lines.map(measure)) + 18 * k;
+  const cy = p.y - top - 16 * k - ((lines.length - 1) * lineH) / 2;
+  roundRect(ctx, p.x - w / 2, cy - h / 2, w, h, 10 * k);
   ctx.fillStyle = 'rgba(28,14,6,0.9)';
   ctx.fill();
   ctx.lineWidth = 1.5 * k;
   ctx.strokeStyle = ok ? '#e8d3a6' : '#ff6a5a';
   ctx.stroke();
-  text(ctx, label, p.x, cy + 0.5 * k, font, ok ? '#fff1d6' : '#ffd0c8');
+  lines.forEach((s, i) => text(ctx, s, p.x, cy + 0.5 * k + (i - (lines.length - 1) / 2) * lineH, font, ok ? '#fff1d6' : '#ffd0c8'));
 }
+
+/** Widest a pad label's line gets (at zoom 1) before it wraps. */
+const PAD_LABEL_W = 210;
 
 /** A golden crown with a red gem, `s` px from its centre to its sides. */
 function crown(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): void {

@@ -2,10 +2,10 @@
 // hero, 鎏金, selling, a refused drop, a new 瞄准, the pay-outs of 钱 and 疗 (whose squads lift what they hold), a
 // 聚宝台's extra 铜钱 and a 灵泉's new layer.
 // Split out of vfx.ts, which handles the fighting and the banners.
-import { ULTIMATES } from '../config/ultimates.ts';
-import { glyphOf, UNITS } from '../config/units.ts';
 import { CURRENCY } from '../config/terms.ts';
 import type { HeroId, SimEvent } from '../core/types.ts';
+import { tr } from '../i18n/lang.ts';
+import { ultimateName, unitDesc, unitName } from '../i18n/names.ts';
 import { COLORS } from './draw.ts';
 import type { Vfx } from './vfx.ts';
 
@@ -25,9 +25,9 @@ export function boardEvent(v: Vfx, e: SimEvent): boolean {
       if (e.cell >= 0 && e.unit) {
         v.pops[e.cell] = 0.4;
         v.add('burst', p.x, p.y, 0, 0, '#ffd27a', 60, 0.5);
-        v.float(p.x, p.y - 30, `宝箱 · ${glyphOf(e.unit)}`, '#fff1c2', 15, true, 1.2);
+        v.float(p.x, p.y - 30, `${tr('宝箱', 'Chest')} · ${unitName(e.unit)}`, '#fff1c2', 15, true, 1.2);
       } else {
-        v.float(p.x, p.y - 40, `宝箱 · +30 ${CURRENCY}`, COLORS.gold, 15, true, 1.2);
+        v.float(p.x, p.y - 40, tr(`宝箱 · +30 ${CURRENCY}`, 'Chest · +30 coins'), COLORS.gold, 15, true, 1.2);
       }
       return true;
     }
@@ -36,7 +36,7 @@ export function boardEvent(v: Vfx, e: SimEvent): boolean {
       const p = v.cell(e.cell);
       v.add('ring', p.x, p.y, 0, 0, COLORS.gold, 40, 0.45);
       v.burst(p.x, p.y, 10, 'star', '#ffe27a', 110, 3.5, 0.6);
-      v.float(p.x, p.y - 26, `${e.level}级`, '#fff1c2', 16, true);
+      v.float(p.x, p.y - 26, tr(`${e.level}级`, `Lv${e.level}`), '#fff1c2', 16, true);
       return true;
     }
     case 'hero': {
@@ -46,7 +46,8 @@ export function boardEvent(v: Vfx, e: SimEvent): boolean {
       v.add('burst', p.x, p.y, 0, 0, '#ffd27a', 70, 0.5);
       v.burst(p.x, p.y, 18, 'star', '#ffd27a', 170, 4.5, 0.9);
       const hero = e.unit as HeroId;
-      v.showBanner(`${hero} 觉醒！`, `${UNITS[hero].desc} · 大招：${ULTIMATES[hero].name}`, '#ffd166', hero, 2);
+      const sub = tr(`${unitDesc(hero)} · 大招：${ultimateName(hero)}`, `${unitDesc(hero)} · Ultimate: ${ultimateName(hero)}`);
+      v.showBanner(tr(`${hero} 觉醒！`, `${unitName(hero)} awakens!`), sub, '#ffd166', hero, 2);
       v.shake = Math.max(v.shake, 3);
       return true;
     }
@@ -93,7 +94,7 @@ export function boardEvent(v: Vfx, e: SimEvent): boolean {
     case 'spring': {
       const p = v.cell(e.cell);
       v.pops[e.cell] = 0.25;
-      v.float(p.x, p.y - 30, `灵泉 ${e.layers} 层`, '#bfeaf6', 14, true, 1.2);
+      v.float(p.x, p.y - 30, tr(`灵泉 ${e.layers} 层`, `Spring ×${e.layers}`), '#bfeaf6', 14, true, 1.2);
       v.burst(p.x, p.y + 8, 7, 'star', '#d8f4ff', 60, 2.6, 0.6);
       return true;
     }

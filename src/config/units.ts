@@ -39,8 +39,8 @@ export const MIRROR_TOP_WAVE = 15;
  */
 export const ROOT_GUARD = 1;
 
-const POISON_FX = { t: 'poison', dps: 2, dur: 4, max: 5 } as const;
-const DRUM_FX = { t: 'drum', dmg: 0.15, speed: 0.1 } as const;
+export const POISON_FX = { t: 'poison', dps: 2, dur: 4, max: 5 } as const;
+export const DRUM_FX = { t: 'drum', dmg: 0.15, speed: 0.1 } as const;
 const pct = (v: number): number => Math.round(v * 100);
 
 const frag = (id: FragId): UnitDef => ({

@@ -2,7 +2,7 @@
 // a pad while dragging, and the drag preview (red over a 泥沼 for a fighter, the combine hint taking priority).
 import { describe as group, expect, it } from 'vitest';
 import type { MapDef } from '../src/config/maps.ts';
-import { MIRE_MSG } from '../src/core/board.ts';
+import { mireMsg } from '../src/core/board.ts';
 import { act } from '../src/core/game.ts';
 import { defaultMods } from '../src/core/treasures.ts';
 import type { GameState, UnitId } from '../src/core/types.ts';
@@ -130,7 +130,7 @@ group('the drag preview over special pads', () => {
     const r = swap.finish(g);
     expect(r && 'action' in r ? r.action : null).toEqual({ t: 'drop', from: MIRE, to: PLAIN });
     if (r && 'action' in r) expect(act(g, r.action)).toBe('invalid');
-    expect(g.events.at(-1)).toMatchObject({ t: 'invalid', msg: MIRE_MSG });
+    expect(g.events.at(-1)).toMatchObject({ t: 'invalid', msg: mireMsg() });
     expect(swap.hoverPad).toBeNull();
   });
 

@@ -8,6 +8,8 @@ import { routeOf } from '../core/monsters.ts';
 import { beaconMul, padAllows, padRange, slotRange } from '../core/slots.ts';
 import { isRooted } from '../core/status.ts';
 import type { Enemy, EnemyDef, GameState, Tile, UnitId } from '../core/types.ts';
+import { tr } from '../i18n/lang.ts';
+import { enemyName } from '../i18n/names.ts';
 import type { Stage } from '../platform/env.ts';
 import type { Camera } from './camera.ts';
 import { CARD, cardSprite } from './cards.ts';
@@ -347,7 +349,7 @@ export class GameRenderer {
     // A lit 烽火台 marks the monsters it makes take more: a little flame left of the bar.
     if (beaconMul(g, e) > 1) drawBeaconMark(ctx, e.x - barW / 2 - 5, bar + h);
     if (def.boss || def.elite) {
-      outlined(ctx, def.name, e.x, bar - 8, brush(def.boss ? 14 : 12), def.boss ? CINNABAR : INK, PAPER, 3);
+      outlined(ctx, enemyName(def.id), e.x, bar - 8, brush(def.boss ? 14 : 12), def.boss ? CINNABAR : INK, PAPER, 3);
     }
   }
 
@@ -377,6 +379,6 @@ export class GameRenderer {
     ctx.shadowOffsetY = 6;
     blit(ctx, img, d.x, d.y, size, size, 1.12);
     ctx.restore();
-    if (UNITS[d.unit].kind === 'fragment') outlined(ctx, '拖到另一半上', d.x, d.y + CARD * 0.78, sans(10, 700), '#fff4d6');
+    if (UNITS[d.unit].kind === 'fragment') outlined(ctx, tr('拖到另一半上', 'Onto its other half'), d.x, d.y + CARD * 0.78, sans(10, 700), '#fff4d6');
   }
 }

@@ -2,7 +2,8 @@
 import { partnerOf } from '../config/combos.ts';
 import { refreshCost, SHOP_ATTACKERS, SHOP_SIZE, unlockCost } from '../config/chapters.ts';
 import { DIVINE_FROM_WAVE, FRAG_PARTNER_CHANCE, FRAGMENTS, OWNED_BIAS, SHOP_WEIGHTS, UNITS } from '../config/units.ts';
-import { canPlace, combineInto, isStackable, makeTile, MIRE_MSG } from './board.ts';
+import { tr } from '../i18n/lang.ts';
+import { canPlace, combineInto, isStackable, makeTile, mireMsg } from './board.ts';
 import { pickWeighted, rand } from './rng.ts';
 import type { ActionResult, FragId, GameState, ShopOffer, UnitId } from './types.ts';
 
@@ -82,14 +83,14 @@ export function buy(g: GameState, offer: number, cell: number): ActionResult {
   const price = offerPrice(g, o);
   if (g.gongde < price) return 'poor';
   if (!g.slots[cell] && !canPlace(g, cell, o.id)) {
-    g.events.push({ t: 'invalid', cell, msg: MIRE_MSG });
+    g.events.push({ t: 'invalid', cell, msg: mireMsg() });
     return 'invalid';
   }
   const card = makeTile(g, o.id, price);
   if (g.slots[cell]) {
     const r = combineInto(g, card, cell, -1);
     if (r === null) {
-      g.events.push({ t: 'invalid', cell, msg: '这格有字了：放到空格，或放到能合成的字上' });
+      g.events.push({ t: 'invalid', cell, msg: tr('这格有字了：放到空格，或放到能合成的字上', 'This pad is taken: use an empty pad or a card it merges with') });
       return 'occupied';
     }
     if (r !== 'merge' && r !== 'hero' && r !== 'divine') return r;

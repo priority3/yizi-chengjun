@@ -10,7 +10,7 @@ export const CONTACT_EMAIL = '1832052104@qq.com';
 /** Who provides the game (plan.md: the game is published by an individual). */
 export const DEVELOPER = '个人开发者';
 /** When the current texts took effect. */
-export const EFFECTIVE_DATE = '2026年10月9日';
+export const EFFECTIVE_DATE = '2026年10月23日';
 /** The age rating (适龄提示): suitable from this age on. */
 export const AGE_RATING = 12;
 /** The rating as the 适龄提示 badge prints it. */
@@ -78,7 +78,7 @@ export const PRIVACY_POLICY: LegalDoc = {
     {
       heading: '三、只保存在本机的数据',
       paragraphs: [
-        '你的游戏进度（解锁的章节、星级、灵石、法宝，无尽模式和每日挑战的记录，新手引导是否完成等）、声音设置、没打完的那一局的存档，以及网页版地图编辑器的草稿，都只保存在这台设备的本地存储里（浏览器的网站数据，或小游戏平台提供的本地缓存），不会上传。',
+        '你的游戏进度（解锁的章节、星级、灵石、法宝，无尽模式和每日挑战的记录，新手引导是否完成等）、声音和语言设置、没打完的那一局的存档，以及网页版地图编辑器的草稿，都只保存在这台设备的本地存储里（浏览器的网站数据，或小游戏平台提供的本地缓存），不会上传。',
         '清除浏览器的网站数据、清理小游戏的缓存，或者删除小游戏，都会删除这些数据，删除后无法恢复。',
         '网页版地图编辑器的「导出」会把地图文字复制到剪贴板，由你自己决定粘贴到哪里；本游戏不读取剪贴板。',
       ],

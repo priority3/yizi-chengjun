@@ -6,5 +6,8 @@
 export const GAME_NAME = '一字成军';
 /** The line under the name on the title screen and the share card. */
 export const TAGLINE = '汉字合成塔防';
+/** The English name and tagline, shown while the game is in English (i18n/lang.ts) and by the English build. */
+export const GAME_NAME_EN = 'Glyph Legion';
+export const TAGLINE_EN = 'Journey to the West Tower Defense';
 /** Prefix of console messages, so the game's own warnings are easy to find. */
 export const LOG_TAG = `[${GAME_NAME}]`;

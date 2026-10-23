@@ -1,10 +1,9 @@
 // 分享战报: what the result card shows for a run (pure, built from the run's state: chapterShareInfo, modeShareInfo
 // for endless and daily runs), and the tap that paints the card once and hands it to the platform's share (on the
 // web the share sheet or the save-image overlay). The card and the share flow work from ShareInfo alone.
-import { GAME_NAME, LOG_TAG } from '../config/brand.ts';
+import { LOG_TAG } from '../config/brand.ts';
 import { CHAPTERS } from '../config/chapters.ts';
 import { ENDLESS_CHAPTER } from '../config/endless.ts';
-import { ENEMIES } from '../config/enemies.ts';
 import { DEFEAT } from '../config/terms.ts';
 import { MAX_TIER, TREASURE_IDS, TREASURES } from '../config/treasures.ts';
 import { createGame } from '../core/game.ts';
@@ -13,25 +12,27 @@ import { starRating } from '../core/rating.ts';
 import { wavesSurvived } from '../core/records.ts';
 import { buildMods, defaultMods, effectValue, type Vault } from '../core/treasures.ts';
 import type { GameState, RunMods } from '../core/types.ts';
+import { tr } from '../i18n/lang.ts';
+import { chapterLabel, chapterName, enemyName, gameName } from '../i18n/names.ts';
 import { platform, type ShareOutcome } from '../platform/env.ts';
 import { loadFonts } from '../render/fonts.ts';
-import { NUMERALS } from '../render/panels.ts';
 import { renderShareCard, type ShareInfo, type ShareToken } from '../render/share-card.ts';
 
-/** The date as the card prints it, in local time: 2026年10月8日. */
+/** The date as the card prints it, in local time: 2026年10月8日 (English: October 8, 2026). */
 export function shareDateText(d: Date): string {
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+  return tr(`${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`, `${MONTHS_EN[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`);
 }
+
+const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 /** The card of a chapter run, from its state. Pure: `now` only dates the card. */
 export function chapterShareInfo(g: GameState, now: Date): ShareInfo {
-  const ch = CHAPTERS[g.chapter - 1];
   const won = g.phase === 'won';
-  const boss = ENEMIES[ch.boss].name;
+  const boss = enemyName(CHAPTERS[g.chapter - 1].boss);
   const info: ShareInfo = {
     mode: 'chapter',
-    title: `第${NUMERALS[g.chapter - 1]}章 · ${ch.name}`,
-    subtitle: won ? `打败了${boss}` : `本章 Boss · ${boss}`,
+    title: `${chapterLabel(g.chapter)} · ${chapterName(g.chapter)}`,
+    subtitle: won ? tr(`打败了${boss}`, `Defeated ${boss}`) : tr(`本章 Boss · ${boss}`, `Boss · ${boss}`),
     chapter: g.chapter,
     won,
     // Reason: g.wave is the wave being fought in battle (a lost run fell during it) and the waves cleared otherwise,
@@ -58,8 +59,8 @@ export function modeShareInfo(g: GameState, now: Date): ShareInfo {
   const map = daily ? dailyMapIndex(g.seed) + 1 : ENDLESS_CHAPTER;
   return {
     mode: daily ? 'daily' : 'endless',
-    title: daily ? `每日挑战 · ${dayLabel(g.seed)}` : '无尽模式',
-    subtitle: `${CHAPTERS[map - 1].name}地图`,
+    title: daily ? tr(`每日挑战 · ${dayLabel(g.seed)}`, `Daily Challenge · ${dayLabel(g.seed)}`) : tr('无尽模式', 'Endless'),
+    subtitle: tr(`${chapterName(map)}地图`, `${chapterName(map)} map`),
     map,
     won: false,
     waves: wavesSurvived(g),
@@ -115,11 +116,16 @@ const STAR_WORDS = ['', '一', '两', '三'];
 
 /** The words sent with the picture (also its alt text): the run in one line, then the address when there is one. */
 export function shareText(info: ShareInfo, url: string): string {
+  const link = url ? ` ${url}` : '';
+  const held = `${info.waves}/${info.totalWaves ?? info.waves}`;
   let result: string;
-  if (info.mode !== 'chapter') result = `撑过第 ${info.waves} 波`;
-  else if (info.won) result = `${info.stars ? `${STAR_WORDS[info.stars]}星` : ''}通关`;
-  else result = `守住 ${info.waves}/${info.totalWaves ?? info.waves} 波`;
-  return `《${GAME_NAME}》${info.title}：${result}，${DEFEAT} ${info.kills} 只妖怪！${url ? ` ${url}` : ''}`;
+  if (info.mode !== 'chapter') result = tr(`撑过第 ${info.waves} 波`, `held ${info.waves} waves`);
+  else if (info.won) result = tr(`${info.stars ? `${STAR_WORDS[info.stars]}星` : ''}通关`, info.stars ? `cleared with ${info.stars} ${info.stars === 1 ? 'star' : 'stars'}` : 'cleared');
+  else result = tr(`守住 ${held} 波`, `held ${held} waves`);
+  return tr(
+    `《${gameName()}》${info.title}：${result}，${DEFEAT} ${info.kills} 只妖怪！${link}`,
+    `${gameName()} · ${info.title}: ${result}, ${info.kills} monsters defeated!${link}`,
+  );
 }
 
 /** A share is being prepared, or its sheet is open. */
