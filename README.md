@@ -2,7 +2,7 @@
 
 以字为兵的汉字合成塔防 H5 小游戏，玩法像《王国保卫战》：每章一张手绘地图，妖怪沿着路从城门走向师父的营地，路边有一个个石台，把书法字卡拖到石台上，它就变成一面写着这个字的军旗和一队小兵，这就是一座塔。同字合成升级，凑齐名字觉醒英雄；英雄攒满怒气放大招，波间奇遇三选一，通关拿灵石炼法宝。地图比屏幕大，可以拖动和缩放。纯 Canvas 2D 绘制，运行时零依赖，美术全部由代码画出，音效和音乐全部由 WebAudio 现场合成。
 
-线上地址：https://zidou-xiyou.vercel.app （推 `main` 自动部署；国内网络可能打不开）。首页右下角的浅色小字是版本号、构建提交和当前域名，反馈问题时截图带上。浏览器语言不是中文时显示英文版 **Glyph Legion**（见下面的「英文版」）。
+线上地址：https://zidou-xiyou.vercel.app （推 `main` 自动部署；国内网络可能打不开）。首页右下角的浅色小字是版本号、构建提交和当前域名，反馈问题时截图带上。浏览器语言不是中文时显示英文版 **Glyph Legion**（见下面的「英文版」）。英文版也上架了 itch.io：https://priority3.itch.io/glyph-legion （手动上传 `pnpm build:en` 的包，不随 `main` 自动更新）。
 
 <p align="center">
   <img src="docs/screenshots/title.jpg" width="19%" alt="首页">
@@ -82,6 +82,7 @@ pnpm font         # 新增中文文字后，用 fonts/ 里的原字体重新裁�
 - 网页版按浏览器语言选：浏览器首选语言是中文就显示中文，否则显示英文；首页左上角和暂停面板有切换按钮（显示要切到的语言：English / 中文），选择存在本机的 `yzcj:lang`，以后打开都按它。
 - 英文模式不显示启动时的健康游戏忠告和 12+ 适龄提示（这是国内的要求），关于页换成英文的隐私政策和用户协议（`src/config/legal-en.ts`），只有 Privacy、Terms、Contact 三节。
 - `pnpm build:en` 打给海外游戏门户（itch.io、CrazyGames 一类）的包，输出到 `dist-en/`：固定英文、没有切换按钮，不带离线缓存、新版本提示和地图编辑器，版本号旁不写域名，战报不附网址，页面的 `lang` 和标题也是英文。本地看效果：`pnpm build:en` 后 `pnpm exec vite preview --mode en`。
+- itch.io 版：https://priority3.itch.io/glyph-legion ，2026 年 10 月 26 日上线，免费、可以打赏（itch.io 的 HTML5 游戏只能收打赏），页面里嵌入 405×720 的竖屏画面，可以全屏，手机上也能玩。更新时重新 `pnpm build:en`，在 `dist-en/` 里把全部文件打成 zip（`index.html` 要在 zip 根目录），到项目的 Edit game 里替换上传的文件。拍商店截图用 `pnpm exec vite --mode en`：画面和门户包一样固定英文，同时有开发用的 `window.__yzcj` 钩子可以切场景。上架物料（zip、封面、截图、页面文案和截图脚本）放在本机的 `release/itch/`，这个目录不进仓库。
 - 小游戏版固定中文（抖音备案不允许游戏里出现英文）：小游戏入口不打开语言切换就行。
 - 加文字的写法：界面文字直接写 `tr('中文', 'English')`（`src/i18n/lang.ts`）；字卡、妖怪、章节、法宝、大招、奇遇、石台这些数据的英文在 `src/i18n/en-tables.ts`，按 id 对应，显示时通过 `src/i18n/names.ts` 取当前语言。id 本身（棍、悟空、金刚琢、白骨精……）存档和哈希都在用，永远不翻译。
 - 字卡和字旗上的汉字、法宝圆牌上的两个字、营和妖的旗、Boss 波的王、金字印、战报印章都是美术，英文版照样画汉字；`tests/english.test.ts` 把每个画面按英文画一遍，检查除这些以外没有中文。
